@@ -53,6 +53,11 @@ async function render(j) {
   const engine = new SidAudioEngine({ module, sampleRate: j.sampleRate, stereo: j.channels === 2 });
   j.engine = engine;
   await engine.loadSidBuffer(new Uint8Array(j.bytes), j.song);
+  if (j.sound) {
+    // Chip/machine first: it reloads the tune, then the filter tuning sticks to the new context.
+    await engine.setEmulationConfig(j.sound.emulation);
+    if (engine.supportsFilterConfig()) engine.setFilterConfig(j.sound.filter);
+  }
   if (j.startFrame > 0) await engine.seekSeconds(j.startFrame / j.sampleRate);
   if (j.cancelled) return;
   self.postMessage({ type: "started", token: j.token, info: engine.getTuneInfo() });

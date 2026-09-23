@@ -100,7 +100,7 @@ export function confirmDialog(header, message, confirm = "Delete") {
 // - Chrome/Edge desktop: a native Save dialog (pick a synced cloud folder)
 // - otherwise: a plain download.
 // Resolves to "shared" | "saved" | "downloaded" | "cancelled".
-export async function saveFile(fileName, text, type, { title } = {}) {
+export async function saveFile(fileName, text, type, { title, description = "M3U8 playlist", extension = ".m3u8" } = {}) {
   const file = new File([text], fileName, { type });
   const touch = window.matchMedia("(pointer: coarse)").matches;
   if (touch && navigator.canShare?.({ files: [file] })) {
@@ -116,7 +116,7 @@ export async function saveFile(fileName, text, type, { title } = {}) {
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName: fileName,
-        types: [{ description: "M3U8 playlist", accept: { "audio/x-mpegurl": [".m3u8"] } }],
+        types: [{ description, accept: { [type]: [extension] } }],
       });
       const writable = await handle.createWritable();
       await writable.write(file);

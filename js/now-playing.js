@@ -10,12 +10,13 @@ const DESKTOP = window.matchMedia("(min-width: 992px)");
 const HINT_KEY = "shallowsid.swipeHintSeen";
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, isFavorite, onToggleFavorite }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, isFavorite, onToggleFavorite, onOpenSound }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
+    this.onOpenSound = onOpenSound;
     const $ = (id) => document.getElementById(id);
     this.el = {
       mini: $("mini"), miniArt: $("mini-art"), miniTitle: $("mini-title"), miniAuthor: $("mini-author"),
@@ -24,7 +25,7 @@ export class NowPlaying {
       art: $("np-art"), title: $("np-title"), author: $("np-author"), released: $("np-released"),
       badges: $("np-badges"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
-      add: $("np-add"), folder: $("np-folder"), fav: $("np-fav"), queue: $("np-queue"), hint: $("np-hint"),
+      add: $("np-add"), folder: $("np-folder"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"), hint: $("np-hint"),
     };
     this.waveform = new Waveform($("np-wave"), {
       onScrub: (s) => player.scrub(s),
@@ -66,6 +67,7 @@ export class NowPlaying {
     el.next.addEventListener("click", () => p.next());
     el.add.addEventListener("click", () => p.current && this.onAddToPlaylist(p.current));
     el.fav.addEventListener("click", () => p.current && this.onToggleFavorite(p.current));
+    el.sound.addEventListener("click", () => this.onOpenSound());
     el.folder.addEventListener("click", () => {
       if (!p.current) return;
       this.close();

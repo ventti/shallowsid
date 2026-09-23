@@ -20,6 +20,7 @@ export class Player extends EventTarget {
   constructor({ sidUrls }) {
     super();
     this.sidUrls = sidUrls;             // (item) => candidate URLs of the .sid file
+    this.sound = null;                  // {emulation, filter} for the engine, see sound-profile.js
     this.queue = [];
     this.index = -1;
     this.state = "idle";
@@ -129,9 +130,27 @@ export class Player extends EventTarget {
     // Transfer a copy so a later restart (seek into evicted audio) can reuse the bytes.
     const copy = bytes.slice(0);
     this.worker.postMessage(
-      { type: "load", token: this.token, bytes: copy, song: item.song - 1, sampleRate, channels, startFrame, stopFrame },
+      { type: "load", token: this.token, bytes: copy, song: item.song - 1, sampleRate, channels, startFrame, stopFrame, sound: this.sound },
       [copy],
     );
+  }
+
+  // Re-render the current tune from `frame` under a new token, so audio still
+  // in flight from the previous render is ignored.
+  restartRender(frame) {
+    this.token++;
+    this.startRender(this.current, this.bytes, frame);
+    this.buffered = this.bufferedFrom = frame / this.ctx.sampleRate;
+    this.peaks = new Float32Array(this.peaks.length);
+    this.emitPeaks();
+    if (this.state === "playing") this.node.port.postMessage({ type: "play" });
+  }
+
+  // Apply a new chip/filter setup; the current tune continues from where it is.
+  setSound(sound) {
+    this.sound = sound;
+    if (!this.node || !this.current || !this.bytes) return;
+    this.restartRender(Math.round(this.position * this.ctx.sampleRate));
   }
 
   next() {
@@ -178,8 +197,7 @@ export class Player extends EventTarget {
     const frame = Math.round(s * this.ctx.sampleRate);
     if (s < this.bufferedFrom) {
       // That audio was evicted (very long tune): re-render from the target.
-      this.startRender(this.current, this.bytes, frame);
-      this.buffered = this.bufferedFrom = s;
+      this.restartRender(frame);
     }
     this.node.port.postMessage({ type: "seek", frame });
     this.position = s;

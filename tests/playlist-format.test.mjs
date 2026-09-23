@@ -52,4 +52,5 @@ test("file names are filesystem-safe", () => {
   assert.equal(safeFileName("///"), "ShallowSID - Playlist.m3u8");
   assert.equal(nameFromFileName("ShallowSID - Hubbard best of.m3u8"), "Hubbard best of");
   assert.equal(nameFromFileName("mix.m3u"), "mix");
+  assert.equal(safeFileName("Sound - Warm 6581", ".json"), "ShallowSID - Sound - Warm 6581.json");
 });

@@ -22,6 +22,15 @@ Written for my own use, so beware of peculiarities.
 - **Waveform**: drag to scrub (you hear it), release to seek. Grey bars are rendered audio; the flat line is still being rendered.
 - **Subtune**: pick one from the Now Playing view.
 
+Sound (the **Sound** button in Now Playing):
+
+- **Auto-select** plays each tune on the chip it was written for. This is the default.
+- **MOS 6581R4AR 0687 14** and **CSG 8580R5 1690 25** force one chip for every tune. They are the two chips reSIDfp's filter model was measured on, and the only chip presets with real measurements behind them.
+- **Adjust**: chip (Auto/6581/8580), machine (Auto/PAL/NTSC; Auto follows each tune), 6581 filter curve and range, 8580 filter curve, old 6581 capacitors, combined waveforms and 8580 digi boost. Changes play from where the tune is.
+  - Adjusting a measured chip creates an edited copy. **Save as new preset…** keeps it. Your own presets save automatically.
+  - Presets export and import as `ShallowSID - Sound - <name>.json`.
+  - CheeseCutter/VICE-style chip profiles (6581R3 4885, …) use the older reSID-fp filter model, so they don't carry over.
+
 Gestures on phones:
 
 - Mini-player: **tap** or **swipe up** opens Now Playing. **Swipe down** plays or pauses. **Swipe left/right** skips.

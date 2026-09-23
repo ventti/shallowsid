@@ -6,6 +6,9 @@ import { Player } from "./player/player.js";
 import { connectMediaSession } from "./player/media-session.js";
 import { decodeShare, encodeShare, nameFromFileName, parseM3U8, safeFileName, toM3U8 } from "./playlist-format.js";
 import { PlaylistStore } from "./playlists.js";
+import { toEngineConfig } from "./sound-profile.js";
+import { SoundSettings } from "./sound-settings.js";
+import { SoundSheet } from "./sound-sheet.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
@@ -25,12 +28,26 @@ const dom = {
 const store = new PlaylistStore();
 const player = new Player({ sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)) });
 connectMediaSession(player);
-globalThis.shallowsid = { player, store };   // handy from the devtools console
+const sound = new SoundSettings();
+const soundSheet = new SoundSheet(sound);
+// Re-render the playing tune only when the engine setup really changes.
+let appliedSound = "";
+function applySound() {
+  const config = toEngineConfig(sound.current);
+  const key = JSON.stringify(config);
+  if (key === appliedSound) return;
+  appliedSound = key;
+  player.setSound(config);
+}
+sound.addEventListener("change", applySound);
+applySound();
+globalThis.shallowsid = { player, store, sound };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
+  onOpenSound: () => soundSheet.open(),
 });
 
 let index = null;               // IndexStore, once loaded

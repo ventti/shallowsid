@@ -80,6 +80,18 @@
       <ion-content><div id="np-host"></div></ion-content>
     </ion-modal>
 
+    <ion-modal id="sound-modal" class="sound-modal">
+      <ion-header>
+        <ion-toolbar>
+          <ion-buttons slot="start"><ion-button id="sound-revert" hidden>Revert</ion-button></ion-buttons>
+          <ion-title>Sound</ion-title>
+          <ion-buttons slot="end"><ion-button id="sound-done" strong="true">Done</ion-button></ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="sound-content"><div id="sound-sheet"></div></ion-content>
+    </ion-modal>
+    <input type="file" id="sound-import-input" accept=".json,application/json" hidden>
+
     <!-- Now Playing: moved between the modal (phones) and the side panel (desktop) -->
     <section id="np" class="np is-paused">
       <div class="np-art-wrap">
@@ -109,6 +121,7 @@
         <ion-select id="np-subtune" interface="action-sheet" label="Subtune" label-placement="stacked" hidden></ion-select>
         <ion-button fill="clear" size="small" id="np-add"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Playlist</ion-button>
         <ion-button fill="clear" size="small" id="np-folder"><ion-icon slot="start" name="folder-open-outline"></ion-icon>Folder</ion-button>
+        <ion-button fill="clear" size="small" id="np-sound"><ion-icon slot="start" name="options-outline"></ion-icon>Sound</ion-button>
       </div>
       <p id="np-hint" class="np-hint">Tap the cover to play/pause · swipe it to skip</p>
       <ion-list id="np-queue" class="np-queue" lines="none"></ion-list>

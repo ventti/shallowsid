@@ -87,9 +87,9 @@ const FILE_PREFIX = "ShallowSID - ";
 
 // "ShallowSID - Hubbard classics.m3u8": recognisable in iCloud/Drive/Dropbox,
 // and free of characters that file systems or cloud drives reject.
-export function safeFileName(name) {
+export function safeFileName(name, extension = ".m3u8") {
   const clean = name.replace(/[^\p{L}\p{N}\-_ .,'()&]/gu, " ").replace(/\s+/g, " ").replace(/^[\s.]+|[\s.]+$/g, "");
-  return `${FILE_PREFIX}${clean || "Playlist"}.m3u8`;
+  return `${FILE_PREFIX}${clean || "Playlist"}${extension}`;
 }
 
 // Playlist name implied by a file name, for files without a #PLAYLIST line.

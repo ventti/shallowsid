@@ -430,3 +430,55 @@ ion-app > .np {
   --height: 100%;
   --background: var(--ion-background-color);
 }
+
+/* ---- Sound sheet ------------------------------------------------------------ */
+
+.sound-content {
+  --background: var(--ion-background-color);
+}
+
+.sound-content ion-list[inset] ion-item {
+  --background: var(--app-surface);
+}
+
+.sound-content ion-segment {
+  width: auto;
+  min-width: 190px;
+  max-width: 240px;
+}
+
+.sound-content ion-range {
+  --bar-background-active: var(--app-accent);
+  --knob-background: #fff;
+}
+
+.range-value {
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
+  margin-inline-start: 6px;
+}
+
+.edited-mark {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-accent);
+  margin-inline-start: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sound-note {
+  margin: 0 20px 8px;
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+/* iOS Settings-style section labels, above each card */
+.sound-section {
+  margin: 20px 20px -8px;
+  font-size: 13px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--app-muted);
+}
