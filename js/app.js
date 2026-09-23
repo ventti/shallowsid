@@ -93,8 +93,9 @@ function go(hash) {
 }
 
 function currentRoute() {
-  const [name = "search", ...rest] = location.hash.replace(/^#\/?/, "").split("/");
-  return { name, arg: rest.length ? decodeURIComponent(rest.join("/")) : "" };
+  // No hash (plain site URL) splits to [""]: treat it as the search view.
+  const [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
+  return { name: name || "search", arg: rest.length ? decodeURIComponent(rest.join("/")) : "" };
 }
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
