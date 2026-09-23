@@ -19,6 +19,7 @@ globalThis.fetch = async (url, { method = "GET", body } = {}) => {
   const json = (status, obj) => ({ ok: status < 300, status, statusText: "", json: async () => obj });
   const doc = docs.get(id);
   if (method === "GET") return doc ? json(200, doc) : json(404, { error: { status: "NOT_FOUND", message: "no doc" } });
+  if (doc?.fields.v.integerValue === "2") return json(403, { error: { status: "PERMISSION_DENIED", message: "moved" } });   // as firestore.rules
   if (method === "DELETE") { docs.delete(id); return json(200, {}); }
   const exists = u.searchParams.get("currentDocument.exists");
   const wantTime = u.searchParams.get("currentDocument.updateTime");
@@ -47,7 +48,7 @@ function device(name) {
   globalThis.localStorage = saved;
   // route this device's storage calls through its namespace from now on
   for (const obj of [store, sound, sync]) {
-    for (const m of ["save", "persist", "addRecent"]) {
+    for (const m of ["save", "persist", "addRecent", "addPlay", "markPlayed", "applySyncedHistory"]) {
       if (typeof obj[m] !== "function") continue;
       const orig = obj[m].bind(obj);
       obj[m] = (...a) => { const s = globalThis.localStorage; globalThis.localStorage = scoped; try { return orig(...a); } finally { globalThis.localStorage = s; } };
@@ -146,7 +147,7 @@ test("pausing keeps the key; resuming catches up; a new key starts a new copy", 
   assert.equal(docs.size, 2);
 });
 
-test("devices list both devices, encrypted, and a removed one comes back when it syncs", async () => {
+test("devices list both devices, encrypted, each with a public key", async () => {
   const a = device("a"), b = device("b");
   await a.sync.turnOn();
   await b.sync.useKey(a.sync.key);
@@ -154,12 +155,103 @@ test("devices list both devices, encrypted, and a removed one comes back when it
   assert.equal(a.sync.devices.length, 2);
   assert.equal(a.sync.devices[0].id, a.sync.deviceId);      // this device first
   assert.notEqual(a.sync.deviceId, b.sync.deviceId);
+  assert.ok(a.sync.devices.every((d) => d.pub));
   assert.ok(!JSON.stringify([...docs.values()]).includes(b.sync.deviceId));   // ciphertext only
-  a.sync.removeDevice(b.sync.deviceId);
+});
+
+test("removing a device moves sync to a new key the others follow and it can't", async () => {
+  const a = device("a"), b = device("b"), c = device("c");
+  a.store.create("Shared");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await c.sync.useKey(a.sync.key);
   await a.sync.syncNow();
-  assert.equal(a.sync.devices.length, 1);
-  await b.sync.syncNow();       // b learns it was removed...
-  await b.sync.syncNow();       // ...and, still in use, puts itself back
+  const oldKey = a.sync.key;
+  await a.sync.removeDevice(c.sync.deviceId);
+  assert.equal(a.sync.status, "synced");
+  assert.notEqual(a.sync.key, oldKey);
+  assert.deepEqual(a.sync.devices.map((d) => d.id).sort(), [a.sync.deviceId, b.sync.deviceId].sort());
+  b.store.create("From B");
+  await b.sync.syncNow();         // finds the moved record, takes the new key, syncs there
+  assert.equal(b.sync.key, a.sync.key);
   await a.sync.syncNow();
-  assert.equal(a.sync.devices.length, 2);
+  assert.deepEqual(a.store.playlists.map((p) => p.name).sort(), ["From B", "Shared"]);
+  await c.sync.syncNow();
+  assert.equal(c.sync.hasKey, false);
+  assert.equal(c.sync.removed, true);
+  assert.equal(c.sync.status, "error");
+  assert.deepEqual(c.store.playlists.map((p) => p.name), ["Shared"]);   // keeps what it had
+  const seen = requests.length;
+  await c.sync.syncNow();
+  assert.equal(requests.length, seen);
+  await c.sync.useKey(oldKey);     // the old key only leads to the moved record
+  assert.equal(c.sync.hasKey, false);
+});
+
+test("a device on an older version (no public key) is left behind, and the move can't be undone", async () => {
+  const a = device("a"), b = device("b"), c = device("c");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await c.sync.useKey(a.sync.key);
+  const oldCopy = [...docs.keys()][0];
+  // b lists itself as an older version would: no public key
+  b.sync.state.deviceKeys = { ...b.sync.state.deviceKeys, pub: undefined };
+  await b.sync.syncNow();
+  await a.sync.syncNow();
+  assert.deepEqual(a.sync.leftBehind(c.sync.deviceId).map((d) => d.id), [b.sync.deviceId]);
+  await a.sync.removeDevice(c.sync.deviceId);
+  assert.deepEqual(a.sync.devices.map((d) => d.id), [a.sync.deviceId]);
+  await b.sync.syncNow();
+  assert.equal(b.sync.removed, true);
+  const del = await fetch(`https://x/vaults/${oldCopy}?key=k`, { method: "DELETE" });
+  assert.equal(del.status, 403);
+});
+
+test("older versions stop at a moved record instead of reading it as empty data", async () => {
+  const a = device("a"), b = device("b");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  const [oldId] = [...docs.keys()];
+  await a.sync.removeDevice(b.sync.deviceId);
+  assert.equal(docs.get(oldId).fields.v.integerValue, "2");   // FORMAT_VERSION 1 clients throw on v > 1
+});
+
+test("play history syncs: counts add up once, recent lists interleave, rejoining doesn't double", async () => {
+  const a = device("a"), b = device("b");
+  const x = { path: "X.sid", song: 1 }, y = { path: "Y.sid", song: 1 };
+  a.store.addPlay(x);
+  a.store.addRecent(x);
+  const list = a.store.create("Mix");
+  a.store.markPlayed(list.id);
+  await a.sync.turnOn();
+  b.store.addPlay(x);
+  b.store.addRecent(y);
+  await b.sync.useKey(a.sync.key);
+  await a.sync.syncNow();
+  for (const d of [a, b]) {
+    assert.deepEqual(d.store.mostPlayed().map((p) => [p.path, p.count]), [["X.sid", 2]]);
+    assert.deepEqual(d.store.recent.map((r) => r.path).sort(), ["X.sid", "Y.sid"]);
+    assert.deepEqual(d.store.recentPlaylists().map((p) => p.name), ["Mix"]);
+  }
+  b.store.addPlay(x);
+  await b.sync.syncNow();
+  await a.sync.syncNow();
+  await a.sync.syncNow();       // nothing new: counts stay put
+  assert.equal(a.store.mostPlayed()[0].count, 3);
+  b.sync.turnOff();
+  await b.sync.useKey(a.sync.key);
+  assert.equal(b.store.mostPlayed()[0].count, 3);
+});
+
+test("a play conflicting with another device's push is counted once", async () => {
+  const a = device("a"), b = device("b");
+  const x = { path: "X.sid", song: 1 };
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  a.store.addPlay(x);
+  b.store.addPlay(x);
+  await a.sync.syncNow();
+  await b.sync.syncNow();       // stale precondition: b retries
+  await a.sync.syncNow();
+  for (const d of [a, b]) assert.equal(d.store.mostPlayed()[0].count, 2);
 });

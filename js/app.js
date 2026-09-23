@@ -158,6 +158,7 @@ function composerChip(credit) {
 const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT).map(composerChip);
 const chips = (list) => `<div class="chips">${list.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>`;
 
+const playedWhere = () => (sync.enabled ? "on your devices" : "on this device");
 const mostPlayedItems = () => resolveItems(store.mostPlayed(MOST_PLAYED_COUNT)).filter((i) => !i.missing);
 const recentItems = () => resolveItems(store.recent).filter((i) => !i.missing);
 
@@ -592,8 +593,8 @@ function render() {
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
     case "sync": return joinSyncLink(arg);
-    case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes on this device`);
-    case "recent": return renderGenerated("Recently played", recentItems(), "The tunes you played last on this device");
+    case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes ${playedWhere()}`);
+    case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
     case "home": return renderHome();
     default: return renderSearch();
   }

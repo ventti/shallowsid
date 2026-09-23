@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateKey, parseKey } from "../js/sync-crypto.js";
-import { DEVICE_TTL_MS, foldFavorites, mergeDevices, mergeItems, mergeLists, mergePrefs, mergeSnapshots } from "../js/sync-merge.js";
+import { DEVICE_TTL_MS, foldFavorites, mergeDevices, mergeItems, mergeLists, mergePlays, mergePrefs, mergeRecent, mergeSnapshots } from "../js/sync-merge.js";
 
 test("sync keys format readably and parse back", () => {
   for (let i = 0; i < 50; i++) {
@@ -94,4 +94,25 @@ test("devices: each side's own refresh wins, removals stick, stale ones drop off
   const local = [{ ...a, updated: now }, old];          // a refreshed itself, removed b
   const remote = [a, b, old, { id: "c", os: "Android", updated: now }];   // c joined
   assert.deepEqual(mergeDevices(base, local, remote, now).map((d) => [d.id, d.updated]), [["a", now], ["c", now]]);
+});
+
+test("plays: new plays on both sides add up, dropped tunes count as unchanged, the least played go past the limit", () => {
+  const base = { a: [2, 10], b: [1, 5] };
+  const local = { a: [3, 20], c: [1, 30] };             // a played once more, b dropped, c new
+  const remote = { a: [4, 25], b: [1, 5], d: [1, 1] };  // a played twice more, d new
+  assert.deepEqual(mergePlays(base, local, remote), { a: [5, 25], b: [1, 5], c: [1, 30], d: [1, 1] });
+  assert.deepEqual(Object.keys(mergePlays({}, { a: [1, 1], b: [3, 1] }, { c: [2, 1] }, 2)), ["b", "c"]);
+});
+
+test("plays: the first push doesn't count local plays twice; joining adds both devices' plays", () => {
+  const local = { playlists: [], soundPresets: [], prefs: {}, plays: { a: [2, 1] } };
+  assert.deepEqual(mergeSnapshots(null, local, local).plays, { a: [2, 1] });
+  assert.deepEqual(mergeSnapshots(null, local, { ...local, plays: { a: [3, 2] } }).plays, { a: [5, 2] });
+});
+
+test("recent lists interleave by time, keep each entry once and stay short", () => {
+  const t = (path, at) => ({ path, song: 1, at });
+  assert.deepEqual(mergeRecent([t("A", 5), t("B", 1)], [t("C", 3), t("A", 2)]).map((x) => x.path), ["A", "C", "B"]);
+  assert.deepEqual(mergeRecent([{ id: "p", at: 1 }], [{ id: "q", at: 2 }, { id: "p", at: 0 }]).map((x) => x.id), ["q", "p"]);
+  assert.equal(mergeRecent(Array.from({ length: 40 }, (_, i) => t(`T${i}`, i)), []).length, 30);
 });

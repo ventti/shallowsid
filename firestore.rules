@@ -4,6 +4,9 @@ rules_version = '2';
 // The id is derived from a 128-bit key that only the user's devices know, and
 // the content is encrypted in the browser, so there are no accounts: knowing
 // the id is the permission. Listing is forbidden, so ids can't be discovered.
+// v 2 marks a "moved" record, left when a device is removed from sync (see
+// js/sync.js). It can't be changed or deleted, so the removed device, which
+// still knows this id, can't hide from the others where the data went.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /vaults/{id} {
@@ -22,8 +25,14 @@ service cloud.firestore {
           && d.expireAt < request.time + duration.value(400, 'd');
       }
 
-      allow get, delete: if validId();
-      allow create, update: if validId() && validData();
+      function notMoved() {
+        return resource == null || resource.data.v < 2;
+      }
+
+      allow get: if validId();
+      allow delete: if validId() && notMoved();
+      allow create: if validId() && validData();
+      allow update: if validId() && validData() && notMoved();
       allow list: if false;
     }
 

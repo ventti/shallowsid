@@ -28,8 +28,10 @@ function since(time) {
 
 const DEVICE_ICONS = { iPhone: "phone-portrait-outline", Android: "phone-portrait-outline", iPad: "tablet-portrait-outline", macOS: "laptop-outline", ChromeOS: "laptop-outline" };
 
+const deviceName = (d) => (d.app ? `ShallowSID app on ${d.os}` : `${d.browser} on ${d.os}`);
+
 function deviceRow(d, self, last) {
-  const name = d.app ? `ShallowSID app on ${d.os}` : `${d.browser} on ${d.os}`;
+  const name = deviceName(d);
   const detail = [d.place, self ? "This device" : since(d.updated)].filter(Boolean).join(" · ");
   return `<ion-item ${self ? "" : `button detail="false" data-device="${esc(d.id)}"`} ${last ? `lines="none"` : ""}>
     <ion-icon slot="start" name="${DEVICE_ICONS[d.os] ?? "desktop-outline"}" color="${self ? "primary" : "medium"}"></ion-icon>
@@ -77,7 +79,7 @@ export class SyncSheet {
 
   render() {
     const s = this.sync;
-    const intro = `<p class="sound-note">Keeps your playlists, favorites and sound presets the same on all your devices.
+    const intro = `<p class="sound-note">Keeps your playlists, favorites, sound presets and play history the same on all your devices.
       Everything is encrypted on this device with a sync key only your devices know. There are no accounts,
       and the server stores nothing it can read. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy</a></p>`;
     if (!s.hasKey) {
@@ -89,6 +91,7 @@ export class SyncSheet {
           </ion-item>
           ${this.joinItems()}
         </ion-list>
+        ${s.removed ? `<p class="sound-note">Sync moved to a new key on another device, without this one. To sync again, use the key from a device that still syncs.</p>` : ""}
         ${intro}`;
       return;
     }
@@ -149,7 +152,7 @@ export class SyncSheet {
       <h3 class="sound-section">Devices</h3>
       <ion-list inset>${devices.map((d, i) => deviceRow(d, d.id === s.deviceId, i === devices.length - 1)).join("")}</ion-list>
       <p class="sound-note">Devices using this key. The place is a guess from each device's time zone, not its location.
-        Tap a device you no longer use to take it off the list.</p>`;
+        Tap a device you no longer use to remove it from sync.</p>`;
   }
 
   // Drawn once per key; later renders reuse the SVG.
@@ -205,7 +208,11 @@ export class SyncSheet {
     const s = this.sync;
     const device = e.target.closest("[data-device]")?.dataset.device;
     if (device) {
-      if (await confirmDialog("Remove this device?", "It comes back on the list if it syncs with this key again. To stop it for good, use a new key.", "Remove")) s.removeDevice(device);
+      const behind = s.leftBehind(device).map(deviceName);
+      const note = behind.length ? ` ${behind.join(", ")} ${behind.length === 1 ? "hasn't" : "haven't"} synced since this update, so ${behind.length === 1 ? "it needs" : "they need"} the new key entered by hand.` : "";
+      if (!(await confirmDialog("Remove this device?", `Sync moves to a new key that this device doesn't get. Your other devices switch over the next time they sync.${note}`, "Remove"))) return;
+      await s.removeDevice(device);
+      if (s.status === "synced") toast("Device removed, sync key changed");
       return;
     }
     const id = e.target.closest("ion-item[id], ion-button[id]")?.id;

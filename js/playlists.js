@@ -1,16 +1,15 @@
 // Playlists, recently played tunes and playlists, and play counts, kept in
-// this browser's localStorage.
+// this browser's localStorage (and synced, see sync.js).
 // Storage can be unavailable (private mode, blocked site data); everything
 // still works for the session, it just isn't remembered.
 
 import { sanitizeItems, sanitizeName } from "./live-share-core.js";
+import { MAX_PLAYS, MAX_RECENT, mergePlays, mergeRecent } from "./sync-merge.js";
 
 const PLAYLISTS_KEY = "shallowsid.playlists";
 const RECENT_KEY = "shallowsid.recent";
 const PLAYS_KEY = "shallowsid.plays";
 const PLAYED_LISTS_KEY = "shallowsid.playedLists";
-const MAX_RECENT = 30;
-const MAX_PLAYS = 2000;   // tunes with play counts; the least played are dropped
 const FAVORITES_NAME = "Favorites";
 
 function read(key, fallback) {
@@ -33,9 +32,31 @@ export class PlaylistStore extends EventTarget {
   constructor() {
     super();
     this.playlists = read(PLAYLISTS_KEY, []);
-    this.recent = read(RECENT_KEY, []);
+    this.recent = read(RECENT_KEY, []);   // {path, song, at}, last played first
     this.plays = read(PLAYS_KEY, {});   // "path#song" -> [count, last played]
-    this.playedLists = read(PLAYED_LISTS_KEY, []);   // playlist ids, last played first
+    // {id, at}, last played first; older versions kept bare ids
+    this.playedLists = read(PLAYED_LISTS_KEY, []).map((p) => (typeof p === "string" ? { id: p } : p));
+  }
+
+  // Play history changed here ("history" event, which sync listens to).
+  saveHistory() {
+    this.persistHistory();
+    this.dispatchEvent(new Event("history"));
+  }
+
+  persistHistory() {
+    write(RECENT_KEY, this.recent);
+    write(PLAYS_KEY, this.plays);
+    write(PLAYED_LISTS_KEY, this.playedLists);
+  }
+
+  // Synced history in (see sync.js). `since` is the history it was merged
+  // from; plays made here after that are kept on top.
+  applySyncedHistory({ plays, recent, playedLists }, since) {
+    this.plays = mergePlays(since.plays, this.plays, plays);
+    this.recent = mergeRecent(this.recent, recent);
+    this.playedLists = mergeRecent(this.playedLists, playedLists);
+    this.persistHistory();
   }
 
   // `changed` gets a fresh `updated` time, which sync uses to resolve edits made on two devices.
@@ -138,18 +159,18 @@ export class PlaylistStore extends EventTarget {
   }
 
   addRecent(item) {
-    this.recent = [{ path: item.path, song: item.song }, ...this.recent.filter((r) => !(r.path === item.path && r.song === item.song))].slice(0, MAX_RECENT);
-    write(RECENT_KEY, this.recent);
+    this.recent = [{ path: item.path, song: item.song, at: Date.now() }, ...this.recent.filter((r) => !(r.path === item.path && r.song === item.song))].slice(0, MAX_RECENT);
+    this.saveHistory();
   }
 
   markPlayed(id) {
-    this.playedLists = [id, ...this.playedLists.filter((p) => p !== id)].slice(0, MAX_RECENT);
-    write(PLAYED_LISTS_KEY, this.playedLists);
+    this.playedLists = [{ id, at: Date.now() }, ...this.playedLists.filter((p) => p.id !== id)].slice(0, MAX_RECENT);
+    this.saveHistory();
   }
 
   // Playlists played from, last first; deleted ones (here or via sync) drop out.
   recentPlaylists() {
-    return this.playedLists.map((id) => this.get(id)).filter(Boolean);
+    return this.playedLists.map((p) => this.get(p.id)).filter(Boolean);
   }
 
   addPlay(item) {
@@ -157,7 +178,7 @@ export class PlaylistStore extends EventTarget {
     this.plays[key] = [(this.plays[key]?.[0] ?? 0) + 1, Date.now()];
     const extra = Object.keys(this.plays).length - MAX_PLAYS;
     if (extra > 0) this.mostPlayed().slice(-extra).forEach((p) => delete this.plays[`${p.path}#${p.song}`]);
-    write(PLAYS_KEY, this.plays);
+    this.saveHistory();
   }
 
   // Most played first; ties go to the most recently played.

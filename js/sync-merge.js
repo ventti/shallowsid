@@ -1,7 +1,7 @@
 // Three-way merge of synced data. Pure, so it runs under `node --test`.
 //
 // A snapshot is {playlists: [...], soundPresets: [...], prefs: {...},
-// devices: [...]}; list
+// devices: [...], plays: {...}, recent: [...], playedLists: [...]}; list
 // items have an `id` and, when edited, an `updated` time. `base` is the last
 // snapshot both sides agreed on, which tells additions from deletions:
 //   - kept on one side, gone on the other, unchanged since base -> deleted
@@ -10,7 +10,10 @@
 //     only takes that change; `items` lists are merged tune by tune; a field
 //     changed on both takes the side with the later `updated` (local on a tie)
 
-export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [] });
+export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [], plays: {}, recent: [], playedLists: [] });
+
+export const MAX_RECENT = 30;
+export const MAX_PLAYS = 2000;   // tunes with play counts; the least played are dropped
 
 // Devices not seen for this long drop off the list (a device that syncs again
 // puts itself back).
@@ -120,6 +123,32 @@ export function mergeDevices(base, local, remote, now = Date.now()) {
   return mergeLists(base, local, remote).filter((d) => now - (d.updated ?? 0) < DEVICE_TTL_MS);
 }
 
+// Play counts ("path#song" -> [count, last played]) add up across devices.
+// Counts only grow, so a side's new plays are its count minus base's; a tune
+// missing on one side (dropped past MAX_PLAYS) counts as unchanged there.
+export function mergePlays(base = {}, local = {}, remote = {}, limit = MAX_PLAYS) {
+  const out = [];
+  for (const key of new Set([...Object.keys(local), ...Object.keys(remote)])) {
+    const before = base[key] ?? [0, 0];
+    const l = local[key] ?? before, r = remote[key] ?? before;
+    out.push([key, [r[0] + Math.max(0, l[0] - before[0]), Math.max(l[1], r[1])]]);
+  }
+  out.sort(([, a], [, b]) => b[0] - a[0] || b[1] - a[1]);
+  return Object.fromEntries(out.slice(0, limit));
+}
+
+// Recently played tunes ({path, song, at}) or playlists ({id, at}): both sides
+// interleaved by when they were played, latest first. Nothing is ever removed
+// from these by hand, so no base is needed.
+export function mergeRecent(local = [], remote = [], limit = MAX_RECENT) {
+  const keyOf = (x) => x.id ?? `${x.path}#${x.song}`;
+  const seen = new Set();
+  return [...local, ...remote]
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
+    .filter((x) => !seen.has(keyOf(x)) && seen.add(keyOf(x)))
+    .slice(0, limit);
+}
+
 export function mergeSnapshots(base, local, remote, now = Date.now()) {
   base ??= EMPTY_SNAPSHOT;
   return {
@@ -128,5 +157,9 @@ export function mergeSnapshots(base, local, remote, now = Date.now()) {
     // First sync with existing data (joining another device): its preferences win.
     prefs: base === EMPTY_SNAPSHOT && remote !== local ? { ...local.prefs, ...remote.prefs } : mergePrefs(base.prefs, local.prefs, remote.prefs),
     devices: mergeDevices(base.devices, local.devices, remote.devices, now),
+    // Nothing synced yet (remote is local): counting both sides would double every play.
+    plays: remote === local ? local.plays ?? {} : mergePlays(base.plays, local.plays, remote.plays),
+    recent: mergeRecent(local.recent, remote.recent),
+    playedLists: mergeRecent(local.playedLists, remote.playedLists),
   };
 }

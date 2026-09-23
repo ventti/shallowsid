@@ -64,6 +64,42 @@ export async function deriveVault(keyBytes) {
   return { id, aesKey };
 }
 
+// Device key pairs (ECDH P-256) let one device hand a new sync key to the
+// devices it keeps but not to one it removes (see removeDevice in sync.js).
+// Each device keeps its private key; its public key goes in the device list.
+const ECDH = { name: "ECDH", namedCurve: "P-256" };
+
+export async function generateDeviceKeys() {
+  const pair = await crypto.subtle.generateKey(ECDH, true, ["deriveBits"]);
+  return { pub: toBase64(new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey))), priv: await crypto.subtle.exportKey("jwk", pair.privateKey) };
+}
+
+async function handoverKey(privateKey, pub) {
+  const publicKey = await crypto.subtle.importKey("raw", fromBase64(pub), ECDH, false, []);
+  const shared = await crypto.subtle.deriveBits({ name: "ECDH", public: publicKey }, privateKey, 256);
+  return crypto.subtle.deriveKey(hkdf("key-handover"), await hkdfBase(shared), { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+
+// `key` encrypted for each of `devices` ({id, pub}): {epk, keys: {id: box}}.
+export async function wrapKeyFor(key, devices) {
+  const ephemeral = await crypto.subtle.generateKey(ECDH, true, ["deriveBits"]);
+  const keys = {};
+  for (const d of devices) keys[d.id] = await encryptJSON(await handoverKey(ephemeral.privateKey, d.pub), key);
+  return { epk: toBase64(new Uint8Array(await crypto.subtle.exportKey("raw", ephemeral.publicKey))), keys };
+}
+
+// This device's copy of a handed-over key, or null when it wasn't given one.
+export async function unwrapKey(handover, id, priv) {
+  const box = handover?.keys?.[id];
+  if (!box || !priv) return null;
+  try {
+    const privateKey = await crypto.subtle.importKey("jwk", priv, ECDH, false, ["deriveBits"]);
+    return await decryptJSON(await handoverKey(privateKey, handover.epk), box);
+  } catch {
+    return null;
+  }
+}
+
 async function pipe(bytes, stream) {
   return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
 }

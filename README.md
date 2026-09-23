@@ -37,11 +37,11 @@ Sound (the **Sound** button in Now Playing):
 
 Sync (the cloud icon on **Playlists**, optional and off by default):
 
-- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites and sound presets then stay the same everywhere.
+- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites, sound presets and play history (**Recently played**, **Your most played**) then stay the same everywhere. Play counts add up across devices.
 - There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
 - **Sync This Device** pauses and resumes sync. The key is kept, so turning it back on catches up.
 - **Generate New Key…** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
-- **Devices** lists everything using the key: OS, browser, when it last synced, and a place guessed from the time zone (no location permission). Tap an old device to take it off the list. The list is encrypted with the rest.
+- **Devices** lists everything using the key: OS, browser, when it last synced, and a place guessed from the time zone (no location permission). Tap an old device to remove it: sync moves to a new key, your other devices switch over on their next sync, and the removed one can't follow. Devices not yet updated to this version have to enter the new key by hand. The list is encrypted with the rest.
 - **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
 Install as an app:
