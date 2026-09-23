@@ -95,6 +95,41 @@ export function confirmDialog(header, message, confirm = "Delete") {
   });
 }
 
+// Save a text file where the platform lets the user pick a place:
+// - phones: the share sheet (Save to Files -> iCloud Drive, Google Drive, Dropbox…)
+// - Chrome/Edge desktop: a native Save dialog (pick a synced cloud folder)
+// - otherwise: a plain download.
+// Resolves to "shared" | "saved" | "downloaded" | "cancelled".
+export async function saveFile(fileName, text, type, { title } = {}) {
+  const file = new File([text], fileName, { type });
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  if (touch && navigator.canShare?.({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title });
+      return "shared";
+    } catch (err) {
+      if (err.name === "AbortError") return "cancelled";
+      // share failed (e.g. file type refused): fall through to other options
+    }
+  }
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: "M3U8 playlist", accept: { "audio/x-mpegurl": [".m3u8"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(file);
+      await writable.close();
+      return "saved";
+    } catch (err) {
+      if (err.name === "AbortError") return "cancelled";
+    }
+  }
+  download(fileName, text, type);
+  return "downloaded";
+}
+
 export function download(fileName, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = Object.assign(document.createElement("a"), { href: url, download: fileName });

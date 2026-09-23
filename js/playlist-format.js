@@ -83,8 +83,19 @@ export async function decodeShare(blob) {
   };
 }
 
+const FILE_PREFIX = "ShallowSID - ";
+
+// "ShallowSID - Hubbard classics.m3u8": recognisable in iCloud/Drive/Dropbox,
+// and free of characters that file systems or cloud drives reject.
 export function safeFileName(name) {
-  return (name.replace(/[^\p{L}\p{N}\-_ ]/gu, "").trim().replace(/\s+/g, "_") || "playlist") + ".m3u8";
+  const clean = name.replace(/[^\p{L}\p{N}\-_ .,'()&]/gu, " ").replace(/\s+/g, " ").replace(/^[\s.]+|[\s.]+$/g, "");
+  return `${FILE_PREFIX}${clean || "Playlist"}.m3u8`;
+}
+
+// Playlist name implied by a file name, for files without a #PLAYLIST line.
+export function nameFromFileName(fileName) {
+  const base = fileName.replace(/\.m3u8?$/i, "");
+  return (base.startsWith(FILE_PREFIX) ? base.slice(FILE_PREFIX.length) : base).trim() || "Imported playlist";
 }
 
 function oneLine(s) {

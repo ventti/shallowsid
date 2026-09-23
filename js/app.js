@@ -4,9 +4,9 @@ import { loadIndex } from "./index-store.js";
 import { NowPlaying } from "./now-playing.js";
 import { Player } from "./player/player.js";
 import { connectMediaSession } from "./player/media-session.js";
-import { decodeShare, encodeShare, parseM3U8, safeFileName, toM3U8 } from "./playlist-format.js";
+import { decodeShare, encodeShare, nameFromFileName, parseM3U8, safeFileName, toM3U8 } from "./playlist-format.js";
 import { PlaylistStore } from "./playlists.js";
-import { actionSheet, confirmDialog, download, esc, prompt, toast, tuneRow } from "./ui.js";
+import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
 // SID files come from the official HVSC site (CORS-enabled, fetched one by one).
@@ -290,7 +290,7 @@ function renderPlaylist(id) {
   $("pl-shuffle").addEventListener("click", () => player.setQueue(shuffle(playable()), 0));
   $("pl-share").addEventListener("click", () => sharePlaylist(pl));
   $("pl-more").addEventListener("click", () => actionSheet(pl.name, [
-    { text: "Export .m3u8", icon: "download-outline", handler: () => exportPlaylist(pl) },
+    { text: "Save playlist file…", icon: "download-outline", handler: () => exportPlaylist(pl) },
     { text: "Share link", icon: "share-outline", handler: () => sharePlaylist(pl) },
     { text: "Rename", icon: "create-outline", handler: async () => {
       const name = await prompt("Rename playlist", { value: pl.name });
@@ -400,7 +400,7 @@ function rowMenu(item, position) {
   actionSheet(item.title || item.path, buttons);
 }
 
-function exportPlaylist(pl) {
+async function exportPlaylist(pl) {
   const text = toM3U8(pl, {
     baseUrl: SID_SOURCES[0],
     meta: (path, song) => {
@@ -408,7 +408,9 @@ function exportPlaylist(pl) {
       return t && { title: t.title, author: t.author, seconds: t.lengths?.[song - 1] ?? -1 };
     },
   });
-  download(safeFileName(pl.name), text, "audio/x-mpegurl");
+  const fileName = safeFileName(pl.name);
+  const outcome = await saveFile(fileName, text, "audio/x-mpegurl", { title: pl.name });
+  if (outcome === "saved" || outcome === "downloaded") toast(`Saved “${fileName}”`);
 }
 
 async function sharePlaylist(pl) {
@@ -430,7 +432,7 @@ async function sharePlaylist(pl) {
 }
 
 async function importFile(file) {
-  const parsed = parseM3U8(await file.text(), file.name.replace(/\.m3u8?$/i, ""));
+  const parsed = parseM3U8(await file.text(), nameFromFileName(file.name));
   if (!parsed.items.length) return toast("No SID files found in that playlist", { color: "warning" });
   const pl = store.create(parsed.name, parsed.items);
   const missing = resolveItems(parsed.items).filter((i) => i.missing).length;

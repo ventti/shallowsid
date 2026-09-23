@@ -31,8 +31,10 @@ Keyboard: **Space** plays or pauses. **Shift+←/→** skips. **F** toggles Favo
 
 Playlists:
 
-- **Export** writes an `.m3u8` with absolute hvsc.c64.org URLs. The subtune goes in an `#EXTSID:subtune=N` line.
-- **Import** accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
+- **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute hvsc.c64.org URLs. The subtune goes in an `#EXTSID:subtune=N` line.
+  - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
+  - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.
+- **Import** (the upload icon on **Playlists**) opens the system file picker, where the same cloud drives show up. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
 - **Share** makes a link with the whole playlist compressed into the URL. No server involved.
 
 ## Local development

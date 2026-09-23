@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toM3U8, parseM3U8, normalizeEntry, encodeShare, decodeShare, safeFileName } from "../js/playlist-format.js";
+import { toM3U8, parseM3U8, normalizeEntry, encodeShare, decodeShare, safeFileName, nameFromFileName } from "../js/playlist-format.js";
 
 const playlist = {
   name: "Hubbard classics",
@@ -47,6 +47,9 @@ test("share links round-trip and stay URL-safe", async () => {
 });
 
 test("file names are filesystem-safe", () => {
-  assert.equal(safeFileName("Hubbard: best/of!"), "Hubbard_bestof.m3u8");
-  assert.equal(safeFileName("///"), "playlist.m3u8");
+  assert.equal(safeFileName("Hubbard: best/of!"), "ShallowSID - Hubbard best of.m3u8");
+  assert.equal(safeFileName("Hülsbeck & friends (1987)"), "ShallowSID - Hülsbeck & friends (1987).m3u8");
+  assert.equal(safeFileName("///"), "ShallowSID - Playlist.m3u8");
+  assert.equal(nameFromFileName("ShallowSID - Hubbard best of.m3u8"), "Hubbard best of");
+  assert.equal(nameFromFileName("mix.m3u"), "mix");
 });
