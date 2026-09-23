@@ -1,0 +1,5 @@
+_site/
+data/
+hvsc/
+__pycache__/
+.DS_Store

@@ -1,0 +1,432 @@
+/* ShallowSID: small overrides on top of Ionic. Always dark; colors are tokens on :root. */
+
+:root,
+/* Ionic's dark palette also sets its tokens on `.ios body` / `.md body` */
+.ios body,
+.md body {
+  /* Lavender accent: 7.7:1 on the background, 6.9:1 on surfaces (WCAG AAA),
+     with dark text on filled buttons (7.7:1). */
+  --ion-color-primary: #a99cff;
+  --ion-color-primary-rgb: 169, 156, 255;
+  --ion-color-primary-contrast: #16131f;
+  --ion-color-primary-contrast-rgb: 22, 19, 31;
+  --ion-color-primary-shade: #9589e0;
+  --ion-color-primary-tint: #b2a6ff;
+
+  --ion-background-color: #16131f;
+  --ion-background-color-rgb: 22, 19, 31;
+  --ion-toolbar-background: #16131f;
+  --ion-tab-bar-background: #1d1929;
+  --ion-item-background: #16131f;
+
+  --app-accent: var(--ion-color-primary);
+  --app-muted: var(--ion-color-medium);
+  --app-surface: #221d31;
+  --app-border: rgba(255, 255, 255, 0.08);
+  --wave-played: var(--app-accent);
+  --wave-rendered: rgba(255, 255, 255, 0.45);
+  --wave-pending: rgba(255, 255, 255, 0.12);
+  --side-width: 400px;
+}
+
+body {
+  background: var(--ion-background-color);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---- layout: phone first, side panel from 992px ----------------------- */
+
+.layout {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  /* Pin the row to the viewport: otherwise a tall side panel grows the row and
+     pushes the tab bar below the (clipped) bottom edge. */
+  grid-template-rows: minmax(0, 1fr);
+}
+
+#main-page {
+  position: relative;
+}
+
+.side-panel {
+  display: none;
+}
+
+body.has-side-panel .layout {
+  grid-template-columns: 1fr var(--side-width);
+}
+
+body.has-side-panel .side-panel {
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--app-border);
+  background: var(--app-surface);
+  padding-top: env(safe-area-inset-top);
+}
+
+body.has-side-panel .mini {
+  display: none;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+}
+
+/* ---- lists -------------------------------------------------------------- */
+
+.thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.thumb-sm {
+  width: 36px;
+  height: 36px;
+  font-size: 8px;
+}
+
+.thumb-missing,
+.playlist-thumb {
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 20px;
+}
+
+.tune-row ion-label h2 {
+  font-weight: 600;
+}
+
+.tune-row.is-current ion-label h2 {
+  color: var(--app-accent);
+}
+
+.tune-row.is-missing {
+  opacity: 0.55;
+}
+
+.tune-row ion-note {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.tune-row [data-menu] {
+  --padding-start: 6px;
+  --padding-end: 6px;
+  margin-inline-start: 0;
+}
+
+.tune-row .fav-mark {
+  font-size: 14px;
+  color: var(--app-accent);
+  margin-inline-end: 4px;
+}
+
+.tune-row:not(.is-favorite) .fav-mark {
+  display: none;
+}
+
+.np-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.np-title-row > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.np-fav {
+  --color: var(--app-accent);
+  font-size: 20px;
+  margin: -4px -8px 0 0;
+}
+
+.favorites-thumb {
+  background: linear-gradient(135deg, #a99cff, #6c5eb5);
+  color: #16131f;
+  font-size: 20px;
+}
+
+.song-chip {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--app-muted);
+  margin-inline-start: 4px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 20px 16px 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 12px;
+}
+
+.result-count,
+.breadcrumb {
+  margin: 12px 16px 4px;
+  color: var(--app-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--app-muted);
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.empty-icon {
+  font-size: 48px;
+}
+
+.playlist-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 12px 12px 0;
+}
+
+.credits {
+  padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+  font-size: 12px;
+  color: var(--app-muted);
+  text-align: center;
+}
+
+.credits a {
+  color: inherit;
+}
+
+/* ---- mini-player ---------------------------------------------------------- */
+
+.mini {
+  background: var(--app-surface);
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.mini-progress {
+  height: 2px;
+  background: var(--app-border);
+}
+
+#mini-bar {
+  height: 100%;
+  width: 0;
+  background: var(--app-accent);
+}
+
+.mini-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 4px 6px 12px;
+}
+
+.mini-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mini-title,
+.mini-author {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.mini-author {
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+/* ---- Now Playing ----------------------------------------------------------- */
+
+.np {
+  padding: 24px 24px calc(24px + env(safe-area-inset-bottom));
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+#np-host > .np,
+.side-panel > .np {
+  display: block;
+}
+
+/* Parked outside both hosts until placed */
+ion-app > .np {
+  display: none;
+}
+
+.np-art-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 24px;
+}
+
+.np-art {
+  width: min(78vw, 340px);
+  aspect-ratio: 1;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #6c5eb5, #2e2560);
+  color: rgba(255, 255, 255, 0.92);
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(32px, 12vw, 64px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  touch-action: pan-y;
+  user-select: none;
+  cursor: pointer;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+
+.side-panel .np-art {
+  width: 100%;
+  max-width: 320px;
+}
+
+.np.is-paused .np-art {
+  transform: scale(0.94);
+}
+
+.np-meta h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.np-author {
+  margin: 0;
+  font-size: 16px;
+  color: var(--app-accent);
+}
+
+.np-released {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--app-muted);
+}
+
+.np-badges {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  min-height: 20px;
+}
+
+.np-scrub {
+  margin-top: 20px;
+}
+
+.np-wave {
+  display: block;
+  width: 100%;
+  height: 56px;
+  touch-action: none;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.np-wave:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+.np-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--app-muted);
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+
+.np-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin: 12px 0;
+}
+
+.np-controls ion-button {
+  --color: var(--ion-text-color);
+  font-size: 22px;
+}
+
+.np-play {
+  width: 72px;
+  height: 72px;
+  --border-radius: 50%;
+  --padding-start: 0;
+  --padding-end: 0;
+  --color: var(--ion-color-primary-contrast) !important;
+  font-size: 30px;
+}
+
+.np-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.np-extra ion-select {
+  max-width: 200px;
+}
+
+.np-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--app-muted);
+}
+
+.np-queue {
+  margin-top: 8px;
+  background: transparent;
+}
+
+.np-queue ion-item {
+  --background: transparent;
+}
+
+.np-queue ion-list-header {
+  font-size: 17px;
+  padding-inline-start: 0;
+}
+
+.np-modal {
+  --height: 100%;
+  --background: var(--ion-background-color);
+}

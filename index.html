@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#16131f">
+  <meta name="description" content="Search the High Voltage SID Collection and play C64 music in your browser with reSIDfp.">
+  <title>ShallowSID</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a99cff'/%3E%3Cpath d='M8 21h4v-8h4v8h4V9h4v14' stroke='%2316131f' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/ionic.bundle.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/palettes/dark.always.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>window.Ionic = { config: { mode: "ios" } };</script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/dist/ionic/ionic.esm.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <ion-app>
+    <div class="layout">
+      <div class="ion-page" id="main-page">
+        <ion-header>
+          <ion-toolbar>
+            <ion-buttons slot="start">
+              <ion-button id="back" hidden aria-label="Back"><ion-icon slot="icon-only" name="chevron-back"></ion-icon></ion-button>
+            </ion-buttons>
+            <ion-title id="title">Search</ion-title>
+            <ion-buttons slot="end">
+              <!-- plain wrapper: re-rendering inside Ionic's scoped slot directly loses the nodes -->
+              <div id="toolbar-actions" class="toolbar-actions"></div>
+            </ion-buttons>
+          </ion-toolbar>
+          <ion-toolbar id="search-toolbar">
+            <ion-searchbar id="searchbar" placeholder="Tunes, composers, groups…" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
+          </ion-toolbar>
+        </ion-header>
+
+        <ion-content id="content">
+          <div id="view"><div class="empty"><ion-spinner></ion-spinner><p>Loading the HVSC index…</p></div></div>
+          <ion-infinite-scroll id="infinite" threshold="400px" disabled>
+            <ion-infinite-scroll-content></ion-infinite-scroll-content>
+          </ion-infinite-scroll>
+          <footer class="credits">
+            <span id="hvsc-version">HVSC</span> ·
+            <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">High Voltage SID Collection</a> ·
+            <a href="https://github.com/chrisgleissner/libsidplayfp-wasm" target="_blank" rel="noopener">libsidplayfp/reSIDfp</a>
+            (<a href="https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/complete-source.tar.gz">source</a>) ·
+            GPL-2.0-or-later
+          </footer>
+        </ion-content>
+
+        <ion-footer>
+          <div id="mini" class="mini" hidden>
+            <div class="mini-progress"><div id="mini-bar"></div></div>
+            <div class="mini-row">
+              <div id="mini-art" class="thumb"></div>
+              <div class="mini-text">
+                <div id="mini-title" class="mini-title"></div>
+                <div id="mini-author" class="mini-author"></div>
+              </div>
+              <ion-button fill="clear" id="mini-play" aria-label="Play"><ion-icon slot="icon-only" name="play"></ion-icon></ion-button>
+              <ion-button fill="clear" id="mini-next" aria-label="Next"><ion-icon slot="icon-only" name="play-skip-forward"></ion-icon></ion-button>
+            </div>
+          </div>
+          <ion-tab-bar id="tab-bar" selected-tab="search">
+            <ion-tab-button tab="search"><ion-icon name="search"></ion-icon><ion-label>Search</ion-label></ion-tab-button>
+            <ion-tab-button tab="browse"><ion-icon name="folder-open"></ion-icon><ion-label>Browse</ion-label></ion-tab-button>
+            <ion-tab-button tab="playlists"><ion-icon name="library"></ion-icon><ion-label>Playlists</ion-label></ion-tab-button>
+          </ion-tab-bar>
+        </ion-footer>
+      </div>
+
+      <aside id="side-panel" class="side-panel" aria-label="Now playing"></aside>
+    </div>
+
+    <ion-modal id="np-modal" handle="true" class="np-modal">
+      <ion-content><div id="np-host"></div></ion-content>
+    </ion-modal>
+
+    <!-- Now Playing: moved between the modal (phones) and the side panel (desktop) -->
+    <section id="np" class="np is-paused">
+      <div class="np-art-wrap">
+        <div id="np-art" class="np-art" role="button" aria-label="Cover: tap to play or pause, swipe to skip"><span>♪</span></div>
+      </div>
+      <div class="np-meta">
+        <div class="np-title-row">
+          <div>
+            <h1 id="np-title">Nothing playing</h1>
+            <p id="np-author" class="np-author">Pick a tune</p>
+          </div>
+          <ion-button fill="clear" id="np-fav" class="np-fav" aria-label="Add to Favorites" aria-pressed="false" hidden><ion-icon slot="icon-only" name="star-outline"></ion-icon></ion-button>
+        </div>
+        <p id="np-released" class="np-released"></p>
+        <div id="np-badges" class="np-badges"></div>
+      </div>
+      <div class="np-scrub">
+        <canvas id="np-wave" class="np-wave" tabindex="0" role="slider" aria-label="Seek"></canvas>
+        <div class="np-times"><span id="np-pos">0:00</span><span id="np-state" class="np-state"></span><span id="np-dur">0:00</span></div>
+      </div>
+      <div class="np-controls">
+        <ion-button fill="clear" id="np-prev" aria-label="Previous"><ion-icon slot="icon-only" name="play-skip-back"></ion-icon></ion-button>
+        <ion-button shape="round" id="np-play" class="np-play" aria-label="Play"><ion-icon slot="icon-only" name="play"></ion-icon></ion-button>
+        <ion-button fill="clear" id="np-next" aria-label="Next"><ion-icon slot="icon-only" name="play-skip-forward"></ion-icon></ion-button>
+      </div>
+      <div class="np-extra">
+        <ion-select id="np-subtune" interface="action-sheet" label="Subtune" label-placement="stacked" hidden></ion-select>
+        <ion-button fill="clear" size="small" id="np-add"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Playlist</ion-button>
+        <ion-button fill="clear" size="small" id="np-folder"><ion-icon slot="start" name="folder-open-outline"></ion-icon>Folder</ion-button>
+      </div>
+      <p id="np-hint" class="np-hint">Tap the cover to play/pause · swipe it to skip</p>
+      <ion-list id="np-queue" class="np-queue" lines="none"></ion-list>
+    </section>
+
+    <input type="file" id="import-input" accept=".m3u,.m3u8,audio/x-mpegurl,audio/mpegurl" hidden>
+  </ion-app>
+</body>
+</html>
