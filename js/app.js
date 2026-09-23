@@ -45,20 +45,33 @@ let lastResults = null;
 
 const searchWorker = new Worker(new URL("./search-worker.js", import.meta.url), { type: "module" });
 let searchReady = false;
+let searchError = null;
+let lastIds = null;             // result ids; turned into tunes once the index is in
 searchWorker.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "ready") {
     searchReady = true;
     if (searchQuery) runSearch(searchQuery);
-  } else if (msg.type === "results" && msg.id === searchSeq && index) {
-    lastResults = msg.ids.map((id) => asItem(index.tunes[id]));
+  } else if (msg.type === "error") {
+    failSearch(msg.message);
+  } else if (msg.type === "results" && msg.id === searchSeq) {
+    lastIds = msg.ids;
+    lastResults = null;
     if (currentRoute().name === "search") renderSearch();
   }
 };
+// A worker that fails to load (unsupported browser, blocked script) only fires this.
+searchWorker.onerror = (e) => failSearch(e.message || "the search worker failed to start");
+
+function failSearch(message) {
+  searchError = message;
+  console.error("search:", message);
+  if (currentRoute().name === "search") renderSearch();
+}
 
 function runSearch(query) {
   searchQuery = query.trim();
-  lastResults = null;
+  lastResults = lastIds = null;
   if (searchQuery) searchWorker.postMessage({ type: "search", id: ++searchSeq, query: searchQuery });
   renderSearch();
 }
@@ -149,6 +162,12 @@ function renderSearch() {
     else dom.infinite.disabled = true;
     return;
   }
+  if (searchError) {
+    dom.view.innerHTML = `<div class="empty"><p>Search is unavailable: ${esc(searchError)}</p><p>Browse still works.</p></div>`;
+    dom.infinite.disabled = true;
+    return;
+  }
+  if (lastIds && !lastResults && index) lastResults = lastIds.map((id) => asItem(index.tunes[id]));
   if (!searchReady || !lastResults) {
     dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner><p>${searchReady ? "Searching…" : "Indexing HVSC…"}</p></div>`;
     dom.infinite.disabled = true;
@@ -471,9 +490,10 @@ document.addEventListener("keydown", (e) => {
 });
 
 try {
-  index = await loadIndex();
+  index = await loadIndex({ onText: (text) => searchWorker.postMessage({ type: "load", text }) });
   $("hvsc-version").textContent = index.version ? `HVSC #${index.version}` : "HVSC";
   render();
 } catch (err) {
+  searchError = err.message;
   dom.view.innerHTML = `<div class="empty"><p>${esc(err.message)}</p><p>Run <code>python3 tools/build_index.py</code> first.</p></div>`;
 }

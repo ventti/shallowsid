@@ -31,10 +31,14 @@ export function decodeRow(row, id, dirs, authors) {
   };
 }
 
-export async function loadIndex() {
+// Downloads the catalogue once. `onText` gets the raw JSON first, so the search
+// worker can start indexing while this thread decodes it.
+export async function loadIndex({ onText } = {}) {
   const res = await fetch(INDEX_URL);
   if (!res.ok) throw new Error(`Could not load the HVSC index (HTTP ${res.status})`);
-  const data = await res.json();
+  const text = await res.text();
+  onText?.(text);
+  const data = JSON.parse(text);
   const tunes = data.files.map((row, id) => decodeRow(row, id, data.dirs, data.authors));
   return new IndexStore(data.v, tunes, data.dirs);
 }

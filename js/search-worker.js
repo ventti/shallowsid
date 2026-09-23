@@ -1,5 +1,6 @@
 // Full-text search over the HVSC index, off the main thread.
-// Receives {type:"search", id, query}; replies {type:"results", id, ids}.
+// Receives {type:"load", text} once (the catalogue JSON the page downloaded),
+// then {type:"search", id, query}; replies {type:"results", id, ids}.
 //
 // MiniSearch finds the candidates (prefix + fuzzy). They are then ranked in
 // predictable tiers rather than by raw BM25 score, which reads as random:
@@ -9,7 +10,6 @@
 // and alphabetically by title, then composer, within a tier.
 
 import MiniSearch from "https://cdn.jsdelivr.net/npm/minisearch@7.2.0/dist/es/index.js";
-import { INDEX_URL } from "./index-store.js";
 
 const MAX_RESULTS = 1000;
 const TOKEN_SPLIT = /[\s/_\-.,()&!?'"]+/u;
@@ -20,8 +20,11 @@ const words = (text) => normalize(text).split(TOKEN_SPLIT).filter(Boolean);
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 
+let receiveCatalogue;
+const catalogue = new Promise((resolve) => (receiveCatalogue = resolve));
+
 const ready = (async () => {
-  const data = await (await fetch(INDEX_URL)).json();
+  const data = JSON.parse(await catalogue);
   const tunes = data.files.map(([dir, name, title, author, released], id) => ({
     id,
     title: title || name,
@@ -50,6 +53,7 @@ const ready = (async () => {
   self.postMessage({ type: "ready", count: data.files.length });
   return { search, tunes, ranked };
 })();
+ready.catch((err) => self.postMessage({ type: "error", message: String(err?.message || err) }));
 
 const allStart = (queryWords, fieldWords) => queryWords.every((q) => fieldWords.some((w) => w.startsWith(q)));
 
@@ -63,6 +67,7 @@ function tier(r, query, queryWords) {
 }
 
 self.onmessage = async (e) => {
+  if (e.data.type === "load") return receiveCatalogue(e.data.text);
   const { id, query } = e.data;
   const { search, tunes, ranked } = await ready;
   const q = normalize(query).trim();
