@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>About ShallowSID</title>
+  <style>
+    :root { --bg: #16131f; --text: #ece9f5; --muted: #a39db5; --accent: #a99cff; }
+    body { background: var(--bg); color: var(--text); font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; }
+    main { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 18px; margin: 28px 0 6px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    a { color: var(--accent); }
+    code { font-size: 14px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>About ShallowSID</h1>
+  <p class="muted">A C64 music player for the web</p>
+
+  <h2>Music</h2>
+  <p>All tunes come from the <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">High Voltage SID Collection</a> and its team, including the song lengths in <code>Songlengths.md5</code>.</p>
+
+  <h2>Player engine</h2>
+  <p><a href="https://github.com/libsidplayfp/libsidplayfp" target="_blank" rel="noopener">libsidplayfp</a> and reSIDfp, built for WebAssembly by
+    <a href="https://github.com/chrisgleissner/libsidplayfp-wasm" target="_blank" rel="noopener">libsidplayfp-wasm</a>.
+    Licensed under the GNU General Public License, version 2 or later.
+    <a href="https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/complete-source.tar.gz" target="_blank" rel="noopener">Corresponding source</a> of the build ShallowSID uses.</p>
+
+  <h2>Libraries</h2>
+  <ul>
+    <li><a href="https://ionicframework.com/" target="_blank" rel="noopener">Ionic</a> for the interface.</li>
+    <li><a href="https://github.com/lucaong/minisearch" target="_blank" rel="noopener">MiniSearch</a> for search.</li>
+    <li><a href="https://www.dicebear.com/" target="_blank" rel="noopener">DiceBear</a> identicons for playlist covers.</li>
+    <li><a href="https://github.com/kazuhikoarase/qrcode-generator" target="_blank" rel="noopener">qrcode-generator</a> and <a href="https://github.com/cozmo/jsQR" target="_blank" rel="noopener">jsQR</a> for sync key QR codes.</li>
+    <li><a href="https://fonts.google.com/specimen/Press+Start+2P" target="_blank" rel="noopener">Press Start 2P</a> font.</li>
+  </ul>
+
+  <h2>License</h2>
+  <p>ShallowSID is free software under the <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" target="_blank" rel="noopener">GNU GPL, version 2 or later</a>.
+    Source code: <a href="https://github.com/ventti/shallowsid" target="_blank" rel="noopener">github.com/ventti/shallowsid</a>.</p>
+
+  <p><a href="./">← Back to ShallowSID</a></p>
+</main>
+</body>
+</html>

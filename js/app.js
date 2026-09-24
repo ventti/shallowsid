@@ -15,6 +15,7 @@ import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
+import { paintAvatars } from "./playlist-art.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
@@ -23,6 +24,10 @@ const PAGE_SIZE = 100;
 const SID_SOURCES = ["https://www.hvsc.c64.org/download/C64Music/", new URL("../hvsc/", import.meta.url).href];
 const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 const SUGGESTION_COUNT = 10;
+const FAVORITE_COMPOSER_COUNT = 10;
+const SHELF_COUNT = 10;
+const MOST_PLAYED_COUNT = 50;
+const PLAY_COUNT_SECONDS = 30;   // heard this long (or half of a shorter tune) counts as a play
 const SORT_KEY = "shallowsid.searchSort";
 
 const $ = (id) => document.getElementById(id);
@@ -124,8 +129,43 @@ function runSearch(query) {
 
 // A fresh handful of composers per visit, stable while the page is open.
 // The chip shows the handle HVSC gives in parentheses, else the credit itself.
-const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT)
-  .map((credit) => [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit]);
+const composerChip = (credit) => [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit];
+const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT).map(composerChip);
+const chips = (list) => `<div class="chips">${list.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>`;
+
+const mostPlayedItems = () => resolveItems(store.mostPlayed(MOST_PLAYED_COUNT)).filter((i) => !i.missing);
+
+// "Jump back in" cards: Your most played, Favorites, then playlists last played.
+function shelfCards() {
+  const cards = [];
+  const mostPlayed = mostPlayedItems().length;
+  if (mostPlayed) cards.push({ href: "#/most-played", name: "Your most played", count: mostPlayed, art: "most-played-art", icon: "trending-up" });
+  const favorites = store.favorites();
+  if (favorites?.items.length) cards.push({ playlist: favorites });
+  for (const p of store.recentPlaylists()) if (p !== favorites) cards.push({ playlist: p });
+  return cards.slice(0, SHELF_COUNT).map((c) => c.playlist
+    ? { href: `#/playlist/${c.playlist.id}`, name: c.playlist.name, count: c.playlist.items.length,
+        art: c.playlist.favorites ? "favorites-thumb" : "playlist-thumb", icon: c.playlist.favorites ? "star" : "musical-notes",
+        avatar: c.playlist.favorites ? null : c.playlist.id }
+    : c);
+}
+
+const shelf = (cards) => `<div class="shelf">${cards.map((c) => `
+  <a class="shelf-card" href="${c.href}">
+    <div class="shelf-art ${c.art}" ${c.avatar ? `data-avatar="${esc(c.avatar)}"` : ""}><ion-icon name="${c.icon}"></ion-icon></div>
+    <span class="shelf-title">${esc(c.name)}</span>
+    <span class="shelf-sub">${c.count} tune${c.count === 1 ? "" : "s"}</span>
+  </a>`).join("")}</div>`;
+
+// Composers by the plays of all their tunes; HVSC credits unknown ones as "<?>".
+function favoriteComposers() {
+  const plays = new Map();
+  for (const { path, count } of store.mostPlayed()) {
+    const author = index.get(path)?.author;
+    if (author && author !== "<?>") plays.set(author, (plays.get(author) ?? 0) + count);
+  }
+  return [...plays].sort((a, b) => b[1] - a[1]).slice(0, FAVORITE_COMPOSER_COUNT).map(([credit]) => composerChip(credit));
+}
 
 const asItem = (tune, song) => ({ ...tune, song: song ?? tune.start });
 
@@ -202,13 +242,18 @@ function renderSearch() {
   setChrome({ title: "Search", search: true, tab: "search" });
   if (!searchQuery) {
     const recent = resolveItems(store.recent).filter((i) => !i.missing);
+    const composers = favoriteComposers();
+    const cards = shelfCards();
     dom.view.innerHTML = `
       <section class="home">
-        <h2 class="section-title">Try</h2>
-        <div class="chips">${suggestions.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>
+        <h2 class="section-title">Popular</h2>
+        ${chips(suggestions)}
+        ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
+        ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
         ${recent.length ? `<h2 class="section-title">Recently played</h2><div id="recent-list"></div>` : `
           <div class="empty"><p>Search ${index ? index.tunes.length.toLocaleString() : "the"} C64 tunes of the High Voltage SID Collection.</p></div>`}
       </section>`;
+    paintAvatars(dom.view);
     if (recent.length) showList($("recent-list"), recent);
     else dom.infinite.disabled = true;
     return;
@@ -257,7 +302,11 @@ function showSortButton() {
   const direction = $("sort-direction");
   direction.hidden = !visible || searchSort.by === "relevance";
   direction.querySelector("ion-icon").name = searchSort.desc ? "arrow-down" : "arrow-up";
-  direction.setAttribute("aria-label", `Reverse order (now ${sortDirection(searchSort)})`);
+  // ion-button throws on aria changes while it is still loading
+  const label = () => direction.setAttribute("aria-label", `Reverse order (now ${sortDirection(searchSort)})`);
+  const ready = direction.componentOnReady?.();
+  if (ready) ready.then(label);
+  else label();
 }
 
 function setSort(next) {
@@ -323,12 +372,13 @@ function renderPlaylists() {
         <ion-item button detail="true" href="#/playlist/${p.id}" lines="full">
           ${p.favorites
             ? `<div slot="start" class="thumb favorites-thumb"><ion-icon name="star"></ion-icon></div>`
-            : `<div slot="start" class="thumb playlist-thumb"><ion-icon name="musical-notes"></ion-icon></div>`}
+            : `<div slot="start" class="thumb playlist-thumb" data-avatar="${esc(p.id)}"><ion-icon name="musical-notes"></ion-icon></div>`}
           <ion-label><h2>${esc(p.name)}</h2><p>${p.items.length} tune${p.items.length === 1 ? "" : "s"}</p></ion-label>
         </ion-item>`).join("")}</ion-list>`
     : `<div class="empty"><ion-icon name="list" class="empty-icon"></ion-icon>
         <p>No playlists yet. Star a tune to start your Favorites, add tunes with <strong>⋯</strong>, or import an <code>.m3u8</code>.</p>
         <ion-button id="new-pl-empty">New playlist</ion-button></div>`;
+  paintAvatars(dom.view);
   const create = async () => {
     const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create" });
     if (name !== null) go(`#/playlist/${store.create(name).id}`);
@@ -396,8 +446,14 @@ function renderPlaylist(id) {
     renderRows(editing);
   });
   const playable = () => items.filter((i) => !i.missing);
-  $("pl-play").addEventListener("click", () => player.setQueue(playable(), 0));
-  $("pl-shuffle").addEventListener("click", () => player.setQueue(shuffle(playable()), 0));
+  $("pl-play").addEventListener("click", () => {
+    store.markPlayed(id);
+    player.setQueue(playable(), 0);
+  });
+  $("pl-shuffle").addEventListener("click", () => {
+    store.markPlayed(id);
+    player.setQueue(shuffle(playable()), 0);
+  });
   $("pl-share").addEventListener("click", () => sharePlaylist(pl));
   $("pl-visibility")?.addEventListener("click", () => visibilityMenu(pl));
   $("pl-more").addEventListener("click", () => actionSheet(pl.name, [
@@ -448,6 +504,28 @@ async function renderLive(id) {
   showShared(shared, "shared with you · updates live");
 }
 
+// Generated from this device's play counts; saving makes a regular playlist.
+function renderMostPlayed() {
+  setChrome({ title: "Your most played", back: "#/search", tab: "search" });
+  const items = mostPlayedItems();
+  dom.view.innerHTML = `
+    <div class="playlist-head">
+      <ion-button id="top-play" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+      <ion-button id="top-shuffle" fill="outline" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+      <ion-button id="top-save" fill="clear" ${items.length ? "" : "disabled"}>Save as Playlist</ion-button>
+    </div>
+    <p class="result-count">Your ${MOST_PLAYED_COUNT} most played tunes on this device</p>
+    <div id="top-list"></div>`;
+  showList($("top-list"), items);
+  $("top-play").addEventListener("click", () => player.setQueue(items, 0));
+  $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
+  $("top-save").addEventListener("click", () => {
+    const pl = store.create("Your most played", items);
+    toast(`Saved “${pl.name}”`);
+    go(`#/playlist/${pl.id}`);
+  });
+}
+
 // Both link kinds: name and items are already sanitised; all text is escaped.
 function showShared(shared, note) {
   const items = resolveItems(shared.items);
@@ -479,6 +557,7 @@ function render() {
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
     case "sync": return joinSyncLink(arg);
+    case "most-played": return renderMostPlayed();
     default: return renderSearch();
   }
 }
@@ -668,6 +747,7 @@ dom.view.addEventListener("click", (e) => {
   if (row && !row.closest(".is-editing")) {
     const pos = Number(row.dataset.play);
     const playable = listItems.filter((i) => !i.missing);
+    if (listOptions.playlistId) store.markPlayed(listOptions.playlistId);
     player.setQueue(playable, playable.indexOf(listItems[pos]));
   }
 });
@@ -686,7 +766,16 @@ dom.importInput.addEventListener("change", (e) => {
   if (file) importFile(file);
 });
 
+// A play counts once heard for a while, so skipping through a list doesn't.
+let uncounted = null;
+player.addEventListener("time", ({ detail: { position, duration } }) => {
+  if (uncounted && position >= Math.min(PLAY_COUNT_SECONDS, duration / 2)) {
+    store.addPlay(uncounted);
+    uncounted = null;
+  }
+});
 player.addEventListener("track", ({ detail: { item } }) => {
+  uncounted = item;
   store.addRecent(item);
   refreshRowMarks();
 });

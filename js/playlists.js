@@ -1,4 +1,5 @@
-// Playlists and recently played, kept in this browser's localStorage.
+// Playlists, recently played tunes and playlists, and play counts, kept in
+// this browser's localStorage.
 // Storage can be unavailable (private mode, blocked site data); everything
 // still works for the session, it just isn't remembered.
 
@@ -6,7 +7,10 @@ import { sanitizeItems, sanitizeName } from "./live-share-core.js";
 
 const PLAYLISTS_KEY = "shallowsid.playlists";
 const RECENT_KEY = "shallowsid.recent";
+const PLAYS_KEY = "shallowsid.plays";
+const PLAYED_LISTS_KEY = "shallowsid.playedLists";
 const MAX_RECENT = 30;
+const MAX_PLAYS = 2000;   // tunes with play counts; the least played are dropped
 const FAVORITES_NAME = "Favorites";
 
 function read(key, fallback) {
@@ -30,6 +34,8 @@ export class PlaylistStore extends EventTarget {
     super();
     this.playlists = read(PLAYLISTS_KEY, []);
     this.recent = read(RECENT_KEY, []);
+    this.plays = read(PLAYS_KEY, {});   // "path#song" -> [count, last played]
+    this.playedLists = read(PLAYED_LISTS_KEY, []);   // playlist ids, last played first
   }
 
   // `changed` gets a fresh `updated` time, which sync uses to resolve edits made on two devices.
@@ -134,5 +140,34 @@ export class PlaylistStore extends EventTarget {
   addRecent(item) {
     this.recent = [{ path: item.path, song: item.song }, ...this.recent.filter((r) => !(r.path === item.path && r.song === item.song))].slice(0, MAX_RECENT);
     write(RECENT_KEY, this.recent);
+  }
+
+  markPlayed(id) {
+    this.playedLists = [id, ...this.playedLists.filter((p) => p !== id)].slice(0, MAX_RECENT);
+    write(PLAYED_LISTS_KEY, this.playedLists);
+  }
+
+  // Playlists played from, last first; deleted ones (here or via sync) drop out.
+  recentPlaylists() {
+    return this.playedLists.map((id) => this.get(id)).filter(Boolean);
+  }
+
+  addPlay(item) {
+    const key = `${item.path}#${item.song}`;
+    this.plays[key] = [(this.plays[key]?.[0] ?? 0) + 1, Date.now()];
+    const extra = Object.keys(this.plays).length - MAX_PLAYS;
+    if (extra > 0) this.mostPlayed().slice(-extra).forEach((p) => delete this.plays[`${p.path}#${p.song}`]);
+    write(PLAYS_KEY, this.plays);
+  }
+
+  // Most played first; ties go to the most recently played.
+  mostPlayed(limit = Infinity) {
+    return Object.entries(this.plays)
+      .sort(([, a], [, b]) => b[0] - a[0] || b[1] - a[1])
+      .slice(0, limit)
+      .map(([key, [count]]) => {
+        const at = key.lastIndexOf("#");
+        return { path: key.slice(0, at), song: Number(key.slice(at + 1)), count };
+      });
   }
 }

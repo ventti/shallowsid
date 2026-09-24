@@ -15,6 +15,7 @@ Written for my own use, so beware of peculiarities.
 ## Usage
 
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
+- **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most played.
 - **Sort** (the ⇅ button beside the search field): Relevance, Name, Folder, Release (publisher or group) or Year. Tap the current order again to reverse it. The last order used becomes the default.
 - **Browse**: walk the HVSC folders (`MUSICIANS`, `GAMES`, `DEMOS`).
 - **Tap** a tune to play it. The list becomes the play queue.
@@ -142,7 +143,7 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
 - [HVSC](https://www.hvsc.c64.org/) and its team, for the collection and `Songlengths.md5`.
 - [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and reSIDfp, and [libsidplayfp-wasm](https://github.com/chrisgleissner/libsidplayfp-wasm) for the WebAssembly build ([corresponding source](https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/complete-source.tar.gz)).
 - [DeepSID](https://github.com/Chordian/deepsid) by Chordian, for showing how it's done.
-- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
+- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [DiceBear](https://www.dicebear.com/), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
 
 ## License
 
