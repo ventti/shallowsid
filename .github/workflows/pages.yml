@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # HVSC is released about twice a year (around June/July and December/January):
+    # rebuild the catalogue every Monday in those months to pick up a new release.
+    - cron: "17 3 * 6,7,12,1 1"
+    # GitHub disables scheduled workflows after 60 days without repo activity.
+    # The months in between only re-enable this workflow (see the keepalive job),
+    # which keeps the longest gap to about five weeks.
+    - cron: "17 3 1 2-5,8-11 *"
 
 permissions:
   contents: read
@@ -15,7 +23,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Re-enable this workflow (resets the 60-day inactivity timer)
+        run: gh workflow enable pages.yml --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   build:
+    # Keepalive-only runs skip the rebuild.
+    if: github.event.schedule != '17 3 1 2-5,8-11 *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
