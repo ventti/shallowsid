@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
   <title>ShallowSID privacy</title>
   <style>
     :root { --bg: #16131f; --text: #ece9f5; --muted: #a39db5; --accent: #a99cff; }
@@ -44,6 +45,18 @@
     <li><strong>How long:</strong> until you delete it with <em>Sync → Delete Synced Data</em>. It is not deleted automatically.</li>
     <li><strong>Your rights:</strong> <em>Sync → Delete Synced Data</em> removes the record immediately. Because the data is encrypted with a key only you hold,
       we cannot look it up, read it or recover it for you. Without the key it can't be linked to you.</li>
+  </ul>
+
+  <h2>Live links to playlists (optional)</h2>
+  <ul>
+    <li><strong>What is stored:</strong> when you choose <em>Share → Live Link</em>, that playlist's name and the list of tunes are stored
+      <strong>unencrypted</strong>, so that anyone with the link can open it. Nothing else is stored with it: no name, account or device identifier.
+      A random proof value lets only your devices change it.</li>
+    <li><strong>Who can see it:</strong> anyone who has the link. Links are not listed or searchable anywhere, but anyone you send one to can pass it on.</li>
+    <li><strong>Where:</strong> Google Cloud Firestore, <code>europe-north1</code> (Finland), as above.</li>
+    <li><strong>How long:</strong> until you choose <em>Stop Sharing</em>. That removes the name and tunes at once; the link then only shows
+      “no longer shared”. It is not deleted automatically.</li>
+    <li>Don't put personal information in the name of a playlist you share.</li>
   </ul>
 
   <h2>Other services</h2>

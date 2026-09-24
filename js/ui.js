@@ -51,13 +51,17 @@ export function tuneRow(item, index, { current, missing, reorder, favorite } = {
 function present(tag, props) {
   const el = Object.assign(document.createElement(tag), props);
   document.body.appendChild(el);
-  el.addEventListener("didDismiss", () => el.remove());
+  // Next tick: Ionic re-attaches an overlay removed during its own didDismiss.
+  el.addEventListener("didDismiss", () => setTimeout(() => el.remove(), 0));
   el.present();
   return el;
 }
 
-export function actionSheet(header, buttons) {
-  return present("ion-action-sheet", { header, buttons: [...buttons, { text: "Cancel", role: "cancel" }] });
+// Handlers are started, not awaited: Ionic keeps a sheet open until a handler's
+// promise settles, and follow-ups (share dialogs, prompts) can take a while.
+export function actionSheet(header, buttons, { subHeader } = {}) {
+  const started = buttons.map((b) => (b.handler ? { ...b, handler: () => void b.handler() } : b));
+  return present("ion-action-sheet", { header, subHeader, buttons: [...started, { text: "Cancel", role: "cancel" }] });
 }
 
 export function toast(message, { color, duration = 2200 } = {}) {

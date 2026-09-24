@@ -2,6 +2,8 @@
 // Storage can be unavailable (private mode, blocked site data); everything
 // still works for the session, it just isn't remembered.
 
+import { sanitizeItems, sanitizeName } from "./live-share-core.js";
+
 const PLAYLISTS_KEY = "shallowsid.playlists";
 const RECENT_KEY = "shallowsid.recent";
 const MAX_RECENT = 30;
@@ -47,8 +49,9 @@ export class PlaylistStore extends EventTarget {
     return this.playlists.find((p) => p.id === id) ?? null;
   }
 
+  // Names are sanitised on the way in (typed, imported or from a shared link).
   create(name, items = []) {
-    const playlist = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || "New playlist", items, created: Date.now() };
+    const playlist = { id: crypto.randomUUID().slice(0, 8), name: sanitizeName(name, "New playlist"), items: sanitizeItems(items, undefined, Infinity), created: Date.now() };
     this.playlists.unshift(playlist);
     this.save(playlist);
     return playlist;
@@ -56,10 +59,20 @@ export class PlaylistStore extends EventTarget {
 
   rename(id, name) {
     const p = this.get(id);
-    if (p && name.trim()) {
-      p.name = name.trim();
+    const clean = sanitizeName(name, "");
+    if (p && clean) {
+      p.name = clean;
       this.save(p);
     }
+  }
+
+  // Unlisted sharing state {id, seed}, or null to stop (see live-share.js).
+  setShare(id, share) {
+    const p = this.get(id);
+    if (!p) return;
+    if (share) p.share = share;
+    else delete p.share;
+    this.save(p);
   }
 
   remove(id) {

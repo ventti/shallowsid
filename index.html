@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
+  <!-- Only this site, jsDelivr (libraries), HVSC (tunes) and Firestore (sync, shared lists). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#16131f">
   <meta name="description" content="Search the High Voltage SID Collection and play C64 music in your browser with reSIDfp.">
   <title>ShallowSID</title>
@@ -14,7 +16,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/ionic.bundle.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/palettes/dark.always.css">
   <link rel="stylesheet" href="css/app.css">
-  <script>window.Ionic = { config: { mode: "ios" } };</script>
+  <script src="js/ionic-config.js"></script>
   <script type="module" src="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/dist/ionic/ionic.esm.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
@@ -35,6 +37,14 @@
           </ion-toolbar>
           <ion-toolbar id="search-toolbar">
             <ion-searchbar id="searchbar" placeholder="Tunes, composers, groups…" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
+            <ion-buttons slot="end">
+              <ion-button id="sort-button" class="sort-button" hidden aria-label="Sort results">
+                <ion-icon slot="start" name="swap-vertical"></ion-icon><span id="sort-label">Relevance</span>
+              </ion-button>
+              <ion-button id="sort-direction" class="sort-direction" hidden aria-label="Reverse order">
+                <ion-icon slot="icon-only" name="arrow-up"></ion-icon>
+              </ion-button>
+            </ion-buttons>
           </ion-toolbar>
         </ion-header>
 

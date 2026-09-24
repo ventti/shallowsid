@@ -9,7 +9,11 @@ import { PlaylistStore } from "./playlists.js";
 import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
 import { SoundSheet } from "./sound-sheet.js";
+import { COMPOSERS } from "./suggestions.js";
+import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SyncService } from "./sync.js";
+import { LiveShare } from "./live-share.js";
+import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
@@ -18,7 +22,8 @@ const PAGE_SIZE = 100;
 // A local copy under hvsc/ (tools/fetch_hvsc.py) is the fallback.
 const SID_SOURCES = ["https://www.hvsc.c64.org/download/C64Music/", new URL("../hvsc/", import.meta.url).href];
 const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
-const SUGGESTIONS = ["Rob Hubbard", "Martin Galway", "Ben Daglish", "Jeroen Tel", "Chris Hülsbeck", "Tim Follin", "David Whittaker", "Matt Gray", "Laxity", "Jonathan Dunn"];
+const SUGGESTION_COUNT = 10;
+const SORT_KEY = "shallowsid.searchSort";
 
 const $ = (id) => document.getElementById(id);
 const dom = {
@@ -50,6 +55,8 @@ soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
 applySound();
 const sync = new SyncService({ store, sound });
 const syncSheet = sync.configured ? new SyncSheet(sync) : null;
+const liveShare = new LiveShare({ store });
+liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
 // Remote changes landed: show them.
 sync.addEventListener("applied", () => {
   render();
@@ -76,6 +83,7 @@ let listOptions = {};           // {playlistId} when the list is a playlist
 let searchQuery = "";
 let searchSeq = 0;
 let lastResults = null;
+let searchSort = loadSort();     // last used order is the default
 
 // ---- search worker ----------------------------------------------------------
 
@@ -114,6 +122,11 @@ function runSearch(query) {
 
 // ---- helpers ----------------------------------------------------------------
 
+// A fresh handful of composers per visit, stable while the page is open.
+// The chip shows the handle HVSC gives in parentheses, else the credit itself.
+const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT)
+  .map((credit) => [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit]);
+
 const asItem = (tune, song) => ({ ...tune, song: song ?? tune.start });
 
 function resolveItems(items) {
@@ -135,6 +148,7 @@ function currentRoute() {
 }
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
+  showSortButton();
   dom.title.textContent = title;
   dom.back.hidden = !back;
   dom.back.onclick = back ? () => go(back) : null;
@@ -191,7 +205,7 @@ function renderSearch() {
     dom.view.innerHTML = `
       <section class="home">
         <h2 class="section-title">Try</h2>
-        <div class="chips">${SUGGESTIONS.map((s) => `<ion-chip data-suggest="${esc(s)}">${esc(s)}</ion-chip>`).join("")}</div>
+        <div class="chips">${suggestions.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>
         ${recent.length ? `<h2 class="section-title">Recently played</h2><div id="recent-list"></div>` : `
           <div class="empty"><p>Search ${index ? index.tunes.length.toLocaleString() : "the"} C64 tunes of the High Voltage SID Collection.</p></div>`}
       </section>`;
@@ -216,7 +230,58 @@ function renderSearch() {
     return;
   }
   dom.view.innerHTML = `<p class="result-count">${lastResults.length >= 1000 ? "1000+ tunes" : lastResults.length === 1 ? "1 tune" : `${lastResults.length} tunes`}</p><div id="results"></div>`;
-  showList($("results"), lastResults);
+  showList($("results"), sortResults(lastResults, searchSort));
+}
+
+// ---- result sorting (Spotify-style: a sort button beside the search field) --
+
+function loadSort() {
+  try {
+    return normalizeSort(JSON.parse(localStorage.getItem(SORT_KEY)));
+  } catch {
+    return { ...DEFAULT_SORT };
+  }
+}
+
+const sortDirection = ({ by, desc }) => (by === "year" ? (desc ? "newest first" : "oldest first") : desc ? "Z–A" : "A–Z");
+
+function sortCaption({ by, desc }, long = false) {
+  const label = SORTS.find((s) => s.id === by).label;
+  return long && by !== "relevance" ? `${label} (${sortDirection({ by, desc })})` : label;
+}
+
+function showSortButton() {
+  const visible = currentRoute().name === "search" && !!searchQuery;
+  $("sort-button").hidden = !visible;
+  $("sort-label").textContent = sortCaption(searchSort);
+  const direction = $("sort-direction");
+  direction.hidden = !visible || searchSort.by === "relevance";
+  direction.querySelector("ion-icon").name = searchSort.desc ? "arrow-down" : "arrow-up";
+  direction.setAttribute("aria-label", `Reverse order (now ${sortDirection(searchSort)})`);
+}
+
+function setSort(next) {
+  searchSort = normalizeSort(next);
+  try {
+    localStorage.setItem(SORT_KEY, JSON.stringify(searchSort));
+  } catch {
+    // storage blocked: the order lasts for this visit
+  }
+  showSortButton();
+  if (lastResults) renderSearch();
+}
+
+// Picking the current order again also reverses it; the arrow button does it in one tap.
+function chooseSort() {
+  actionSheet("Sort by", SORTS.map((s) => {
+    const current = s.id === searchSort.by;
+    return {
+      text: current ? sortCaption(searchSort, true) : s.label,
+      icon: current ? "checkmark" : undefined,
+      cssClass: current ? "sort-current" : undefined,
+      handler: () => setSort({ by: s.id, desc: current ? !searchSort.desc : false }),
+    };
+  }));
 }
 
 function renderBrowse(dir) {
@@ -270,7 +335,10 @@ function renderPlaylists() {
   };
   $("new-pl").addEventListener("click", create);
   $("new-pl-empty")?.addEventListener("click", create);
-  $("import-pl").addEventListener("click", () => dom.importInput.click());
+  $("import-pl").addEventListener("click", () => actionSheet("Import playlist", [
+    { text: "Import File…", icon: "document-attach-outline", handler: () => dom.importInput.click() },
+    { text: "Open Link…", icon: "link", handler: () => openPlaylistLink() },
+  ]));
   $("sync-open")?.addEventListener("click", () => syncSheet.open());
 }
 
@@ -291,6 +359,10 @@ function renderPlaylist(id) {
       <ion-button id="pl-shuffle" fill="outline" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
       <ion-button id="pl-edit" fill="clear" ${items.length ? "" : "disabled"}>Edit</ion-button>
     </div>
+    ${pl.share ? `<ion-item button detail="false" lines="none" class="visibility-row" id="pl-visibility">
+        <ion-icon slot="start" name="link" color="primary"></ion-icon>
+        <ion-label><h3>Anyone with the link</h3><p>Viewers see your latest changes</p></ion-label>
+      </ion-item>` : ""}
     ${items.length ? "" : `<div class="empty"><p>Empty. Add tunes with <strong>⋯</strong> on any song.</p></div>`}
     <ion-list id="tune-list"></ion-list>`;
   dom.infinite.disabled = true;
@@ -327,9 +399,11 @@ function renderPlaylist(id) {
   $("pl-play").addEventListener("click", () => player.setQueue(playable(), 0));
   $("pl-shuffle").addEventListener("click", () => player.setQueue(shuffle(playable()), 0));
   $("pl-share").addEventListener("click", () => sharePlaylist(pl));
+  $("pl-visibility")?.addEventListener("click", () => visibilityMenu(pl));
   $("pl-more").addEventListener("click", () => actionSheet(pl.name, [
     { text: "Save playlist file…", icon: "download-outline", handler: () => exportPlaylist(pl) },
-    { text: "Share link", icon: "share-outline", handler: () => sharePlaylist(pl) },
+    { text: "Share…", icon: "share-outline", handler: () => sharePlaylist(pl) },
+    ...(pl.share ? [{ text: "Stop Sharing Link", icon: "link-outline", handler: () => stopSharing(pl) }] : []),
     { text: "Rename", icon: "create-outline", handler: async () => {
       const name = await prompt("Rename playlist", { value: pl.name });
       if (name !== null) { store.rename(id, name); render(); }
@@ -340,6 +414,7 @@ function renderPlaylist(id) {
   ]));
 }
 
+// Snapshot link: the whole playlist is in the URL.
 async function renderShare(blob) {
   setChrome({ title: "Shared playlist", back: "#/playlists", tab: "playlists" });
   dom.infinite.disabled = true;
@@ -350,20 +425,45 @@ async function renderShare(blob) {
     dom.view.innerHTML = `<div class="empty"><p>This share link is broken or incomplete.</p></div>`;
     return;
   }
+  showShared({ name: sanitizeName(shared.name), items: sanitizeItems(shared.items, (p) => !!index.get(p), Infinity) }, "shared with you");
+}
+
+// Live link: the playlist is read from lists/<id> and follows the owner's edits.
+async function renderLive(id) {
+  setChrome({ title: "Shared playlist", back: "#/playlists", tab: "playlists" });
+  dom.infinite.disabled = true;
+  dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  let shared;
+  try {
+    shared = await liveShare.fetch(id, (p) => !!index.get(p));
+  } catch (err) {
+    dom.view.innerHTML = `<div class="empty"><p>Couldn't load this playlist: ${esc(err.message)}</p></div>`;
+    return;
+  }
+  if (currentRoute().name !== "p" || currentRoute().arg !== id) return;   // navigated away meanwhile
+  if (!shared || shared.deleted) {
+    dom.view.innerHTML = `<div class="empty"><p>${shared?.deleted ? "This playlist is no longer shared." : "This link doesn't lead to a playlist."}</p></div>`;
+    return;
+  }
+  showShared(shared, "shared with you · updates live");
+}
+
+// Both link kinds: name and items are already sanitised; all text is escaped.
+function showShared(shared, note) {
   const items = resolveItems(shared.items);
   dom.title.textContent = shared.name;
   dom.view.innerHTML = `
     <div class="playlist-head">
-      <ion-button id="share-play"><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+      <ion-button id="share-play" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
       <ion-button id="share-save" fill="outline"><ion-icon slot="start" name="bookmark-outline"></ion-icon>Save to my playlists</ion-button>
     </div>
-    <p class="result-count">${items.length} tunes shared with you</p>
+    <p class="result-count">${items.length === 1 ? "1 tune" : `${items.length} tunes`} ${esc(note)}</p>
     <div id="share-list"></div>`;
   showList($("share-list"), items);
   $("share-play").addEventListener("click", () => player.setQueue(items.filter((i) => !i.missing), 0));
   $("share-save").addEventListener("click", () => {
     const pl = store.create(shared.name, shared.items);
-    toast(`Saved “${shared.name}”`);
+    toast(`Saved “${pl.name}”`);
     go(`#/playlist/${pl.id}`);
   });
 }
@@ -377,6 +477,7 @@ function render() {
     case "playlists": return renderPlaylists();
     case "playlist": return renderPlaylist(arg);
     case "share": return renderShare(arg);
+    case "p": return renderLive(arg);
     default: return renderSearch();
   }
 }
@@ -451,22 +552,80 @@ async function exportPlaylist(pl) {
   if (outcome === "saved" || outcome === "downloaded") toast(`Saved “${fileName}”`);
 }
 
+// Share: a shared playlist sends its live link; otherwise choose live or snapshot.
 async function sharePlaylist(pl) {
-  const url = `${location.origin}${location.pathname}#/share/${await encodeShare(pl)}`;
+  if (pl.share) return shareUrl(pl.name, liveShare.link(pl.share));
+  if (!liveShare.configured) return shareSnapshot(pl);
+  actionSheet(`Share “${pl.name}”`, [
+    { text: "Live Link", icon: "link", handler: () => startSharing(pl) },
+    { text: "Snapshot Link", icon: "copy-outline", handler: () => shareSnapshot(pl) },
+  ], { subHeader: "A live link always shows your latest version. A snapshot link is a copy of the playlist as it is now." });
+}
+
+async function shareSnapshot(pl) {
+  shareUrl(pl.name, `${location.origin}${location.pathname}#/share/${await encodeShare(pl)}`);
+}
+
+async function startSharing(pl) {
+  try {
+    const share = await liveShare.publish(pl);
+    render();
+    await shareUrl(pl.name, liveShare.link(share));
+  } catch (err) {
+    toast(`Couldn't share: ${err.message}`, { color: "danger" });
+  }
+}
+
+async function stopSharing(pl) {
+  if (!(await confirmDialog("Stop sharing?", "The link stops working for everyone who has it. The playlist stays here.", "Stop Sharing"))) return;
+  try {
+    await liveShare.stop(pl);
+    toast("Link no longer works");
+    render();
+  } catch (err) {
+    toast(`Couldn't stop sharing: ${err.message}`, { color: "danger" });
+  }
+}
+
+function visibilityMenu(pl) {
+  const url = liveShare.link(pl.share);
+  actionSheet("Anyone with the link", [
+    { text: "Copy Link", icon: "copy-outline", handler: () => copyText(url, "Link copied") },
+    { text: "Share…", icon: "share-outline", handler: () => shareUrl(pl.name, url) },
+    { text: "Stop Sharing", role: "destructive", icon: "close-circle-outline", handler: () => stopSharing(pl) },
+  ], { subHeader: url });
+}
+
+async function shareUrl(title, url) {
   if (navigator.share) {
     try {
-      await navigator.share({ title: pl.name, text: `${pl.name} – a C64 playlist on ShallowSID`, url });
+      await navigator.share({ title, text: `${title} – a C64 playlist on ShallowSID`, url });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;
+      // e.g. no user gesture left after a network wait: fall back to copying
     }
   }
+  await copyText(url, "Share link copied");
+}
+
+async function copyText(text, done) {
   try {
-    await navigator.clipboard.writeText(url);
-    toast("Share link copied");
+    await navigator.clipboard.writeText(text);
+    toast(done);
   } catch {
-    prompt("Copy this link", { value: url, confirm: "Done" });
+    prompt("Copy this link", { value: text, confirm: "Done" });
   }
+}
+
+// A pasted ShallowSID link opens the playlist's preview; "Save to my playlists"
+// there is the confirmation. Only the link's #fragment is used.
+async function openPlaylistLink() {
+  const text = await prompt("Open playlist link", { placeholder: "https://…/#/p/… or #/share/…", confirm: "Open" });
+  if (text === null || !text.trim()) return;
+  const link = parsePlaylistLink(text);
+  if (!link) return toast("That isn't a ShallowSID playlist link", { color: "warning" });
+  go(link.kind === "live" ? `#/p/${link.id}` : `#/share/${link.blob}`);
 }
 
 async function importFile(file) {
@@ -504,6 +663,8 @@ dom.view.addEventListener("click", (e) => {
 });
 
 dom.searchbar.addEventListener("ionInput", (e) => runSearch(e.target.value || ""));
+$("sort-button").addEventListener("click", chooseSort);
+$("sort-direction").addEventListener("click", () => setSort({ ...searchSort, desc: !searchSort.desc }));
 dom.infinite.addEventListener("ionInfinite", (e) => {
   appendPage();
   e.target.complete();

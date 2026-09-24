@@ -15,6 +15,7 @@ Written for my own use, so beware of peculiarities.
 ## Usage
 
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
+- **Sort** (the ⇅ button beside the search field): Relevance, Name, Folder, Release (publisher or group) or Year. Tap the current order again to reverse it. The last order used becomes the default.
 - **Browse**: walk the HVSC folders (`MUSICIANS`, `GAMES`, `DEMOS`).
 - **Tap** a tune to play it. The list becomes the play queue.
 - **★** next to the title in Now Playing (or **F** on the keyboard) adds the tune to **Favorites**. Tap again to remove it. Favorited tunes show a small star in lists.
@@ -51,8 +52,10 @@ Playlists:
 - **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute hvsc.c64.org URLs. The subtune goes in an `#EXTSID:subtune=N` line.
   - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
   - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.
-- **Import** (the upload icon on **Playlists**) opens the system file picker, where the same cloud drives show up. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
-- **Share** makes a link with the whole playlist compressed into the URL. No server involved.
+- **Import** (on **Playlists**): **Import File…** opens the system file picker, where the same cloud drives show up. **Open Link…** takes a pasted live or snapshot link and shows the playlist to save. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
+- **Share** offers two kinds of link:
+  - **Live Link:** a short `…/#/p/<id>` link that always shows your latest version. Anyone with it can view; only your devices can change it. The playlist is stored unencrypted for that, until you choose **Stop Sharing**.
+  - **Snapshot Link:** the whole playlist compressed into the URL. No server involved.
 
 ## Local development
 

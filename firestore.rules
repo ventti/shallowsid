@@ -27,6 +27,38 @@ service cloud.firestore {
       allow list: if false;
     }
 
+    // Unlisted playlists: lists/<12-char id>, readable by anyone with the link.
+    // Only the owner can change one: `owner` is sha256(token_n), and an update
+    // must carry proof = token_n and store owner = sha256(token_n+1), so a proof
+    // that becomes visible after use is useless for the next update.
+    // "Stop sharing" is such an update with empty content; there is no delete.
+    match /lists/{id} {
+      function validListId() {
+        return id.matches('^[a-hj-np-z2-9]{12}$');
+      }
+
+      function validList(d) {
+        return d.d is string && d.d.size() <= 200000
+          && d.owner is string && d.owner.matches('^[0-9a-f]{64}$')
+          && d.n is int
+          && d.v is int;
+      }
+
+      allow get: if validListId();
+      allow list, delete: if false;
+      allow create: if validListId()
+        && request.resource.data.keys().hasOnly(['d', 'owner', 'n', 'v'])
+        && validList(request.resource.data)
+        && request.resource.data.n == 0;
+      allow update: if validListId()
+        && request.resource.data.keys().hasOnly(['d', 'owner', 'n', 'v', 'proof'])
+        && validList(request.resource.data)
+        && request.resource.data.proof is string
+        && request.resource.data.proof.matches('^[0-9a-f]{64}$')
+        && hashing.sha256(request.resource.data.proof).toHexString().lower() == resource.data.owner
+        && request.resource.data.n == resource.data.n + 1;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

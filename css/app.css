@@ -493,3 +493,40 @@ ion-app > .np {
 .sound-note a {
   color: var(--app-accent);
 }
+
+/* Sort button on the search row (Spotify-style) */
+.sort-button {
+  --padding-start: 6px;
+  --padding-end: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sort-button ion-icon {
+  font-size: 18px;
+  margin-inline-end: 4px;
+}
+
+.sort-direction {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  margin-inline-start: -4px;
+  font-size: 16px;
+}
+
+ion-action-sheet .sort-current {
+  color: var(--app-accent);
+  font-weight: 600;
+}
+
+/* "Anyone with the link" row on a shared playlist */
+.visibility-row {
+  --background: transparent;
+  margin: 4px 4px 0;
+}
+
+.visibility-row h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
