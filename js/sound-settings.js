@@ -20,7 +20,7 @@ export class SoundSettings extends EventTarget {
   constructor() {
     super();
     const saved = load();
-    this.presets = (saved.presets ?? []).map((p) => ({ id: String(p.id), name: String(p.name), ...normalizeSettings(p) }));
+    this.presets = (saved.presets ?? []).map((p) => ({ id: String(p.id), name: String(p.name), updated: p.updated, ...normalizeSettings(p) }));
     this.activeId = this.find(saved.activeId) ? saved.activeId : BUILTIN_PRESETS[0].id;
     this.draft = saved.draft ? normalizeSettings(saved.draft) : null;   // unsaved edit of a built-in
     this.prerender = saved.prerender !== false;   // playback preference, not part of a profile
@@ -54,7 +54,7 @@ export class SoundSettings extends EventTarget {
     const next = normalizeSettings({ ...this.current, ...partial });
     const preset = this.preset;
     if (preset.builtin) this.draft = next;
-    else Object.assign(preset, next);
+    else Object.assign(preset, next, { updated: Date.now() });
     this.save();
   }
 
@@ -70,7 +70,7 @@ export class SoundSettings extends EventTarget {
   }
 
   saveAsNew(name) {
-    const preset = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || "My sound", ...this.current };
+    const preset = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || "My sound", ...this.current, updated: Date.now() };
     this.presets.push(preset);
     this.activeId = preset.id;
     this.draft = null;
@@ -82,6 +82,7 @@ export class SoundSettings extends EventTarget {
     const p = this.presets.find((x) => x.id === id);
     if (p && name.trim()) {
       p.name = name.trim();
+      p.updated = Date.now();
       this.save();
     }
   }
@@ -101,10 +102,24 @@ export class SoundSettings extends EventTarget {
 
   // Adds the file's profiles as new presets; returns how many were added.
   importText(text, fallbackName) {
-    const added = parseProfiles(text, fallbackName).map((p) => ({ ...p, id: crypto.randomUUID().slice(0, 8) }));
+    const added = parseProfiles(text, fallbackName).map((p) => ({ ...p, id: crypto.randomUUID().slice(0, 8), updated: Date.now() }));
     this.presets.push(...added);
     this.save();
     return added;
+  }
+
+  // Replace presets and preferences with synced data (see sync.js).
+  applySynced({ presets, activeId, prerender }) {
+    this.presets = presets.map((p) => ({ id: String(p.id), name: String(p.name), updated: p.updated, ...normalizeSettings(p) }));
+    if (activeId && this.find(activeId) && activeId !== this.activeId) {
+      this.activeId = activeId;
+      this.draft = null;
+    } else if (!this.find(this.activeId)) {
+      this.activeId = BUILTIN_PRESETS[0].id;
+      this.draft = null;
+    }
+    if (typeof prerender === "boolean") this.prerender = prerender;
+    this.save();
   }
 
   save() {

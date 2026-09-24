@@ -482,3 +482,14 @@ ion-app > .np {
   letter-spacing: 0.03em;
   color: var(--app-muted);
 }
+
+.sync-key {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
+.sound-note a {
+  color: var(--app-accent);
+}

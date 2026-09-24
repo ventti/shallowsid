@@ -92,6 +92,16 @@
     </ion-modal>
     <input type="file" id="sound-import-input" accept=".json,application/json" hidden>
 
+    <ion-modal id="sync-modal" class="sound-modal">
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>Sync</ion-title>
+          <ion-buttons slot="end"><ion-button id="sync-done" strong="true">Done</ion-button></ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="sound-content"><div id="sync-sheet"></div></ion-content>
+    </ion-modal>
+
     <!-- Now Playing: moved between the modal (phones) and the side panel (desktop) -->
     <section id="np" class="np is-paused">
       <div class="np-art-wrap">

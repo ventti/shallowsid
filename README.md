@@ -33,6 +33,12 @@ Sound (the **Sound** button in Now Playing):
 - While the sheet is open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you close the sheet, the tune pre-renders again with the new sound.
 - **Pre-render tunes** (on by default) renders the whole tune ahead for instant seeking and audible scrubbing. With it off, seeking waits for the engine to fast-forward, and nothing is kept in memory.
 
+Sync (the cloud icon on **Playlists**, optional and off by default):
+
+- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, **Use a Key from Another Device…** and enter it. Playlists, favorites and sound presets then stay the same everywhere.
+- There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
+- **Delete Synced Data…** removes the server copy. Nothing expires on its own. See [privacy.html](privacy.html).
+
 Gestures on phones:
 
 - Mini-player: **tap** or **swipe up** opens Now Playing. **Swipe down** plays or pauses. **Swipe left/right** skips.
@@ -75,6 +81,21 @@ node --test "tests/*.test.mjs"
 ```
 
 In the devtools console, `shallowsid.player` and `shallowsid.store` are exposed for poking around.
+
+## Sync backend (Firebase)
+
+Sync talks to Firestore's REST API directly, with no SDK and no secrets in the repo. To enable it:
+
+1. Create a Firebase project and a Firestore database in an EU location (production mode).
+2. Paste [`firestore.rules`](firestore.rules) into **Firestore → Rules** and publish.
+3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
+4. Register a **Web app** and copy its `apiKey` and `projectId` into [`js/sync-config.js`](js/sync-config.js). Both are public.
+5. In Google Cloud **Credentials**, restrict that API key:
+   - **HTTP referrers:** `https://ventti.github.io/*` and `http://localhost:8765/*`
+   - **API restrictions:** Cloud Firestore API only
+6. Fill in the placeholders in [`privacy.html`](privacy.html).
+
+With `js/sync-config.js` left empty, sync is hidden.
 
 ## Deployment
 

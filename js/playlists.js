@@ -30,9 +30,17 @@ export class PlaylistStore extends EventTarget {
     this.recent = read(RECENT_KEY, []);
   }
 
-  save() {
+  // `changed` gets a fresh `updated` time, which sync uses to resolve edits made on two devices.
+  save(changed) {
+    if (changed) changed.updated = Date.now();
     write(PLAYLISTS_KEY, this.playlists);
     this.dispatchEvent(new Event("change"));
+  }
+
+  // Replace everything with synced data (see sync.js).
+  replaceAll(playlists) {
+    this.playlists = playlists;
+    this.save();
   }
 
   get(id) {
@@ -42,7 +50,7 @@ export class PlaylistStore extends EventTarget {
   create(name, items = []) {
     const playlist = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || "New playlist", items, created: Date.now() };
     this.playlists.unshift(playlist);
-    this.save();
+    this.save(playlist);
     return playlist;
   }
 
@@ -50,7 +58,7 @@ export class PlaylistStore extends EventTarget {
     const p = this.get(id);
     if (p && name.trim()) {
       p.name = name.trim();
-      this.save();
+      this.save(p);
     }
   }
 
@@ -63,14 +71,14 @@ export class PlaylistStore extends EventTarget {
     const p = this.get(id);
     if (!p) return;
     p.items.push({ path: item.path, song: item.song ?? item.start ?? 1 });
-    this.save();
+    this.save(p);
   }
 
   removeAt(id, index) {
     const p = this.get(id);
     if (!p) return;
     p.items.splice(index, 1);
-    this.save();
+    this.save(p);
   }
 
   move(id, from, to) {
@@ -78,7 +86,7 @@ export class PlaylistStore extends EventTarget {
     if (!p) return;
     const [item] = p.items.splice(from, 1);
     p.items.splice(to, 0, item);
-    this.save();
+    this.save(p);
   }
 
   // The Favorites playlist (flagged `favorites`); adopts an existing playlist
@@ -87,7 +95,7 @@ export class PlaylistStore extends EventTarget {
     const p = this.playlists.find((pl) => pl.favorites) ?? this.playlists.find((pl) => pl.name === FAVORITES_NAME);
     if (p && !p.favorites) {
       p.favorites = true;
-      this.save();
+      this.save(p);
     }
     return p ?? null;
   }
@@ -106,7 +114,7 @@ export class PlaylistStore extends EventTarget {
     const at = fav.items.findIndex((i) => i.path === item.path && i.song === item.song);
     if (at >= 0) fav.items.splice(at, 1);
     else fav.items.push({ path: item.path, song: item.song });
-    this.save();
+    this.save(fav);
     return at < 0;
   }
 

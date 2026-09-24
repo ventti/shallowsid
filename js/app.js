@@ -9,6 +9,8 @@ import { PlaylistStore } from "./playlists.js";
 import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
 import { SoundSheet } from "./sound-sheet.js";
+import { SyncService } from "./sync.js";
+import { SyncSheet } from "./sync-sheet.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
@@ -46,7 +48,19 @@ sound.addEventListener("change", () => {
 soundSheet.addEventListener("preview", (e) => applySound({ ...sound.current, ...e.detail }));
 soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
 applySound();
-globalThis.shallowsid = { player, store, sound };   // handy from the devtools console
+const sync = new SyncService({ store, sound });
+const syncSheet = sync.configured ? new SyncSheet(sync) : null;
+// Remote changes landed: show them.
+sync.addEventListener("applied", () => {
+  render();
+  nowPlaying.refreshFavorite();
+});
+sync.addEventListener("status", () => {
+  const icon = document.querySelector("#sync-open ion-icon");
+  if (icon) icon.name = syncIcon();
+});
+const syncIcon = () => (!sync.enabled ? "cloud-outline" : sync.status === "error" ? "cloud-offline-outline" : "cloud-done-outline");
+globalThis.shallowsid = { player, store, sound, sync };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
@@ -232,7 +246,8 @@ function renderPlaylists() {
   setChrome({
     title: "Playlists",
     tab: "playlists",
-    actions: `<ion-button id="import-pl" aria-label="Import .m3u8"><ion-icon slot="icon-only" name="cloud-upload-outline"></ion-icon></ion-button>
+    actions: `${syncSheet ? `<ion-button id="sync-open" aria-label="Sync"><ion-icon slot="icon-only" name="${syncIcon()}"></ion-icon></ion-button>` : ""}
+              <ion-button id="import-pl" aria-label="Import .m3u8"><ion-icon slot="icon-only" name="document-attach-outline"></ion-icon></ion-button>
               <ion-button id="new-pl" aria-label="New playlist"><ion-icon slot="icon-only" name="add"></ion-icon></ion-button>`,
   });
   dom.infinite.disabled = true;
@@ -256,6 +271,7 @@ function renderPlaylists() {
   $("new-pl").addEventListener("click", create);
   $("new-pl-empty")?.addEventListener("click", create);
   $("import-pl").addEventListener("click", () => dom.importInput.click());
+  $("sync-open")?.addEventListener("click", () => syncSheet.open());
 }
 
 function renderPlaylist(id) {
