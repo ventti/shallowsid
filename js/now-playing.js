@@ -30,6 +30,7 @@ export class NowPlaying {
     this.waveform = new Waveform($("np-wave"), {
       onScrub: (s) => player.scrub(s),
       onSeek: (s) => player.seek(s),
+      canScrub: () => player.canScrub,
     });
     this.el.modal.breakpoints = [0, 1];
     this.el.modal.initialBreakpoint = 1;
@@ -115,7 +116,8 @@ export class NowPlaying {
       el.dur.textContent = formatTime(detail.duration);
       el.miniBar.style.width = `${detail.duration ? (100 * detail.position) / detail.duration : 0}%`;
       const rendering = detail.buffered < detail.duration - 0.5;
-      el.state.textContent = p.state === "buffering" ? "Buffering…" : rendering ? `Rendering ${Math.round((100 * detail.buffered) / detail.duration)}%` : "";
+      el.state.textContent = p.state === "buffering" ? "Buffering…"
+        : p.adjusting ? "Live" : rendering && p.prerender ? `Rendering ${Math.round((100 * detail.buffered) / detail.duration)}%` : "";
     });
     p.addEventListener("peaks", ({ detail }) => this.waveform.setPeaks(detail.peaks, detail.bucketsPerSecond));
     p.addEventListener("queue", ({ detail }) => this.showQueue(detail.queue, detail.index));

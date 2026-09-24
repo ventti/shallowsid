@@ -16,16 +16,26 @@ const segment = (key, value, options) => `
     ${options.map(([v, text]) => `<ion-segment-button value="${esc(v)}"><ion-label>${esc(text)}</ion-label></ion-segment-button>`).join("")}
   </ion-segment>`;
 
-export class SoundSheet {
+const PREVIEW_INTERVAL_MS = 80;   // live slider updates while dragging
+
+// Events: "adjusting" {detail: bool} when the sheet opens/closes,
+//         "preview" {detail: partial settings} while a slider is dragged.
+export class SoundSheet extends EventTarget {
   constructor(settings) {
+    super();
     this.settings = settings;
+    this.lastPreview = 0;
     this.modal = document.getElementById("sound-modal");
     this.root = document.getElementById("sound-sheet");
     this.importInput = document.getElementById("sound-import-input");
     this.revertButton = document.getElementById("sound-revert");
     this.revertButton.addEventListener("click", () => this.settings.revert());
     document.getElementById("sound-done").addEventListener("click", () => this.modal.dismiss());
-    this.modal.addEventListener("willPresent", () => this.render());
+    this.modal.addEventListener("willPresent", () => {
+      this.render();
+      this.dispatchEvent(new CustomEvent("adjusting", { detail: true }));
+    });
+    this.modal.addEventListener("didDismiss", () => this.dispatchEvent(new CustomEvent("adjusting", { detail: false })));
     settings.addEventListener("change", () => this.render());
     this.bind();
   }
@@ -81,7 +91,13 @@ export class SoundSheet {
         <ion-item><ion-label>Combined waveforms</ion-label>${segment("combinedWaveforms", s.combinedWaveforms, [["WEAK", "Weak"], ["AVERAGE", "Avg"], ["STRONG", "Strong"]])}</ion-item>
         <ion-item lines="none"><ion-toggle data-setting="digiBoost" ${s.digiBoost ? "checked" : ""}${off("8580")}>8580 digi boost</ion-toggle></ion-item>
       </ion-list>
-      <p class="sound-note">Changes play from where the tune is. Editing a measured chip makes an edited copy; your own presets save automatically.</p>
+      <p class="sound-note">Changes play at once. Editing a measured chip makes an edited copy; your own presets save automatically.</p>
+
+      <h3 class="sound-section">Playback</h3>
+      <ion-list inset>
+        <ion-item lines="none"><ion-toggle id="sound-prerender" ${this.settings.prerender ? "checked" : ""}>Pre-render tunes</ion-toggle></ion-item>
+      </ion-list>
+      <p class="sound-note">Renders the whole tune ahead for instant seeking and scrubbing. Paused while this sheet is open. Turn off to save memory and battery.</p>
 
       <ion-list inset>
         ${mine.length ? `<ion-item button detail="false" id="sound-export">
@@ -109,16 +125,23 @@ export class SoundSheet {
     });
     // Segments, toggles and sliders (on release) change the sound.
     root.addEventListener("ionChange", (e) => {
+      if (e.target.id === "sound-prerender") return this.settings.setPrerender(e.detail.checked);
       const key = e.target.dataset?.setting;
       if (!key) return;
       const value = e.target.tagName === "ION-TOGGLE" ? e.detail.checked : e.detail.value;
       this.settings.update({ [key]: typeof value === "number" ? Math.round(value * 100) / 100 : value });
     });
-    // Live value next to a slider while dragging.
+    // While dragging: update the value label and let the sound follow (not saved until release).
     root.addEventListener("ionInput", (e) => {
       const key = e.target.dataset?.setting;
       const label = key && root.querySelector(`[data-value-for="${key}"]`);
-      if (label) label.textContent = Number(e.detail.value).toFixed(2);
+      if (!label) return;
+      const value = Math.round(Number(e.detail.value) * 100) / 100;
+      label.textContent = value.toFixed(2);
+      const now = performance.now();
+      if (now - this.lastPreview < PREVIEW_INTERVAL_MS) return;
+      this.lastPreview = now;
+      this.dispatchEvent(new CustomEvent("preview", { detail: { [key]: value } }));
     });
     this.importInput.addEventListener("change", async (e) => {
       const file = e.target.files[0];

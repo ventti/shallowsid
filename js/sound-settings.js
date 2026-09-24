@@ -23,6 +23,7 @@ export class SoundSettings extends EventTarget {
     this.presets = (saved.presets ?? []).map((p) => ({ id: String(p.id), name: String(p.name), ...normalizeSettings(p) }));
     this.activeId = this.find(saved.activeId) ? saved.activeId : BUILTIN_PRESETS[0].id;
     this.draft = saved.draft ? normalizeSettings(saved.draft) : null;   // unsaved edit of a built-in
+    this.prerender = saved.prerender !== false;   // playback preference, not part of a profile
   }
 
   find(id) {
@@ -54,6 +55,11 @@ export class SoundSettings extends EventTarget {
     const preset = this.preset;
     if (preset.builtin) this.draft = next;
     else Object.assign(preset, next);
+    this.save();
+  }
+
+  setPrerender(on) {
+    this.prerender = !!on;
     this.save();
   }
 
@@ -103,7 +109,7 @@ export class SoundSettings extends EventTarget {
 
   save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeId: this.activeId, draft: this.draft, presets: this.presets }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeId: this.activeId, draft: this.draft, presets: this.presets, prerender: this.prerender }));
     } catch {
       // storage blocked: settings last for this session only
     }

@@ -30,6 +30,8 @@ Sound (the **Sound** button in Now Playing):
   - Adjusting a measured chip creates an edited copy. **Save as new preset…** keeps it. Your own presets save automatically.
   - Presets export and import as `ShallowSID - Sound - <name>.json`.
   - CheeseCutter/VICE-style chip profiles (6581R3 4885, …) use the older reSID-fp filter model, so they don't carry over.
+- While the sheet is open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you close the sheet, the tune pre-renders again with the new sound.
+- **Pre-render tunes** (on by default) renders the whole tune ahead for instant seeking and audible scrubbing. With it off, seeking waits for the engine to fast-forward, and nothing is kept in memory.
 
 Gestures on phones:
 
@@ -93,7 +95,10 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
 - `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
 - SID files are fetched one at a time from `https://www.hvsc.c64.org/download/C64Music/<path>`, which allows cross-origin requests. The plain HVSC mirrors don't, so a browser can't fetch from them.
 - `js/search-worker.js` indexes that with [MiniSearch](https://lucaong.github.io/minisearch/) off the main thread.
-- `js/player/engine-worker.js` renders the tune with reSIDfp, about 13× realtime on an M1 and slower on phones. It streams PCM to `js/player/sid-worklet.js`, an AudioWorklet that keeps the rendered audio for instant seeks and scrub grains.
+- `js/player/engine-worker.js` renders with reSIDfp and runs as two workers:
+  - A **live** engine renders about 0.25 s ahead of the playhead. It's what you hear, and sound changes apply to it at once.
+  - A **cache** engine pre-renders the whole tune, about 13× realtime on an M1 and slower on phones.
+- `js/player/sid-worklet.js` plays live audio when it has it, and cached audio otherwise (right after a seek or chip change, while the live engine catches up). Emulation is deterministic, so both sources sound the same and switching between them is seamless.
 - Songs end at their HVSC song length (3:00 if unknown).
 
 ## Known issues

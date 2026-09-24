@@ -5,10 +5,11 @@
 const RMS_GAIN = 3;   // typical SID RMS is ~0.1-0.3 of full scale
 
 export class Waveform {
-  constructor(canvas, { onScrub, onSeek }) {
+  constructor(canvas, { onScrub, onSeek, canScrub = () => true }) {
     this.canvas = canvas;
     this.onScrub = onScrub;
     this.onSeek = onSeek;
+    this.canScrub = canScrub;           // false: dragging only moves the marker, release seeks
     this.peaks = new Float32Array(0);
     this.bucketsPerSecond = 10;
     this.position = this.duration = this.buffered = this.bufferedFrom = 0;
@@ -41,20 +42,22 @@ export class Waveform {
       if (!this.duration) return;
       c.setPointerCapture(e.pointerId);
       this.dragging = this.secondsAt(e.clientX);
-      this.onScrub(this.dragging);
+      this.scrubbing = this.canScrub();
+      if (this.scrubbing) this.onScrub(this.dragging);
       this.invalidate();
     });
     c.addEventListener("pointermove", (e) => {
       if (this.dragging === null) return;
       this.dragging = this.secondsAt(e.clientX);
-      this.onScrub(this.dragging);
+      if (this.scrubbing) this.onScrub(this.dragging);
       this.invalidate();
     });
     const end = (e) => {
       if (this.dragging === null) return;
       const s = this.secondsAt(e.clientX);
       this.dragging = null;
-      this.onScrub(null);
+      if (this.scrubbing) this.onScrub(null);
+      this.scrubbing = false;
       this.onSeek(s);
     };
     c.addEventListener("pointerup", end);

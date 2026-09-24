@@ -26,20 +26,25 @@ const dom = {
 };
 
 const store = new PlaylistStore();
-const player = new Player({ sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)) });
-connectMediaSession(player);
 const sound = new SoundSettings();
+const player = new Player({ sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender });
+connectMediaSession(player);
 const soundSheet = new SoundSheet(sound);
-// Re-render the playing tune only when the engine setup really changes.
+// Hand the engine a new setup only when it really changes.
 let appliedSound = "";
-function applySound() {
-  const config = toEngineConfig(sound.current);
+function applySound(settings = sound.current) {
+  const config = toEngineConfig(settings);
   const key = JSON.stringify(config);
   if (key === appliedSound) return;
   appliedSound = key;
   player.setSound(config);
 }
-sound.addEventListener("change", applySound);
+sound.addEventListener("change", () => {
+  applySound();
+  player.setPrerender(sound.prerender);
+});
+soundSheet.addEventListener("preview", (e) => applySound({ ...sound.current, ...e.detail }));
+soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
 applySound();
 globalThis.shallowsid = { player, store, sound };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {

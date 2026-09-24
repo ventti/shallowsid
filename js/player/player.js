@@ -1,5 +1,12 @@
-// Player facade: owns the AudioContext, the render worker and the worklet,
+// Player facade: owns the AudioContext, the render workers and the worklet,
 // plus the play queue. UI code only talks to this class.
+//
+// Two engines render each tune (see engine-worker.js / sid-worklet.js):
+// - live:  just ahead of the playhead; what you normally hear, and where sound
+//          changes apply at once.
+// - cache: the whole tune pre-rendered, for instant seeks and audible
+//          scrubbing. Optional (setPrerender), and paused while the sound is
+//          being adjusted (setAdjusting), then re-rendered with the new sound.
 //
 // Events (all CustomEvent, detail as listed):
 //   track  {item, index}                 a new queue item was loaded
@@ -7,6 +14,7 @@
 //   time   {position, duration, buffered, bufferedFrom}  seconds
 //   peaks  {peaks, bucketsPerSecond}     waveform overview grew
 //   queue  {queue, index}
+//   scrub  {enabled}                     whether audible scrubbing is available
 //   error  {message, item}
 
 const PEAK_BUCKETS_PER_SECOND = 10;
@@ -17,18 +25,23 @@ const MAX_CONSECUTIVE_ERRORS = 5;
 const assetUrl = (path) => new URL(path, import.meta.url).href;
 
 export class Player extends EventTarget {
-  constructor({ sidUrls }) {
+  constructor({ sidUrls, prerender = true }) {
     super();
     this.sidUrls = sidUrls;             // (item) => candidate URLs of the .sid file
     this.sound = null;                  // {emulation, filter} for the engine, see sound-profile.js
+    this.prerender = prerender;
+    this.adjusting = false;             // Sound sheet open: live changes, no pre-render
+    this.cacheDirty = false;            // sound changed since the cache was rendered
     this.queue = [];
     this.index = -1;
     this.state = "idle";
-    this.token = 0;
+    this.token = 0;                     // per loaded track
+    this.gen = 0;                       // per render job, see sid-worklet.js
     this.position = 0;
     this.duration = 0;
     this.buffered = 0;
     this.bufferedFrom = 0;
+    this.cacheBase = this.cacheEnd = this.liveEnd = 0;   // frames, from the worklet
     this.peaks = new Float32Array(0);
     this.errors = 0;
     this.audioReady = null;
@@ -36,6 +49,10 @@ export class Player extends EventTarget {
 
   get current() {
     return this.queue[this.index] ?? null;
+  }
+
+  get canScrub() {
+    return this.prerender && !this.adjusting;
   }
 
   // Must be first called from a user gesture (iOS unlocks audio only then).
@@ -55,13 +72,18 @@ export class Player extends EventTarget {
     this.node = new AudioWorkletNode(this.ctx, "sid-player", { numberOfInputs: 0, outputChannelCount: [2] });
     this.node.connect(this.ctx.destination);
     this.node.port.onmessage = (e) => this.onWorklet(e.data);
+    this.liveWorker = this.createWorker("live");
+    if (this.prerender) this.cacheWorker = this.createWorker("cache");
+  }
 
-    this.worker = new Worker(assetUrl("./engine-worker.js"), { type: "module" });
-    this.worker.onmessage = (e) => this.onWorker(e.data);
-    this.worker.onerror = (e) => this.fail(e.message || "Engine failed to start");
+  createWorker(role) {
+    const worker = new Worker(assetUrl("./engine-worker.js"), { type: "module" });
+    worker.onmessage = (e) => this.onWorker(e.data);
+    worker.onerror = (e) => this.fail(e.message || "Engine failed to start");
     const channel = new MessageChannel();
-    this.worker.postMessage({ type: "worklet-port", port: channel.port1 }, [channel.port1]);
+    worker.postMessage({ type: "worklet-port", port: channel.port1 }, [channel.port1]);
     this.node.port.postMessage({ type: "engine-port", port: channel.port2 }, [channel.port2]);
+    return worker;
   }
 
   // ---- queue -------------------------------------------------------------
@@ -91,15 +113,23 @@ export class Player extends EventTarget {
     this.setState("loading");
     this.duration = item.lengths?.[item.song - 1] || DEFAULT_SONG_SECONDS;
     this.position = this.buffered = this.bufferedFrom = 0;
-    this.peaks = new Float32Array(Math.ceil(this.duration * PEAK_BUCKETS_PER_SECOND));
+    this.cacheBase = this.cacheEnd = this.liveEnd = 0;
+    this.resetPeaks();
     this.emit("track", { item, index });
     this.emit("queue", { queue: this.queue, index });
     this.emitTime();
-    this.emitPeaks();
     try {
       const [bytes] = await Promise.all([this.fetchSid(item), audioReady]);
       if (token !== this.token) return;
-      this.startRender(item, bytes, 0);
+      this.bytes = bytes;
+      const sampleRate = this.ctx.sampleRate;
+      this.node.port.postMessage({
+        type: "reset", token, channels: this.channels(), startFrame: 0, stopFrame: Math.round(this.duration * sampleRate),
+      });
+      this.startLive(0);
+      this.cacheDirty = false;
+      if (this.prerender && !this.adjusting) this.startCache(0);
+      else this.cacheDirty = this.prerender;
       this.node.port.postMessage({ type: "play" });
     } catch (err) {
       if (token === this.token) this.fail(err.message, item);
@@ -121,36 +151,71 @@ export class Player extends EventTarget {
     throw new Error(`Could not load ${item.name} (${lastError})`);
   }
 
-  startRender(item, bytes, startFrame) {
+  channels() {
+    return this.current?.multiSid ? 2 : 1;
+  }
+
+  // Start (or restart) one role's render of the current tune at `startFrame`.
+  startJob(worker, role, startFrame, peaks) {
     const sampleRate = this.ctx.sampleRate;
-    const stopFrame = Math.round(this.duration * sampleRate);
-    const channels = item.multiSid ? 2 : 1;
-    this.bytes = bytes;
-    this.node.port.postMessage({ type: "reset", token: this.token, channels, startFrame, stopFrame });
-    // Transfer a copy so a later restart (seek into evicted audio) can reuse the bytes.
-    const copy = bytes.slice(0);
-    this.worker.postMessage(
-      { type: "load", token: this.token, bytes: copy, song: item.song - 1, sampleRate, channels, startFrame, stopFrame, sound: this.sound },
-      [copy],
-    );
+    const copy = this.bytes.slice(0);    // transferred; keep the original for restarts
+    worker.postMessage({
+      type: "load", role, token: this.token, gen: ++this.gen, bytes: copy, song: this.current.song - 1,
+      sampleRate, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
+      sound: this.sound, peaks,
+    }, [copy]);
   }
 
-  // Re-render the current tune from `frame` under a new token, so audio still
-  // in flight from the previous render is ignored.
-  restartRender(frame) {
-    this.token++;
-    this.startRender(this.current, this.bytes, frame);
-    this.buffered = this.bufferedFrom = frame / this.ctx.sampleRate;
-    this.peaks = new Float32Array(this.peaks.length);
-    this.emitPeaks();
-    if (this.state === "playing") this.node.port.postMessage({ type: "play" });
+  startLive(frame) {
+    this.startJob(this.liveWorker, "live", frame, !this.prerender);
   }
 
-  // Apply a new chip/filter setup; the current tune continues from where it is.
+  startCache(frame) {
+    this.cacheWorker ??= this.createWorker("cache");
+    if (frame === 0) this.resetPeaks();
+    this.cacheDirty = false;
+    this.startJob(this.cacheWorker, "cache", frame, true);
+  }
+
+  stopCache() {
+    this.cacheWorker?.postMessage({ type: "stop" });
+  }
+
+  // Apply a new chip/filter setup. The live engine picks it up immediately; the
+  // pre-render starts over with it (or once the Sound sheet closes).
   setSound(sound) {
     this.sound = sound;
     if (!this.node || !this.current || !this.bytes) return;
-    this.restartRender(Math.round(this.position * this.ctx.sampleRate));
+    this.liveWorker.postMessage({ type: "sound", token: this.token, sound });
+    if (!this.prerender) return;
+    if (this.adjusting) this.cacheDirty = true;
+    else this.startCache(0);
+  }
+
+  // While adjusting the sound, only the live engine runs and scrubbing is off.
+  setAdjusting(on) {
+    if (on === this.adjusting) return;
+    this.adjusting = on;
+    this.emit("scrub", { enabled: this.canScrub });
+    if (!this.prerender || !this.current || !this.bytes) return;
+    if (on) this.stopCache();
+    else if (this.cacheDirty || this.cacheEnd < Math.round(this.duration * this.ctx.sampleRate) - 1) this.startCache(0);
+  }
+
+  setPrerender(on) {
+    if (on === this.prerender) return;
+    this.prerender = on;
+    this.emit("scrub", { enabled: this.canScrub });
+    if (!this.node || !this.current || !this.bytes) return;
+    this.liveWorker.postMessage({ type: "peaks", token: this.token, peaks: !on });
+    if (on) {
+      if (this.adjusting) this.cacheDirty = true;
+      else this.startCache(0);
+    } else {
+      this.stopCache();
+      this.node.port.postMessage({ type: "cache-clear" });
+      this.resetPeaks();
+    }
   }
 
   next() {
@@ -178,7 +243,7 @@ export class Player extends EventTarget {
     if (!this.current) return;
     this.ensureAudio();
     this.node?.port.postMessage({ type: "play" });
-    this.setState(this.buffered > this.position ? "playing" : "buffering");
+    this.setState("playing");
   }
 
   pause() {
@@ -191,22 +256,23 @@ export class Player extends EventTarget {
     else this.pause();
   }
 
+  // The cache (when it has the target) plays at once; the live engine always
+  // re-syncs to the new position in the background.
   seek(seconds) {
-    if (!this.node || !this.current) return;
+    if (!this.node || !this.current || !this.bytes) return;
     const s = Math.max(0, Math.min(seconds, this.duration - 0.05));
     const frame = Math.round(s * this.ctx.sampleRate);
-    if (s < this.bufferedFrom) {
-      // That audio was evicted (very long tune): re-render from the target.
-      this.restartRender(frame);
-    }
     this.node.port.postMessage({ type: "seek", frame });
+    this.startLive(frame);
+    // Audio before the cache window was evicted (very long tune): pre-render from here.
+    if (this.prerender && !this.adjusting && frame < this.cacheBase) this.startCache(frame);
     this.position = s;
     this.emitTime();
   }
 
   // Audible scrubbing: call scrub(seconds) while dragging, scrub(null) to stop.
   scrub(seconds) {
-    if (!this.node) return;
+    if (!this.node || (seconds !== null && !this.canScrub)) return;
     const frame = seconds === null ? null : Math.round(seconds * this.ctx.sampleRate);
     this.node.port.postMessage({ type: "scrub", frame });
   }
@@ -217,10 +283,19 @@ export class Player extends EventTarget {
     if (msg.type === "pos") {
       const sr = this.ctx.sampleRate;
       this.position = msg.frame / sr;
-      this.buffered = msg.end / sr;
-      this.bufferedFrom = msg.base / sr;
+      this.cacheBase = msg.base;
+      this.cacheEnd = msg.end;
+      this.liveEnd = msg.liveEnd;
+      if (this.prerender && msg.end > msg.base) {
+        this.buffered = msg.end / sr;
+        this.bufferedFrom = msg.base / sr;
+      } else if (!this.prerender) {
+        this.buffered = Math.max(this.buffered, msg.liveEnd / sr);
+        this.bufferedFrom = 0;
+      }
+      const ready = !msg.waiting && (msg.liveEnd > msg.frame || (msg.end > msg.frame && msg.base <= msg.frame));
       if (this.state === "playing" && msg.waiting) this.setState("buffering");
-      else if ((this.state === "buffering" || this.state === "loading") && !msg.waiting && msg.end > msg.frame) this.setState("playing");
+      else if ((this.state === "buffering" || this.state === "loading") && ready) this.setState("playing");
       this.emitTime();
     } else if (msg.type === "ended" && msg.token === this.token) {
       this.errors = 0;
@@ -240,11 +315,7 @@ export class Player extends EventTarget {
         break;
       }
       case "progress":
-        this.buffered = Math.max(this.buffered, msg.frame / this.ctx.sampleRate);
-        this.emitTime();
-        break;
-      case "started":
-        this.errors = 0;
+        if (msg.role === "live") this.errors = 0;
         break;
       case "error":
         this.fail(msg.message, this.current);
@@ -265,6 +336,11 @@ export class Player extends EventTarget {
     if (state === this.state) return;
     this.state = state;
     this.emit("state", { state });
+  }
+
+  resetPeaks() {
+    this.peaks = new Float32Array(Math.ceil(this.duration * PEAK_BUCKETS_PER_SECOND));
+    this.emitPeaks();
   }
 
   emitTime() {
