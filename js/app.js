@@ -16,6 +16,7 @@ import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
 import { paintAvatars } from "./playlist-art.js";
+import { Install, registerServiceWorker } from "./install.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
@@ -72,6 +73,15 @@ sync.addEventListener("status", () => {
   if (icon) icon.name = syncIcon();
 });
 const syncIcon = () => (!sync.enabled ? "cloud-outline" : sync.status === "error" ? "cloud-offline-outline" : "cloud-done-outline");
+const install = new Install();
+const showInstall = () => ($("install-app-wrap").hidden = !install.available);
+install.addEventListener("change", showInstall);
+showInstall();
+$("install-app").addEventListener("click", (e) => {
+  e.preventDefault();
+  install.install();
+});
+registerServiceWorker();
 globalThis.shallowsid = { player, store, sound, sync };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),

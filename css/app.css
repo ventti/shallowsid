@@ -658,3 +658,9 @@ ion-action-sheet .sort-current {
 #title-toolbar[hidden] + #search-toolbar {
   padding-top: calc(var(--ion-safe-area-top, 0px) + 8px);
 }
+
+/* Numbered steps in plain-text dialogs (see infoDialog) */
+ion-alert.info-alert .alert-message {
+  white-space: pre-line;
+  text-align: start;
+}

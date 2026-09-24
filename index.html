@@ -9,7 +9,13 @@
   <meta name="theme-color" content="#16131f">
   <meta name="description" content="Search the High Voltage SID Collection and play C64 music in your browser with reSIDfp.">
   <title>ShallowSID</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23a99cff'/%3E%3Cpath d='M8 21h4v-8h4v8h4V9h4v14' stroke='%2316131f' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ShallowSID">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
@@ -55,7 +61,8 @@
           </ion-infinite-scroll>
           <footer class="credits">
             <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener" id="hvsc-version">HVSC</a> ·
-            <a href="about.html" target="_blank" rel="noopener">About ShallowSID</a>
+            <a href="about.html" target="_blank" rel="noopener">About ShallowSID</a><span id="install-app-wrap" hidden> ·
+            <a href="#" id="install-app">Install app</a></span>
           </footer>
         </ion-content>
 

@@ -84,6 +84,14 @@ export function prompt(header, { value = "", placeholder = "", confirm = "Save" 
   });
 }
 
+// Plain text only: Ionic doesn't render HTML in alert messages.
+export function infoDialog(header, message, button = "Got it") {
+  return new Promise((resolve) => {
+    const alert = present("ion-alert", { header, message, cssClass: "info-alert", buttons: [{ text: button, role: "cancel" }] });
+    alert.addEventListener("didDismiss", () => resolve());
+  });
+}
+
 export function confirmDialog(header, message, confirm = "Delete") {
   return new Promise((resolve) => {
     let ok = false;

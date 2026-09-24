@@ -43,6 +43,11 @@ Sync (the cloud icon on **Playlists**, optional and off by default):
 - **Generate New Key…** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
 - **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
+Install as an app:
+
+- **Install app** in the footer appears where the browser can install (Chrome and Edge on desktop and Android; on iOS it explains **Share → Add to Home Screen**).
+- Once visited, the app's own files and libraries are cached, so it opens without a connection. Tunes still stream from HVSC.
+
 Gestures on phones:
 
 - Mini-player: **tap** or **swipe up** opens Now Playing. **Swipe down** plays or pauses. **Swipe left/right** skips.
