@@ -284,7 +284,7 @@ function renderSearch() {
     const cards = shelfCards();
     dom.view.innerHTML = `
       <section class="home">
-        <h2 class="section-title">Popular</h2>
+        <h2 class="section-title">Popular composers</h2>
         ${chips(suggestions)}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}

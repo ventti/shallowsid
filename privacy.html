@@ -36,7 +36,8 @@
 
   <h2>Sync (optional, off by default)</h2>
   <ul>
-    <li><strong>What is stored:</strong> one encrypted record with your playlists, favorites, sound presets and two preferences (selected sound preset, pre-rendering).
+    <li><strong>What is stored:</strong> one encrypted record with your playlists, favorites, sound presets, two preferences (selected sound preset, pre-rendering)
+      and the list of devices using the key: for each, its OS, browser, whether it runs as an installed app, when it last synced, and a place guessed from its time zone (such as “Helsinki”; no location services are used).
       It is encrypted on your device with AES-256-GCM, using a key derived from your sync key. The record's ID is also derived from the sync key and reveals nothing about you.
       Recently played tunes and play counts are not synced.</li>
     <li><strong>What is not stored:</strong> no name, email, account or device identifier. The sync key itself never leaves your devices.</li>

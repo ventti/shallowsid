@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateKey, parseKey } from "../js/sync-crypto.js";
-import { foldFavorites, mergeItems, mergeLists, mergePrefs, mergeSnapshots } from "../js/sync-merge.js";
+import { DEVICE_TTL_MS, foldFavorites, mergeDevices, mergeItems, mergeLists, mergePrefs, mergeSnapshots } from "../js/sync-merge.js";
 
 test("sync keys format readably and parse back", () => {
   for (let i = 0; i < 50; i++) {
@@ -83,4 +83,15 @@ test("two Favorites playlists fold into one without duplicates", () => {
   ]);
   assert.deepEqual(out.map((p) => p.id), ["p", "f1"]);
   assert.deepEqual(out.find((p) => p.id === "f1").items.map((i) => i.path), ["T1.sid", "T2.sid", "T3.sid"]);
+});
+
+test("devices: each side's own refresh wins, removals stick, stale ones drop off", () => {
+  const now = 10 * DEVICE_TTL_MS;
+  const a = { id: "a", os: "macOS", updated: now - 1000 };
+  const b = { id: "b", os: "iPhone", updated: now - 2000 };
+  const old = { id: "old", os: "Windows", updated: now - DEVICE_TTL_MS - 1 };
+  const base = [a, b, old];
+  const local = [{ ...a, updated: now }, old];          // a refreshed itself, removed b
+  const remote = [a, b, old, { id: "c", os: "Android", updated: now }];   // c joined
+  assert.deepEqual(mergeDevices(base, local, remote, now).map((d) => [d.id, d.updated]), [["a", now], ["c", now]]);
 });

@@ -145,3 +145,21 @@ test("pausing keeps the key; resuming catches up; a new key starts a new copy", 
   assert.notEqual(b.sync.key, oldKey);
   assert.equal(docs.size, 2);
 });
+
+test("devices list both devices, encrypted, and a removed one comes back when it syncs", async () => {
+  const a = device("a"), b = device("b");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await a.sync.syncNow();
+  assert.equal(a.sync.devices.length, 2);
+  assert.equal(a.sync.devices[0].id, a.sync.deviceId);      // this device first
+  assert.notEqual(a.sync.deviceId, b.sync.deviceId);
+  assert.ok(!JSON.stringify([...docs.values()]).includes(b.sync.deviceId));   // ciphertext only
+  a.sync.removeDevice(b.sync.deviceId);
+  await a.sync.syncNow();
+  assert.equal(a.sync.devices.length, 1);
+  await b.sync.syncNow();       // b learns it was removed...
+  await b.sync.syncNow();       // ...and, still in use, puts itself back
+  await a.sync.syncNow();
+  assert.equal(a.sync.devices.length, 2);
+});

@@ -16,6 +16,27 @@ function ago(time) {
   return m < 60 ? `${m} min ago` : new Date(time).toLocaleString();
 }
 
+function since(time) {
+  const m = Math.round((Date.now() - time) / 60_000);
+  if (m < 10) return "Active now";   // devices refresh their entry every 10 minutes
+  if (m < 60) return `Synced ${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `Synced ${h} h ago`;
+  const d = Math.round(h / 24);
+  return d < 14 ? `Synced ${d} day${d === 1 ? "" : "s"} ago` : `Synced ${new Date(time).toLocaleDateString()}`;
+}
+
+const DEVICE_ICONS = { iPhone: "phone-portrait-outline", Android: "phone-portrait-outline", iPad: "tablet-portrait-outline", macOS: "laptop-outline", ChromeOS: "laptop-outline" };
+
+function deviceRow(d, self, last) {
+  const name = d.app ? `ShallowSID app on ${d.os}` : `${d.browser} on ${d.os}`;
+  const detail = [d.place, self ? "This device" : since(d.updated)].filter(Boolean).join(" · ");
+  return `<ion-item ${self ? "" : `button detail="false" data-device="${esc(d.id)}"`} ${last ? `lines="none"` : ""}>
+    <ion-icon slot="start" name="${DEVICE_ICONS[d.os] ?? "desktop-outline"}" color="${self ? "primary" : "medium"}"></ion-icon>
+    <ion-label><h3>${esc(name)}</h3><p>${esc(detail)}</p></ion-label>
+  </ion-item>`;
+}
+
 export class SyncSheet {
   constructor(sync) {
     this.sync = sync;
@@ -88,6 +109,8 @@ export class SyncSheet {
       </ion-list>
       <p class="sound-note">Turning sync off pauses only this device. The key is kept, so turning it back on catches up.</p>
 
+      ${this.devicesSection()}
+
       <h3 class="sound-section">Sync key</h3>
       <ion-list inset>
         <ion-item lines="none"><div class="sync-qr" id="sync-qr">${this.qr?.key === s.key ? this.qr.svg : ""}</div></ion-item>
@@ -114,6 +137,19 @@ export class SyncSheet {
       </ion-list>
       ${intro}`;
     this.showQR();
+  }
+
+  // Everyone using the key, as last synced here; the list itself is encrypted
+  // with the rest of the sync data.
+  devicesSection() {
+    const s = this.sync;
+    const devices = s.devices;
+    if (!devices.length) return "";
+    return `
+      <h3 class="sound-section">Devices</h3>
+      <ion-list inset>${devices.map((d, i) => deviceRow(d, d.id === s.deviceId, i === devices.length - 1)).join("")}</ion-list>
+      <p class="sound-note">Devices using this key. The place is a guess from each device's time zone, not its location.
+        Tap a device you no longer use to take it off the list.</p>`;
   }
 
   // Drawn once per key; later renders reuse the SVG.
@@ -166,8 +202,13 @@ export class SyncSheet {
   }
 
   async onClick(e) {
-    const id = e.target.closest("ion-item[id], ion-button[id]")?.id;
     const s = this.sync;
+    const device = e.target.closest("[data-device]")?.dataset.device;
+    if (device) {
+      if (await confirmDialog("Remove this device?", "It comes back on the list if it syncs with this key again. To stop it for good, use a new key.", "Remove")) s.removeDevice(device);
+      return;
+    }
+    const id = e.target.closest("ion-item[id], ion-button[id]")?.id;
     try {
       switch (id) {
         case "sync-on":

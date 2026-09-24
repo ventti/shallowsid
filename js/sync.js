@@ -6,25 +6,35 @@
 // and the document's updateTime (used as a write precondition so two devices
 // can't overwrite each other). Pausing keeps the key so resuming rejoins.
 //
+// The synced data also lists the devices using the key (see device-info.js),
+// encrypted like the rest. Each device refreshes its own entry when it syncs,
+// at most every DEVICE_REFRESH_MS so syncing doesn't write on every focus.
+// Its id is kept apart ("shallowsid.device") so rejoining reuses the entry.
+//
 // Events: "status" whenever status/lastSynced/error change, "applied" after
 // remote changes were merged into the local stores.
 
 import { FIREBASE } from "./sync-config.js";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateKey, parseKey } from "./sync-crypto.js";
 import { canonical, mergeSnapshots } from "./sync-merge.js";
+import { describeDevice } from "./device-info.js";
 
 const STORAGE_KEY = "shallowsid.sync";
+const DEVICE_KEY = "shallowsid.device";
+const DEVICE_REFRESH_MS = 10 * 60_000;
 const FORMAT_VERSION = 1;
 const PUSH_DELAY_MS = 3000;
 const RESYNC_ON_FOCUS_MS = 30_000;
 const RETENTION_DAYS = 365;             // `expireAt` for an optional Firestore TTL policy (needs billing; off for now)
 
 const same = (a, b) => canonical(a) === canonical(b);
+// What the local stores hold: everything but the device list.
+const sameData = (a, b) => same({ ...a, devices: undefined }, { ...b, devices: undefined });
 
 class ConflictError extends Error {}
 
 export class SyncService extends EventTarget {
-  constructor({ store, sound, config = FIREBASE, storageKey = STORAGE_KEY }) {
+  constructor({ store, sound, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
     super();
     this.store = store;
     this.sound = sound;
@@ -38,6 +48,8 @@ export class SyncService extends EventTarget {
     this.timer = 0;
     this.running = null;
     this.state = this.load();
+    this.describeDevice = device;
+    this.deviceId = this.loadDeviceId();
     const onLocalChange = () => {
       if (!this.applying && this.enabled) this.schedule();
     };
@@ -61,6 +73,24 @@ export class SyncService extends EventTarget {
 
   get key() {
     return this.state.key;
+  }
+
+  // Everyone using the key, this device first, then the most recently synced.
+  get devices() {
+    const list = this.state.devices ?? [];
+    return [...list].sort((a, b) => (b.id === this.deviceId) - (a.id === this.deviceId) || (b.updated ?? 0) - (a.updated ?? 0));
+  }
+
+  loadDeviceId() {
+    try {
+      const id = localStorage.getItem(DEVICE_KEY);
+      if (id) return id;
+      const fresh = crypto.randomUUID();
+      localStorage.setItem(DEVICE_KEY, fresh);
+      return fresh;
+    } catch {
+      return crypto.randomUUID();   // storage blocked: a new entry per session
+    }
   }
 
   load() {
@@ -125,6 +155,14 @@ export class SyncService extends EventTarget {
     this.setStatus("off");
   }
 
+  // Take a device off the list (one that is gone); it returns if it syncs again.
+  removeDevice(id) {
+    this.state = { ...this.state, devices: (this.state.devices ?? []).filter((d) => d.id !== id) };
+    this.persist();
+    this.dispatchEvent(new Event("status"));
+    this.syncNow();
+  }
+
   async deleteRemote() {
     const vault = await this.vault();
     const res = await fetch(this.url(vault.id), { method: "DELETE" });
@@ -171,11 +209,11 @@ export class SyncService extends EventTarget {
     const local = this.snapshot();
     const remote = remoteDoc?.data ?? null;
     const merged = mergeSnapshots(this.state.base, local, remote ?? local);
-    if (!same(merged, local)) this.apply(merged);
+    if (!sameData(merged, local)) this.apply(merged);
     let updateTime = remoteDoc?.updateTime ?? null;
     if (!remote || !same(merged, remote)) updateTime = await this.push(vault, merged, updateTime);
     // A copy: `merged` can share objects with the live stores, which later edits mutate.
-    this.state = { ...this.state, base: structuredClone(merged), updateTime };
+    this.state = { ...this.state, base: structuredClone(merged), devices: structuredClone(merged.devices), updateTime };
     this.persist();
   }
 
@@ -183,10 +221,21 @@ export class SyncService extends EventTarget {
 
   snapshot() {
     return {
+      devices: this.devicesWithSelf(),
       playlists: this.store.playlists,
       soundPresets: this.sound.presets,
       prefs: { soundActiveId: this.sound.activeId, prerender: this.sound.prerender },
     };
+  }
+
+  // This device's entry, refreshed when its description changed or it is due.
+  devicesWithSelf() {
+    const list = this.state.devices ?? this.state.base?.devices ?? [];
+    const own = list.find((d) => d.id === this.deviceId);
+    const now = { id: this.deviceId, ...this.describeDevice() };
+    const due = !own || Date.now() - (own.updated ?? 0) > DEVICE_REFRESH_MS || !same({ ...own, updated: undefined }, now);
+    if (!due) return list;
+    return [...list.filter((d) => d.id !== this.deviceId), { ...now, updated: Date.now() }];
   }
 
   apply(merged) {

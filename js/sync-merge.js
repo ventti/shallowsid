@@ -1,6 +1,7 @@
 // Three-way merge of synced data. Pure, so it runs under `node --test`.
 //
-// A snapshot is {playlists: [...], soundPresets: [...], prefs: {...}}; list
+// A snapshot is {playlists: [...], soundPresets: [...], prefs: {...},
+// devices: [...]}; list
 // items have an `id` and, when edited, an `updated` time. `base` is the last
 // snapshot both sides agreed on, which tells additions from deletions:
 //   - kept on one side, gone on the other, unchanged since base -> deleted
@@ -9,7 +10,11 @@
 //     only takes that change; `items` lists are merged tune by tune; a field
 //     changed on both takes the side with the later `updated` (local on a tie)
 
-export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {} });
+export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [] });
+
+// Devices not seen for this long drop off the list (a device that syncs again
+// puts itself back).
+export const DEVICE_TTL_MS = 180 * 86_400_000;
 
 // Stable JSON (sorted keys) so equal data compares equal.
 export function canonical(value) {
@@ -109,12 +114,19 @@ export function foldFavorites(playlists) {
   return playlists.filter((p) => !drop.has(p.id)).map((p) => (p.id === keep.id ? merged : p));
 }
 
-export function mergeSnapshots(base, local, remote) {
+// Devices merge like any list: each one refreshes its own entry's `updated`,
+// and one removed on a device stays removed unless it syncs again.
+export function mergeDevices(base, local, remote, now = Date.now()) {
+  return mergeLists(base, local, remote).filter((d) => now - (d.updated ?? 0) < DEVICE_TTL_MS);
+}
+
+export function mergeSnapshots(base, local, remote, now = Date.now()) {
   base ??= EMPTY_SNAPSHOT;
   return {
     playlists: foldFavorites(mergeLists(base.playlists, local.playlists, remote.playlists)),
     soundPresets: mergeLists(base.soundPresets, local.soundPresets, remote.soundPresets),
     // First sync with existing data (joining another device): its preferences win.
     prefs: base === EMPTY_SNAPSHOT && remote !== local ? { ...local.prefs, ...remote.prefs } : mergePrefs(base.prefs, local.prefs, remote.prefs),
+    devices: mergeDevices(base.devices, local.devices, remote.devices, now),
   };
 }

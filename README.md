@@ -41,6 +41,7 @@ Sync (the cloud icon on **Playlists**, optional and off by default):
 - There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
 - **Sync This Device** pauses and resumes sync. The key is kept, so turning it back on catches up.
 - **Generate New Key…** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
+- **Devices** lists everything using the key: OS, browser, when it last synced, and a place guessed from the time zone (no location permission). Tap an old device to take it off the list. The list is encrypted with the rest.
 - **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
 Install as an app:

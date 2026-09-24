@@ -1,4 +1,4 @@
-// Composers for the search page's "Popular" chips, as HVSC credits them.
+// Composers for the search page's "Popular composers" chips, as HVSC credits them.
 // Chosen from CSDb's musician top list (weighted average 8.5 or higher,
 // 2026-09-24) plus the classic names; nothing beyond the HVSC credit is kept.
 export const COMPOSERS = [
