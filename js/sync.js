@@ -1,9 +1,10 @@
 // Optional end-to-end encrypted sync of playlists, sound presets and
 // preferences through Firestore's REST API (no SDK, no accounts).
 //
-// Local state (localStorage "shallowsid.sync"): the sync key, the last merged
-// snapshot (base for three-way merges) and the document's updateTime (used as
-// a write precondition so two devices can't overwrite each other).
+// Local state (localStorage "shallowsid.sync"): the sync key, whether sync is
+// paused on this device, the last merged snapshot (base for three-way merges)
+// and the document's updateTime (used as a write precondition so two devices
+// can't overwrite each other). Pausing keeps the key so resuming rejoins.
 //
 // Events: "status" whenever status/lastSynced/error change, "applied" after
 // remote changes were merged into the local stores.
@@ -38,18 +39,23 @@ export class SyncService extends EventTarget {
     this.running = null;
     this.state = this.load();
     const onLocalChange = () => {
-      if (!this.applying && this.state.key) this.schedule();
+      if (!this.applying && this.enabled) this.schedule();
     };
     store.addEventListener("change", onLocalChange);
     sound.addEventListener("change", onLocalChange);
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && this.state.key && Date.now() - (this.lastSynced ?? 0) > RESYNC_ON_FOCUS_MS) this.syncNow();
+      if (document.visibilityState === "visible" && this.enabled && Date.now() - (this.lastSynced ?? 0) > RESYNC_ON_FOCUS_MS) this.syncNow();
     });
-    window.addEventListener?.("online", () => this.state.key && this.syncNow());
-    if (this.configured && this.state.key) this.syncNow();
+    window.addEventListener?.("online", () => this.enabled && this.syncNow());
+    if (this.enabled) this.syncNow();
   }
 
   get enabled() {
+    return this.hasKey && !this.state.paused;
+  }
+
+  // A key is kept while paused.
+  get hasKey() {
     return this.configured && !!this.state.key;
   }
 
@@ -82,8 +88,16 @@ export class SyncService extends EventTarget {
 
   // ---- user actions ------------------------------------------------------
 
+  // Start (or restart) with a fresh key. Devices on the old key stop syncing
+  // with this one; the old synced copy stays until deleted with that key.
   async turnOn() {
     this.state = { key: formatKey(generateKey()), base: null, updateTime: null };
+    this.persist();
+    await this.syncNow();
+  }
+
+  async resume() {
+    this.state = { ...this.state, paused: false };
     this.persist();
     await this.syncNow();
   }
@@ -96,6 +110,14 @@ export class SyncService extends EventTarget {
     await this.syncNow();
   }
 
+  pause() {
+    clearTimeout(this.timer);
+    this.state = { ...this.state, paused: true };
+    this.persist();
+    this.setStatus("off");
+  }
+
+  // Stop syncing and forget the key.
   turnOff() {
     clearTimeout(this.timer);
     this.state = {};

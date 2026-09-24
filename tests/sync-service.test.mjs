@@ -125,3 +125,23 @@ test("a wrong key fails with a clear message and uploads nothing new", async () 
   await assert.rejects(b.sync.useKey("not a key"), /26 letters/);
   assert.equal(docs.size, 1);
 });
+
+test("pausing keeps the key; resuming catches up; a new key starts a new copy", async () => {
+  const a = device("a"), b = device("b");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  b.sync.pause();
+  assert.equal(b.sync.enabled, false);
+  assert.equal(b.sync.key, a.sync.key);
+  a.store.create("While paused");
+  await a.sync.syncNow();
+  const seen = requests.length;
+  await b.sync.syncNow();
+  assert.equal(requests.length, seen);            // paused: no traffic
+  await b.sync.resume();
+  assert.deepEqual(b.store.playlists.map((p) => p.name), ["While paused"]);
+  const oldKey = b.sync.key;
+  await b.sync.turnOn();
+  assert.notEqual(b.sync.key, oldKey);
+  assert.equal(docs.size, 2);
+});

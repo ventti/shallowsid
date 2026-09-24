@@ -36,9 +36,11 @@ Sound (the **Sound** button in Now Playing):
 
 Sync (the cloud icon on **Playlists**, optional and off by default):
 
-- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, **Use a Key from Another Device…** and enter it. Playlists, favorites and sound presets then stay the same everywhere.
+- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites and sound presets then stay the same everywhere.
 - There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
-- **Delete Synced Data…** removes the server copy. Nothing expires on its own. See [privacy.html](privacy.html).
+- **Sync This Device** pauses and resumes sync. The key is kept, so turning it back on catches up.
+- **Generate New Key…** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
+- **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
 Gestures on phones:
 
@@ -140,7 +142,7 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
 - [HVSC](https://www.hvsc.c64.org/) and its team, for the collection and `Songlengths.md5`.
 - [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and reSIDfp, and [libsidplayfp-wasm](https://github.com/chrisgleissner/libsidplayfp-wasm) for the WebAssembly build ([corresponding source](https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/complete-source.tar.gz)).
 - [DeepSID](https://github.com/Chordian/deepsid) by Chordian, for showing how it's done.
-- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
+- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
 
 ## License
 

@@ -478,8 +478,18 @@ function render() {
     case "playlist": return renderPlaylist(arg);
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
+    case "sync": return joinSyncLink(arg);
     default: return renderSearch();
   }
+}
+
+// A scanned sync QR code opens #/sync/<key>. Drop the key from the address
+// (and history) right away, then let the Sync sheet ask before joining.
+function joinSyncLink(key) {
+  history.replaceState(null, "", "#/playlists");
+  renderPlaylists();
+  if (syncSheet) syncSheet.joinFromLink(key);
+  else toast("Sync isn't available here", { color: "warning" });
 }
 
 // ---- actions ----------------------------------------------------------------
