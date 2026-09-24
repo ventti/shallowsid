@@ -225,6 +225,11 @@ body.has-side-panel .mini {
   opacity: 0.55;
 }
 
+.recent-art {
+  background: linear-gradient(135deg, #ffb38a, #b0507a);
+  color: #16131f;
+}
+
 .most-played-art {
   background: linear-gradient(135deg, #5ee0c0, #2f7d8c);
   color: #16131f;
@@ -401,6 +406,14 @@ ion-app > .np {
   margin: 0;
   font-size: 16px;
   color: var(--app-accent);
+}
+
+.np-author.is-link {
+  cursor: pointer;
+}
+
+.np-author.is-link:hover {
+  text-decoration: underline;
 }
 
 .np-released {
@@ -638,4 +651,10 @@ ion-action-sheet .sort-current {
 .visibility-row h3 {
   font-size: 15px;
   font-weight: 600;
+}
+
+/* With the title bar hidden, the search bar is the top toolbar: give it the
+   safe-area inset (notch) Ionic only adds to the first toolbar, plus air. */
+#title-toolbar[hidden] + #search-toolbar {
+  padding-top: calc(var(--ion-safe-area-top, 0px) + 8px);
 }

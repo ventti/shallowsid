@@ -1,4 +1,4 @@
-// Composers for the search page's "Try" chips, as HVSC credits them.
+// Composers for the search page's "Popular" chips, as HVSC credits them.
 // Chosen from CSDb's musician top list (weighted average 8.5 or higher,
 // 2026-09-24) plus the classic names; nothing beyond the HVSC credit is kept.
 export const COMPOSERS = [
@@ -98,3 +98,10 @@ export const COMPOSERS = [
   "Anders Rodahl (Rage)",
   "Chris Hülsbeck",
 ];
+
+// HVSC credits that should show (and search) as another name: handles that
+// are ambiguous on their own, or one composer credited several ways.
+export const COMPOSER_ALIASES = {
+  "Glenn Rune Gallefoss (Shark)": "Glenn Rune Gallefoss",
+  "Shark": "Glenn Rune Gallefoss",
+};

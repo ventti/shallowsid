@@ -15,7 +15,7 @@ Written for my own use, so beware of peculiarities.
 ## Usage
 
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
-- **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most played.
+- **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites**, **Recently played** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most or recently played.
 - **Sort** (the ⇅ button beside the search field): Relevance, Name, Folder, Release (publisher or group) or Year. Tap the current order again to reverse it. The last order used becomes the default.
 - **Browse**: walk the HVSC folders (`MUSICIANS`, `GAMES`, `DEMOS`).
 - **Tap** a tune to play it. The list becomes the play queue.

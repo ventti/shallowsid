@@ -25,18 +25,18 @@
     <div class="layout">
       <div class="ion-page" id="main-page">
         <ion-header>
-          <ion-toolbar>
+          <ion-toolbar id="title-toolbar">
             <ion-buttons slot="start">
               <ion-button id="back" hidden aria-label="Back"><ion-icon slot="icon-only" name="chevron-back"></ion-icon></ion-button>
             </ion-buttons>
-            <ion-title id="title">Search</ion-title>
+            <ion-title id="title"></ion-title>
             <ion-buttons slot="end">
               <!-- plain wrapper: re-rendering inside Ionic's scoped slot directly loses the nodes -->
               <div id="toolbar-actions" class="toolbar-actions"></div>
             </ion-buttons>
           </ion-toolbar>
           <ion-toolbar id="search-toolbar">
-            <ion-searchbar id="searchbar" placeholder="Tunes, composers, groups…" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
+            <ion-searchbar id="searchbar" placeholder="Search tunes, composers, groups…" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
             <ion-buttons slot="end">
               <ion-button id="sort-button" class="sort-button" hidden aria-label="Sort results">
                 <ion-icon slot="start" name="swap-vertical"></ion-icon><span id="sort-label">Relevance</span>
@@ -73,7 +73,7 @@
             </div>
           </div>
           <ion-tab-bar id="tab-bar" selected-tab="search">
-            <ion-tab-button tab="search"><ion-icon name="search"></ion-icon><ion-label>Search</ion-label></ion-tab-button>
+            <ion-tab-button tab="home"><ion-icon name="home"></ion-icon><ion-label>Home</ion-label></ion-tab-button>
             <ion-tab-button tab="browse"><ion-icon name="folder-open"></ion-icon><ion-label>Browse</ion-label></ion-tab-button>
             <ion-tab-button tab="playlists"><ion-icon name="library"></ion-icon><ion-label>Playlists</ion-label></ion-tab-button>
           </ion-tab-bar>
@@ -118,7 +118,7 @@
         <div class="np-title-row">
           <div>
             <h1 id="np-title">Nothing playing</h1>
-            <p id="np-author" class="np-author">Pick a tune</p>
+            <p id="np-author" class="np-author" role="link" tabindex="0" title="Search for this composer">Pick a tune</p>
           </div>
           <ion-button fill="clear" id="np-fav" class="np-fav" aria-label="Add to Favorites" aria-pressed="false" hidden><ion-icon slot="icon-only" name="star-outline"></ion-icon></ion-button>
         </div>

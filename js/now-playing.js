@@ -10,10 +10,11 @@ const DESKTOP = window.matchMedia("(min-width: 992px)");
 const HINT_KEY = "shallowsid.swipeHintSeen";
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, isFavorite, onToggleFavorite, onOpenSound }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, onSearchComposer, isFavorite, onToggleFavorite, onOpenSound }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
+    this.onSearchComposer = onSearchComposer;
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
     this.onOpenSound = onOpenSound;
@@ -73,6 +74,20 @@ export class NowPlaying {
       if (!p.current) return;
       this.close();
       this.onShowFolder(p.current.dir);
+    });
+    // The composer is a link to a search for them ("<?>" means unknown).
+    const searchComposer = () => {
+      const author = p.current?.author;
+      if (!author || author === "<?>") return;
+      this.close();
+      this.onSearchComposer(author);
+    };
+    el.author.addEventListener("click", searchComposer);
+    el.author.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        searchComposer();
+      }
     });
     el.subtune.addEventListener("ionChange", (e) => p.selectSong(Number(e.detail.value)));
     el.queue.addEventListener("click", (e) => {
@@ -135,6 +150,7 @@ export class NowPlaying {
     el.art.querySelector("span").textContent = initials(item);
     el.title.textContent = item.title;
     el.author.textContent = item.author;
+    el.author.classList.toggle("is-link", item.author !== "<?>");
     el.released.textContent = item.released;
     const badges = [item.model, item.clock, item.rsid && "RSID", item.multiSid && "Multi-SID"].filter(Boolean);
     el.badges.innerHTML = badges.map((b) => `<ion-badge color="medium">${esc(b)}</ion-badge>`).join("");

@@ -9,7 +9,7 @@ import { PlaylistStore } from "./playlists.js";
 import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
 import { SoundSheet } from "./sound-sheet.js";
-import { COMPOSERS } from "./suggestions.js";
+import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
@@ -34,7 +34,7 @@ const $ = (id) => document.getElementById(id);
 const dom = {
   title: $("title"), back: $("back"), actions: $("toolbar-actions"), searchToolbar: $("search-toolbar"),
   searchbar: $("searchbar"), content: $("content"), view: $("view"), infinite: $("infinite"),
-  tabBar: $("tab-bar"), importInput: $("import-input"),
+  tabBar: $("tab-bar"), importInput: $("import-input"), titleToolbar: $("title-toolbar"),
 };
 
 const store = new PlaylistStore();
@@ -76,6 +76,7 @@ globalThis.shallowsid = { player, store, sound, sync };   // handy from the devt
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
+  onSearchComposer: (credit) => searchFor(COMPOSER_ALIASES[credit] ?? credit),
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
   onOpenSound: () => soundSheet.open(),
@@ -118,8 +119,18 @@ function failSearch(message) {
   if (currentRoute().name === "search") renderSearch();
 }
 
+function searchFor(query) {
+  dom.searchbar.value = query;
+  if (currentRoute().name !== "search") location.hash = "#/search";
+  runSearch(query);
+}
+
 function runSearch(query) {
   searchQuery = query.trim();
+  // Results live at #/search, an empty search is Home (no history entry per keystroke).
+  const route = currentRoute().name;
+  if (searchQuery && route !== "search") history.replaceState(null, "", "#/search");
+  else if (!searchQuery && route === "search") history.replaceState(null, "", "#/home");
   lastResults = lastIds = null;
   if (searchQuery) searchWorker.postMessage({ type: "search", id: ++searchSeq, query: searchQuery });
   renderSearch();
@@ -128,20 +139,28 @@ function runSearch(query) {
 // ---- helpers ----------------------------------------------------------------
 
 // A fresh handful of composers per visit, stable while the page is open.
-// The chip shows the handle HVSC gives in parentheses, else the credit itself.
-const composerChip = (credit) => [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit];
+// The chip shows the handle HVSC gives in parentheses, else the credit itself;
+// an alias replaces both label and search.
+function composerChip(credit) {
+  const alias = COMPOSER_ALIASES[credit];
+  return alias ? [alias, alias] : [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit];
+}
 const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT).map(composerChip);
 const chips = (list) => `<div class="chips">${list.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>`;
 
 const mostPlayedItems = () => resolveItems(store.mostPlayed(MOST_PLAYED_COUNT)).filter((i) => !i.missing);
+const recentItems = () => resolveItems(store.recent).filter((i) => !i.missing);
 
-// "Jump back in" cards: Your most played, Favorites, then playlists last played.
+// "Jump back in" cards: Your most played, Favorites, Recently played, then
+// playlists last played.
 function shelfCards() {
   const cards = [];
   const mostPlayed = mostPlayedItems().length;
   if (mostPlayed) cards.push({ href: "#/most-played", name: "Your most played", count: mostPlayed, art: "most-played-art", icon: "trending-up" });
   const favorites = store.favorites();
   if (favorites?.items.length) cards.push({ playlist: favorites });
+  const recent = recentItems().length;
+  if (recent) cards.push({ href: "#/recent", name: "Recently played", count: recent, art: "recent-art", icon: "time" });
   for (const p of store.recentPlaylists()) if (p !== favorites) cards.push({ playlist: p });
   return cards.slice(0, SHELF_COUNT).map((c) => c.playlist
     ? { href: `#/playlist/${c.playlist.id}`, name: c.playlist.name, count: c.playlist.items.length,
@@ -161,7 +180,8 @@ const shelf = (cards) => `<div class="shelf">${cards.map((c) => `
 function favoriteComposers() {
   const plays = new Map();
   for (const { path, count } of store.mostPlayed()) {
-    const author = index.get(path)?.author;
+    const credit = index.get(path)?.author;
+    const author = COMPOSER_ALIASES[credit] ?? credit;
     if (author && author !== "<?>") plays.set(author, (plays.get(author) ?? 0) + count);
   }
   return [...plays].sort((a, b) => b[1] - a[1]).slice(0, FAVORITE_COMPOSER_COUNT).map(([credit]) => composerChip(credit));
@@ -182,14 +202,15 @@ function go(hash) {
 }
 
 function currentRoute() {
-  // No hash (plain site URL) splits to [""]: treat it as the search view.
+  // No hash (plain site URL) splits to [""]: treat it as Home.
   const [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
-  return { name: name || "search", arg: rest.length ? decodeURIComponent(rest.join("/")) : "" };
+  return { name: name || "home", arg: rest.length ? decodeURIComponent(rest.join("/")) : "" };
 }
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
   showSortButton();
   dom.title.textContent = title;
+  dom.titleToolbar.hidden = !title && !back && !actions;   // Home and search results show just the search bar
   dom.back.hidden = !back;
   dom.back.onclick = back ? () => go(back) : null;
   dom.actions.innerHTML = actions;
@@ -238,10 +259,17 @@ function refreshRowMarks() {
 
 // ---- views ------------------------------------------------------------------
 
+// Home is the search view with the search cleared.
+function renderHome() {
+  searchQuery = "";
+  lastResults = lastIds = null;
+  dom.searchbar.value = "";
+  renderSearch();
+}
+
 function renderSearch() {
-  setChrome({ title: "Search", search: true, tab: "search" });
+  setChrome({ title: "", search: true, tab: "home" });
   if (!searchQuery) {
-    const recent = resolveItems(store.recent).filter((i) => !i.missing);
     const composers = favoriteComposers();
     const cards = shelfCards();
     dom.view.innerHTML = `
@@ -250,12 +278,10 @@ function renderSearch() {
         ${chips(suggestions)}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
-        ${recent.length ? `<h2 class="section-title">Recently played</h2><div id="recent-list"></div>` : `
-          <div class="empty"><p>Search ${index ? index.tunes.length.toLocaleString() : "the"} C64 tunes of the High Voltage SID Collection.</p></div>`}
+        <div class="empty"><p>Search ${index ? index.tunes.length.toLocaleString() : "the"} C64 tunes of the High Voltage SID Collection.</p></div>
       </section>`;
     paintAvatars(dom.view);
-    if (recent.length) showList($("recent-list"), recent);
-    else dom.infinite.disabled = true;
+    dom.infinite.disabled = true;
     return;
   }
   if (searchError) {
@@ -504,23 +530,22 @@ async function renderLive(id) {
   showShared(shared, "shared with you · updates live");
 }
 
-// Generated from this device's play counts; saving makes a regular playlist.
-function renderMostPlayed() {
-  setChrome({ title: "Your most played", back: "#/search", tab: "search" });
-  const items = mostPlayedItems();
+// Lists generated from this device's playback; saving makes a regular playlist.
+function renderGenerated(title, items, note) {
+  setChrome({ title, back: "#/home", tab: "home" });
   dom.view.innerHTML = `
     <div class="playlist-head">
       <ion-button id="top-play" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
       <ion-button id="top-shuffle" fill="outline" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
       <ion-button id="top-save" fill="clear" ${items.length ? "" : "disabled"}>Save as Playlist</ion-button>
     </div>
-    <p class="result-count">Your ${MOST_PLAYED_COUNT} most played tunes on this device</p>
+    <p class="result-count">${esc(note)}</p>
     <div id="top-list"></div>`;
   showList($("top-list"), items);
   $("top-play").addEventListener("click", () => player.setQueue(items, 0));
   $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
   $("top-save").addEventListener("click", () => {
-    const pl = store.create("Your most played", items);
+    const pl = store.create(title, items);
     toast(`Saved “${pl.name}”`);
     go(`#/playlist/${pl.id}`);
   });
@@ -557,7 +582,9 @@ function render() {
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
     case "sync": return joinSyncLink(arg);
-    case "most-played": return renderMostPlayed();
+    case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes on this device`);
+    case "recent": return renderGenerated("Recently played", recentItems(), "The tunes you played last on this device");
+    case "home": return renderHome();
     default: return renderSearch();
   }
 }
