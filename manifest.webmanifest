@@ -1,7 +1,7 @@
 {
   "name": "ShallowSID",
   "short_name": "ShallowSID",
-  "description": "Search the High Voltage SID Collection and play C64 music.",
+  "description": "The easy C64 music web player: over 60,000 tunes from the High Voltage SID Collection.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

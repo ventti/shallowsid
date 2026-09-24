@@ -67,7 +67,7 @@ jobs:
 
       - name: Assemble site
         run: |
-          cp -r index.html privacy.html about.html manifest.webmanifest service-worker.js icons css js _site/
+          cp -r index.html favicon.ico privacy.html about.html manifest.webmanifest service-worker.js icons css js _site/
           touch _site/.nojekyll
           du -sh _site
 

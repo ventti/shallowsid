@@ -7,9 +7,23 @@
   <!-- Only this site, jsDelivr (libraries), HVSC (tunes) and Firestore (sync, shared lists). -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#16131f">
-  <meta name="description" content="Search the High Voltage SID Collection and play C64 music in your browser with reSIDfp.">
-  <title>ShallowSID</title>
+  <meta name="description" content="ShallowSID is a free web player that gives you instant access to over 60,000 Commodore 64 tunes from the High Voltage SID Collection. No account, no ads: just press play.">
+  <title>ShallowSID - the easy C64 music web player</title>
+  <!-- Link previews (Open Graph, X/Twitter): crawlers need absolute URLs -->
+  <link rel="canonical" href="https://ventti.github.io/shallowsid/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ShallowSID">
+  <meta property="og:title" content="ShallowSID - the easy C64 music web player">
+  <meta property="og:description" content="Free, instant access to over 60,000 Commodore 64 tunes from the High Voltage SID Collection. No account, no ads: just press play.">
+  <meta property="og:url" content="https://ventti.github.io/shallowsid/">
+  <meta property="og:image" content="https://ventti.github.io/shallowsid/icons/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="ShallowSID, the easy C64 music web player">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <!-- PNG and ICO too: link-preview crawlers (Slack, Discord, iMessage) don't read SVG -->
+  <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">

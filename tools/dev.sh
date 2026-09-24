@@ -8,7 +8,7 @@ port="${1:-8000}"; shift || true
 if [[ ! -f "$site/data/index.json" || $# -gt 0 ]]; then
   python3 "$repo/tools/build_index.py" --out "$site" "$@"
 fi
-for f in index.html privacy.html about.html manifest.webmanifest service-worker.js icons css js; do ln -sfn "$repo/$f" "$site/$f"; done
+for f in index.html favicon.ico privacy.html about.html manifest.webmanifest service-worker.js icons css js; do ln -sfn "$repo/$f" "$site/$f"; done
 echo "serving $site on http://localhost:$port"
 # Like `python3 -m http.server`, but with no-cache so edited modules reload.
 exec python3 - "$port" "$site" <<'PY'
