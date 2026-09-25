@@ -1,6 +1,7 @@
 // Full-text search over the HVSC index, off the main thread.
 // Receives {type:"load", text} once (the catalogue JSON the page downloaded),
-// then {type:"search", id, query}; replies {type:"results", id, ids}.
+// then {type:"search", id, query}; replies {type:"results", id, ids, total}
+// (`ids` stops at MAX_RESULTS, `total` counts every match).
 //
 // MiniSearch finds the candidates (prefix + fuzzy). They are then ranked in
 // predictable tiers rather than by raw BM25 score, which reads as random:
@@ -11,7 +12,7 @@
 
 import MiniSearch from "https://cdn.jsdelivr.net/npm/minisearch@7.2.0/dist/es/index.js";
 
-const MAX_RESULTS = 1000;
+const MAX_RESULTS = 5000;
 const TOKEN_SPLIT = /[\s/_\-.,()&!?'"]+/u;
 
 // Lowercase and strip accents, so "hulsbeck" finds "Hülsbeck".
@@ -72,8 +73,8 @@ self.onmessage = async (e) => {
   const { search, tunes, ranked } = await ready;
   const q = normalize(query).trim();
   const qWords = words(query);
-  const ids = search
-    .search(query)
+  const hits = search.search(query);
+  const ids = hits
     .map((hit) => ({ id: hit.id, tier: tier(ranked[hit.id], q, qWords) }))
     .sort((a, b) =>
       a.tier - b.tier ||
@@ -81,5 +82,5 @@ self.onmessage = async (e) => {
       collator.compare(tunes[a.id].author, tunes[b.id].author))
     .slice(0, MAX_RESULTS)
     .map((hit) => hit.id);
-  self.postMessage({ type: "results", id, ids });
+  self.postMessage({ type: "results", id, ids, total: hits.length });
 };

@@ -63,9 +63,11 @@ const sync = new SyncService({ store, sound });
 const syncSheet = sync.configured ? new SyncSheet(sync) : null;
 const liveShare = new LiveShare({ store });
 liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
-// Remote changes landed: show them.
+// Remote changes landed: show them. Folders and search results only show
+// synced data in their favorite marks, so they keep their rows and scroll.
 sync.addEventListener("applied", () => {
-  render();
+  if (["browse", "search"].includes(currentRoute().name)) refreshRowMarks();
+  else render();
   nowPlaying.refreshFavorite();
 });
 sync.addEventListener("status", () => {
@@ -107,6 +109,7 @@ const searchWorker = new Worker(new URL("./search-worker.js", import.meta.url), 
 let searchReady = false;
 let searchError = null;
 let lastIds = null;             // result ids; turned into tunes once the index is in
+let lastTotal = 0;              // every match, including those past the worker's limit
 searchWorker.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "ready") {
@@ -116,6 +119,7 @@ searchWorker.onmessage = (e) => {
     failSearch(msg.message);
   } else if (msg.type === "results" && msg.id === searchSeq) {
     lastIds = msg.ids;
+    lastTotal = msg.total ?? msg.ids.length;
     lastResults = null;
     if (currentRoute().name === "search") renderSearch();
   }
@@ -229,7 +233,8 @@ function setChrome({ title, back = null, actions = "", search = false, tab }) {
   dom.tabBar.selectedTab = tab;
 }
 
-// Render a (possibly long) list of tunes with infinite scrolling.
+// Render a (possibly long) list of tunes with infinite scrolling, or with
+// `all` every row, a page per frame so a big folder (~1300 tunes) doesn't stall.
 function showList(container, items, options = {}) {
   listItems = items;
   listOptions = options;
@@ -250,7 +255,10 @@ function appendPage() {
     favorite: favorites.has(itemKey(item)),
   })).join(""));
   listShown += page.length;
-  dom.infinite.disabled = listShown >= listItems.length;
+  const more = listShown < listItems.length;
+  dom.infinite.disabled = !more || listOptions.all;
+  // Until another list replaces this one.
+  if (more && listOptions.all) requestAnimationFrame(() => list.isConnected && appendPage());
 }
 
 const itemKey = (item) => `${item.path}#${item.song}`;
@@ -311,7 +319,10 @@ function renderSearch() {
     dom.infinite.disabled = true;
     return;
   }
-  dom.view.innerHTML = `<p class="result-count">${lastResults.length >= 1000 ? "1000+ tunes" : lastResults.length === 1 ? "1 tune" : `${lastResults.length} tunes`}</p><div id="results"></div>`;
+  const shown = lastResults.length;
+  const count = lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
+    : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
+  dom.view.innerHTML = `<p class="result-count">${count}</p><div id="results"></div>`;
   showList($("results"), sortResults(lastResults, searchSort));
 }
 
@@ -389,7 +400,7 @@ function renderBrowse(dir) {
     </ion-list>
     <div id="dir-tunes"></div>`;
   const items = tunes.map((t) => asItem(t));
-  showList($("dir-tunes"), items);
+  showList($("dir-tunes"), items, { all: true });
   $("play-all")?.addEventListener("click", () => items.length && player.setQueue(items, 0));
 }
 
