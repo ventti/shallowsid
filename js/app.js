@@ -66,7 +66,7 @@ liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }))
 // Remote changes landed: show them. Folders and search results only show
 // synced data in their favorite marks, so they keep their rows and scroll.
 sync.addEventListener("applied", () => {
-  if (["browse", "search"].includes(currentRoute().name)) refreshRowMarks();
+  if (["browse", "search", "composer"].includes(currentRoute().name)) refreshRowMarks();
   else render();
   nowPlaying.refreshFavorite();
 });
@@ -88,7 +88,7 @@ globalThis.shallowsid = { player, store, sound, sync };   // handy from the devt
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
-  onSearchComposer: (credit) => searchFor(COMPOSER_ALIASES[credit] ?? credit),
+  onOpenComposer: (credit) => go(composerHref(composerName(credit))),
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
   onOpenSound: () => soundSheet.open(),
@@ -160,7 +160,7 @@ function composerChip(credit) {
   return alias ? [alias, alias] : [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit];
 }
 const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT).map(composerChip);
-const chips = (list) => `<div class="chips">${list.map(([label, query]) => `<ion-chip data-suggest="${esc(query)}">${esc(label)}</ion-chip>`).join("")}</div>`;
+const chips = (list) => `<div class="chips">${list.map(([label, name]) => `<ion-chip data-open-composer="${esc(name)}">${esc(label)}</ion-chip>`).join("")}</div>`;
 
 const playedWhere = () => (sync.enabled ? "on your devices" : "on this device");
 const mostPlayedItems = () => resolveItems(store.mostPlayed(MOST_PLAYED_COUNT)).filter((i) => !i.missing);
@@ -227,7 +227,8 @@ function setChrome({ title, back = null, actions = "", search = false, tab }) {
   dom.title.textContent = title;
   dom.titleToolbar.hidden = !title && !back && !actions;   // Home and search results show just the search bar
   dom.back.hidden = !back;
-  dom.back.onclick = back ? () => go(back) : null;
+  // "history" goes back to wherever the page was opened from (Home when opened directly).
+  dom.back.onclick = back === "history" ? () => (history.length > 1 ? history.back() : go("#/home")) : back ? () => go(back) : null;
   dom.actions.innerHTML = actions;
   dom.searchToolbar.hidden = !search;
   dom.tabBar.selectedTab = tab;
@@ -235,6 +236,7 @@ function setChrome({ title, back = null, actions = "", search = false, tab }) {
 
 // Render a (possibly long) list of tunes with infinite scrolling, or with
 // `all` every row, a page per frame so a big folder (~1300 tunes) doesn't stall.
+// `sections` ([{title, start, count}]) puts a heading above each part.
 function showList(container, items, options = {}) {
   listItems = items;
   listOptions = options;
@@ -249,7 +251,11 @@ function appendPage() {
   const cur = player.current;
   const favorites = favoriteKeys();
   const page = listItems.slice(listShown, listShown + PAGE_SIZE);
-  list.insertAdjacentHTML("beforeend", page.map((item, i) => tuneRow(item, listShown + i, {
+  const heading = (at) => {
+    const section = listOptions.sections?.find((s) => s.start === at);
+    return section ? `<ion-list-header><ion-label>${esc(section.title)}</ion-label></ion-list-header>` : "";
+  };
+  list.insertAdjacentHTML("beforeend", page.map((item, i) => heading(listShown + i) + tuneRow(item, listShown + i, {
     missing: item.missing,
     current: cur && cur.path === item.path && cur.song === item.song,
     favorite: favorites.has(itemKey(item)),
@@ -553,6 +559,66 @@ async function renderLive(id) {
 }
 
 // Lists generated from this device's playback; saving makes a regular playlist.
+// ---- composer page ---------------------------------------------------------
+
+const TOP_TUNES = 5;
+// A composer is the name HVSC credits them by, or its alias (COMPOSER_ALIASES).
+const composerName = (credit) => COMPOSER_ALIASES[credit] ?? credit;
+const composerHref = (name) => `#/composer/${encodeURIComponent(name)}`;
+// Joint credits read "A & B" or "A, B & C".
+const creditParts = (credit) => credit.split(/\s*[&,]\s*/);
+const tuneYear = (tune) => Number(tune.released?.match(/\b(19|20)\d\d\b/)?.[0]);
+const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" });
+
+// Their own tunes, and those credited jointly with others.
+function composerTunes(name) {
+  const own = [], shared = [];
+  for (const t of index.tunes) {
+    if (composerName(t.author) === name) own.push(t);
+    else if (/[&,]/.test(t.author) && creditParts(t.author).some((part) => composerName(part) === name)) shared.push(t);
+  }
+  return { own: own.sort(byTitle), shared: shared.sort(byTitle) };
+}
+
+// Like an artist page: who, how much and when, what you play most, then everything.
+function renderComposer(name) {
+  const [label] = composerChip(name);
+  const realName = name.replace(/\s*\([^)]*\)\s*$/, "");
+  const { own, shared } = composerTunes(name);
+  const tunes = [...own, ...shared].map((t) => asItem(t));
+  const paths = new Set(tunes.map((t) => t.path));
+  const top = resolveItems(store.mostPlayed().filter((p) => paths.has(p.path)).slice(0, TOP_TUNES)).filter((i) => !i.missing);
+  const years = tunes.map(tuneYear).filter(Number.isFinite);
+  const span = years.length ? [...new Set([Math.min(...years), Math.max(...years)])].join("–") : "";
+  const dirs = new Set(own.map((t) => t.dir));
+  const folder = dirs.size === 1 ? [...dirs][0] : null;
+  const meta = [realName !== label && realName, `${tunes.length.toLocaleString()} tune${tunes.length === 1 ? "" : "s"}`, span].filter(Boolean);
+  setChrome({ title: "", back: "history", tab: "home" });
+  dom.view.innerHTML = `
+    <section class="composer-head">
+      <div class="composer-avatar" data-composer="${esc(name)}" data-animate><ion-icon name="person"></ion-icon></div>
+      <h1 class="composer-name">${esc(label)}</h1>
+      <p class="composer-meta">${meta.map(esc).join(" · ")}</p>
+      <div class="playlist-head composer-actions">
+        <ion-button id="top-play" ${tunes.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+        <ion-button id="top-shuffle" fill="outline" ${tunes.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+        ${folder ? `<ion-button id="composer-folder" fill="clear"><ion-icon slot="start" name="folder-outline"></ion-icon>Folder</ion-button>` : ""}
+        <ion-button id="composer-search" fill="clear"><ion-icon slot="start" name="search"></ion-icon>Search</ion-button>
+      </div>
+    </section>
+    ${tunes.length ? "" : `<div class="empty"><p>No tunes are credited to ${esc(name)}.</p></div>`}
+    <div id="composer-tunes"></div>`;
+  paintAvatars(dom.view);
+  const parts = [["Your top tunes", top], ["Tunes", own.map((t) => asItem(t))], ["With others", shared.map((t) => asItem(t))]].filter(([, items]) => items.length);
+  let start = 0;
+  const sections = parts.map(([title, items]) => ({ title, start: (start += items.length) - items.length, count: items.length }));
+  showList($("composer-tunes"), parts.flatMap(([, items]) => items), { all: true, sections });
+  $("top-play").addEventListener("click", () => player.setQueue(tunes, 0));
+  $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(tunes), 0));
+  $("composer-folder")?.addEventListener("click", () => go(`#/browse/${encodeURIComponent(folder)}`));
+  $("composer-search").addEventListener("click", () => searchFor(name));
+}
+
 function renderGenerated(title, items, note) {
   setChrome({ title, back: "#/home", tab: "home" });
   dom.view.innerHTML = `
@@ -604,6 +670,7 @@ function render() {
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
     case "sync": return joinSyncLink(arg);
+    case "composer": return renderComposer(arg);
     case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes ${playedWhere()}`);
     case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
     case "home": return renderHome();
@@ -787,15 +854,14 @@ dom.view.addEventListener("click", (e) => {
     e.stopPropagation();
     return rowMenu(listItemAt(menu), Number(menu.dataset.menu));
   }
-  const suggest = e.target.closest("[data-suggest]");
-  if (suggest) {
-    dom.searchbar.value = suggest.dataset.suggest;
-    return runSearch(suggest.dataset.suggest);
-  }
+  const composer = e.target.closest("[data-open-composer]");
+  if (composer) return go(composerHref(composer.dataset.openComposer));
   const row = e.target.closest("[data-play]");
   if (row && !row.closest(".is-editing")) {
     const pos = Number(row.dataset.play);
-    const playable = listItems.filter((i) => !i.missing);
+    // A list in sections queues just the section played from.
+    const section = listOptions.sections?.find((s) => pos >= s.start && pos < s.start + s.count);
+    const playable = (section ? listItems.slice(section.start, section.start + section.count) : listItems).filter((i) => !i.missing);
     if (listOptions.playlistId) store.markPlayed(listOptions.playlistId);
     player.setQueue(playable, playable.indexOf(listItems[pos]));
   }

@@ -1,9 +1,10 @@
 // Deterministic DiceBear art, in presets made for ShallowSID's dark lavender
-// look: composers get a Critters creature seeded by their HVSC credit,
-// playlists a Patchwork quilt seeded by their id (so renaming keeps it).
-// Both styles are CC0. Markup carries data-composer="<credit>" or
+// look: composers get a Critters creature seeded by their name (see the
+// composer page), playlists a Patchwork quilt seeded by their id (so renaming
+// keeps it). Both styles are CC0. Markup carries data-composer="<name>" or
 // data-avatar="<playlist id>" with a fallback; paintAvatars() swaps in the
-// art once DiceBear has loaded from the CDN.
+// art once DiceBear has loaded from the CDN. `data-animate` makes a critter
+// bob, blink and sway (paused under prefers-reduced-motion).
 
 const CDN = "https://cdn.jsdelivr.net/npm";
 const CORE_URL = `${CDN}/@dicebear/core@10.7.0/+esm`;
@@ -30,6 +31,7 @@ const PRESETS = {
     scale: 1.3,   // fewer, bigger patches read better at thumbnail size
   },
 };
+const ANIMATED = { animationVariant: ["medium", "slow", "slowest"] };   // the calm speeds; the seed picks one
 
 const SLOTS = [
   { attr: "composer", style: "critters" },
@@ -68,8 +70,9 @@ export async function paintAvatars(root) {
   }
   for (const { el, attr, style } of slots) {
     const seed = el.dataset[attr];
-    const key = `${style}:${seed}`;
-    if (!cache.has(key)) cache.set(key, new core.Avatar(styles[style], { seed, ...PRESETS[style] }).toDataUri());
+    const animate = el.hasAttribute("data-animate");
+    const key = `${style}:${animate}:${seed}`;
+    if (!cache.has(key)) cache.set(key, new core.Avatar(styles[style], { seed, ...PRESETS[style], ...(animate && ANIMATED) }).toDataUri());
     el.innerHTML = `<img src="${cache.get(key)}" alt="">`;
     el.classList.add("has-avatar");
   }

@@ -15,6 +15,7 @@ Written for my own use, so beware of peculiarities.
 ## Usage
 
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
+- **Composer pages**: tap a composer chip, or the composer's name in Now Playing. Shows an animated [DiceBear](https://www.dicebear.com/) critter (the same one every time), the tune count and years, **Your top tunes**, all their tunes, and those credited jointly **With others**. Playing from a section queues just that section.
 - **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites**, **Recently played** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most or recently played.
 - **Sort** (the ⇅ button beside the search field): Relevance, Name, Folder, Release (publisher or group) or Year. Tap the current order again to reverse it. The last order used becomes the default.
 - **Browse**: walk the HVSC folders (`MUSICIANS`, `GAMES`, `DEMOS`).

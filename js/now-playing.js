@@ -10,11 +10,11 @@ const DESKTOP = window.matchMedia("(min-width: 992px)");
 const HINT_KEY = "shallowsid.swipeHintSeen";
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, onSearchComposer, isFavorite, onToggleFavorite, onOpenSound }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
-    this.onSearchComposer = onSearchComposer;
+    this.onOpenComposer = onOpenComposer;
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
     this.onOpenSound = onOpenSound;
@@ -75,18 +75,18 @@ export class NowPlaying {
       this.close();
       this.onShowFolder(p.current.dir);
     });
-    // The composer is a link to a search for them ("<?>" means unknown).
-    const searchComposer = () => {
+    // The composer is a link to their page ("<?>" means unknown).
+    const openComposer = () => {
       const author = p.current?.author;
       if (!author || author === "<?>") return;
       this.close();
-      this.onSearchComposer(author);
+      this.onOpenComposer(author);
     };
-    el.author.addEventListener("click", searchComposer);
+    el.author.addEventListener("click", openComposer);
     el.author.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        searchComposer();
+        openComposer();
       }
     });
     el.subtune.addEventListener("ionChange", (e) => p.selectSong(Number(e.detail.value)));
