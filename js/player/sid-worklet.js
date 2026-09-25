@@ -160,7 +160,8 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
     this.sinceReport = 0;
     const waiting = this.playing && !this.ended && this.sampleAt(this.playhead, 0) === null;
     this.port.postMessage({ type: "pos", frame: this.playhead, base: this.baseFrame, end: this.endFrame, liveEnd: this.liveEnd(), waiting });
-    for (const port of this.enginePorts) port.postMessage({ type: "pos", token: this.token, frame: this.playhead });
+    // Engines also learn what the cache holds, so the live one can park (see engine-worker.js).
+    for (const port of this.enginePorts) port.postMessage({ type: "pos", token: this.token, frame: this.playhead, cacheFrom: this.baseFrame, cacheTo: this.endFrame, cacheGen: this.cacheGen });
   }
 
   process(_inputs, outputs) {

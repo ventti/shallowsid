@@ -2,11 +2,14 @@
 // plus the play queue. UI code only talks to this class.
 //
 // Two engines render each tune (see engine-worker.js / sid-worklet.js):
-// - live:  just ahead of the playhead; what you normally hear, and where sound
-//          changes apply at once.
+// - live:  just ahead of the playhead, where sound changes apply at once.
+//          It parks while the cache holds the audio ahead, so a tune is
+//          normally emulated once; with the Sound sheet open it stays in step.
 // - cache: the whole tune pre-rendered, for instant seeks and audible
 //          scrubbing. Optional (setPrerender), and paused while the sound is
 //          being adjusted (setAdjusting), then re-rendered with the new sound.
+//          Until live has caught up with a change, the cache's old sound
+//          plays on rather than silence.
 //
 // Events (all CustomEvent, detail as listed):
 //   track  {item, index}                 a new queue item was loaded
@@ -32,6 +35,7 @@ export class Player extends EventTarget {
     this.prerender = prerender;
     this.adjusting = false;             // Sound sheet open: live changes, no pre-render
     this.cacheDirty = false;            // sound changed since the cache was rendered
+    this.freshCacheGen = Infinity;      // first cache render with the current sound (live parks only on that)
     this.queue = [];
     this.index = -1;
     this.state = "idle";
@@ -52,6 +56,11 @@ export class Player extends EventTarget {
   }
 
   get canScrub() {
+    return this.prerender && !this.adjusting;
+  }
+
+  // The live engine may rest on the cache unless the sound is being adjusted.
+  get livePark() {
     return this.prerender && !this.adjusting;
   }
 
@@ -162,7 +171,7 @@ export class Player extends EventTarget {
     worker.postMessage({
       type: "load", role, token: this.token, gen: ++this.gen, bytes: copy, song: this.current.song - 1,
       sampleRate, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
-      sound: this.sound, peaks,
+      sound: this.sound, peaks, parkable: role === "live" && this.livePark, freshCacheGen: this.freshCacheGen,
     }, [copy]);
   }
 
@@ -175,6 +184,12 @@ export class Player extends EventTarget {
     if (frame === 0) this.resetPeaks();
     this.cacheDirty = false;
     this.startJob(this.cacheWorker, "cache", frame, true);
+    this.freshCacheGen = this.gen;
+    this.updateLivePark();
+  }
+
+  updateLivePark() {
+    this.liveWorker?.postMessage({ type: "park", token: this.token, parkable: this.livePark, freshCacheGen: this.freshCacheGen });
   }
 
   stopCache() {
@@ -187,6 +202,8 @@ export class Player extends EventTarget {
     this.sound = sound;
     if (!this.node || !this.current || !this.bytes) return;
     this.liveWorker.postMessage({ type: "sound", token: this.token, sound });
+    this.freshCacheGen = Infinity;      // what is cached has the old sound
+    this.updateLivePark();
     if (!this.prerender) return;
     if (this.adjusting) this.cacheDirty = true;
     else this.startCache(0);
@@ -198,6 +215,7 @@ export class Player extends EventTarget {
     this.adjusting = on;
     this.emit("scrub", { enabled: this.canScrub });
     if (!this.prerender || !this.current || !this.bytes) return;
+    this.updateLivePark();              // open: live wakes in step
     if (on) this.stopCache();
     else if (this.cacheDirty || this.cacheEnd < Math.round(this.duration * this.ctx.sampleRate) - 1) this.startCache(0);
   }
@@ -208,6 +226,7 @@ export class Player extends EventTarget {
     this.emit("scrub", { enabled: this.canScrub });
     if (!this.node || !this.current || !this.bytes) return;
     this.liveWorker.postMessage({ type: "peaks", token: this.token, peaks: !on });
+    this.updateLivePark();
     if (on) {
       if (this.adjusting) this.cacheDirty = true;
       else this.startCache(0);
