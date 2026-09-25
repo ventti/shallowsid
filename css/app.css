@@ -219,12 +219,6 @@ body.has-side-panel .mini {
   height: 100%;
 }
 
-.avatar-tint {
-  position: absolute;
-  inset: 0;
-  opacity: 0.55;
-}
-
 .recent-art {
   background: linear-gradient(135deg, #ffb38a, #b0507a);
   color: #16131f;

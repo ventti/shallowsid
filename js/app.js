@@ -15,7 +15,7 @@ import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
-import { paintAvatars } from "./playlist-art.js";
+import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
 
