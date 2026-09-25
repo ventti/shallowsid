@@ -17,7 +17,7 @@ import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-cor
 import { SyncSheet } from "./sync-sheet.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
-import { actionSheet, confirmDialog, esc, prompt, saveFile, toast, tuneRow } from "./ui.js";
+import { actionSheet, confirmDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
 // SID files come from the official HVSC site (CORS-enabled, fetched one by one).
@@ -88,6 +88,7 @@ globalThis.shallowsid = { player, store, sound, sync };   // handy from the devt
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
+  onShare: (item) => shareTune(item),
   onOpenComposer: (credit) => go(composerHref(composerName(credit))),
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
@@ -598,6 +599,46 @@ async function renderLive(id) {
 }
 
 // Lists generated from this device's playback; saving makes a regular playlist.
+// ---- tune links --------------------------------------------------------------
+
+// #/tune/<subtune>/<HVSC path>: the subtune first, so the path can be anything.
+const tuneLink = (item) => `${location.origin}${location.pathname}#/tune/${item.song}/${encodePath(item.path)}`;
+
+// The system share sheet (Copy is one of its choices), or copying where there is none.
+function shareTune(item) {
+  const title = item.songs > 1 ? `${item.title} (subtune ${item.song})` : item.title;
+  const by = item.author !== "<?>" ? ` by ${item.author}` : "";
+  return shareUrl(title, tuneLink(item), `${title}${by} – C64 music on ShallowSID`);
+}
+
+// Where a tune link lands. Browsers start audio only on a tap, so it waits for Play.
+function renderTune(arg) {
+  const [songText, ...parts] = arg.split("/");
+  const tune = index.get(parts.join("/"));
+  setChrome({ title: "", back: "history", tab: "home" });
+  if (!tune) {
+    dom.view.innerHTML = `<div class="empty"><p>This tune isn't in HVSC #${esc(index.version)}.</p></div>`;
+    return;
+  }
+  const item = asItem(tune, Math.min(Math.max(Math.trunc(Number(songText)) || tune.start, 1), tune.songs));
+  const author = item.author !== "<?>" ? `<a href="${composerHref(composerName(item.author))}">${esc(item.author)}</a>` : esc(item.author);
+  dom.view.innerHTML = `
+    <section class="composer-head">
+      ${thumb(item, "thumb tune-cover")}
+      <h1 class="composer-name">${esc(item.title)}</h1>
+      <p class="composer-meta">${[author, esc(item.released)].filter(Boolean).join(" · ")}</p>
+      ${item.songs > 1 ? `<p class="composer-meta">Subtune ${item.song} of ${item.songs}</p>` : ""}
+      <div class="playlist-head composer-actions">
+        <ion-button id="tune-play"><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+        <ion-button id="tune-folder" fill="clear"><ion-icon slot="start" name="folder-outline"></ion-icon>Folder</ion-button>
+        <ion-button id="tune-share" fill="clear"><ion-icon slot="start" name="share-outline"></ion-icon>Share</ion-button>
+      </div>
+    </section>`;
+  $("tune-play").addEventListener("click", () => player.setQueue([item], 0));
+  $("tune-folder").addEventListener("click", () => go(`#/browse/${encodeURIComponent(item.dir)}`));
+  $("tune-share").addEventListener("click", () => shareTune(item));
+}
+
 // ---- composer page ---------------------------------------------------------
 
 const TOP_TUNES = 5;
@@ -711,6 +752,7 @@ function render() {
     case "p": return renderLive(arg);
     case "sync": return joinSyncLink(arg);
     case "composer": return renderComposer(arg);
+    case "tune": return renderTune(arg);
     case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes ${playedWhere()}`);
     case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
     case "home": return renderHome();
@@ -773,6 +815,7 @@ function rowMenu(item, position) {
       { text: "Add to queue", icon: "list", handler: () => (player.current ? player.enqueue(item) : player.setQueue([item])) },
       { text: "Add to playlist…", icon: "add-circle-outline", handler: () => setTimeout(() => addToPlaylist(item), 300) },
       { text: "Go to folder", icon: "folder-open-outline", handler: () => go(`#/browse/${encodeURIComponent(item.dir)}`) },
+      { text: "Share…", icon: "share-outline", handler: () => shareTune(item) },
     );
   }
   if (listOptions.playlistId) {
@@ -841,10 +884,10 @@ function visibilityMenu(pl) {
   ], { subHeader: url });
 }
 
-async function shareUrl(title, url) {
+async function shareUrl(title, url, text = `${title} – a C64 playlist on ShallowSID`) {
   if (navigator.share) {
     try {
-      await navigator.share({ title, text: `${title} – a C64 playlist on ShallowSID`, url });
+      await navigator.share({ title, text, url });
       return;
     } catch (err) {
       if (err.name === "AbortError") return;

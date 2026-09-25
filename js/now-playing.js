@@ -10,10 +10,11 @@ const DESKTOP = window.matchMedia("(min-width: 992px)");
 const HINT_KEY = "shallowsid.swipeHintSeen";
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
+    this.onShare = onShare;
     this.onOpenComposer = onOpenComposer;
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
@@ -26,7 +27,7 @@ export class NowPlaying {
       art: $("np-art"), title: $("np-title"), author: $("np-author"), released: $("np-released"),
       badges: $("np-badges"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
-      add: $("np-add"), folder: $("np-folder"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"), hint: $("np-hint"),
+      add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"), hint: $("np-hint"),
     };
     this.waveform = new Waveform($("np-wave"), {
       onScrub: (s) => player.scrub(s),
@@ -68,6 +69,7 @@ export class NowPlaying {
     el.prev.addEventListener("click", () => p.previous());
     el.next.addEventListener("click", () => p.next());
     el.add.addEventListener("click", () => p.current && this.onAddToPlaylist(p.current));
+    el.share.addEventListener("click", () => p.current && this.onShare(p.current));   // with the subtune playing
     el.fav.addEventListener("click", () => p.current && this.onToggleFavorite(p.current));
     el.sound.addEventListener("click", () => this.onOpenSound());
     el.folder.addEventListener("click", () => {
@@ -160,7 +162,7 @@ export class NowPlaying {
       return `<ion-select-option value="${i + 1}">Subtune ${i + 1}${len ? ` · ${formatTime(len)}` : ""}</ion-select-option>`;
     }).join("");
     el.subtune.value = String(item.song);
-    el.fav.hidden = false;
+    el.fav.hidden = el.share.hidden = false;
     this.refreshFavorite();
     document.title = `${item.title} – ${item.author} · ShallowSID`;
   }

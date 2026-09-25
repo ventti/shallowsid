@@ -280,7 +280,7 @@ body.has-side-panel .mini {
   padding: 12px 12px 0;
 }
 
-/* ---- composer page ---------------------------------------------------- */
+/* ---- composer page (also the tune page a tune link opens) -------------- */
 
 .composer-head {
   display: flex;
@@ -299,6 +299,18 @@ body.has-side-panel .mini {
   background: var(--app-surface);
   color: var(--app-muted);
   font-size: 64px;
+}
+
+.tune-cover {
+  width: 168px;
+  height: 168px;
+  border-radius: 12px;
+  font-size: 36px;
+}
+
+.composer-meta a {
+  color: var(--app-accent);
+  text-decoration: none;
 }
 
 .composer-name {
