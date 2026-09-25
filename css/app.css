@@ -667,6 +667,18 @@ ion-app > .np {
   font-size: 16px;
 }
 
+/* Count and sort button above a tune list (folders, composer pages) */
+.list-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-inline-end: 8px;
+}
+
+.list-bar .result-count {
+  flex: 1;
+}
+
 ion-action-sheet .sort-current {
   color: var(--app-accent);
   font-weight: 600;

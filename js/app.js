@@ -29,7 +29,7 @@ const FAVORITE_COMPOSER_COUNT = 10;
 const SHELF_COUNT = 10;
 const MOST_PLAYED_COUNT = 50;
 const PLAY_COUNT_SECONDS = 30;   // heard this long (or half of a shorter tune) counts as a play
-const SORT_KEY = "shallowsid.searchSort";
+const SORT_KEYS = { search: "shallowsid.searchSort", list: "shallowsid.listSort" };
 
 const $ = (id) => document.getElementById(id);
 const dom = {
@@ -101,7 +101,9 @@ let listOptions = {};           // {playlistId} when the list is a playlist
 let searchQuery = "";
 let searchSeq = 0;
 let lastResults = null;
-let searchSort = loadSort();     // last used order is the default
+// Search results and tune lists (folders, composer pages) each remember their
+// last order, which becomes the default.
+const sorts = { search: loadSort("search"), list: loadSort("list") };
 
 // ---- search worker ----------------------------------------------------------
 
@@ -329,60 +331,96 @@ function renderSearch() {
   const count = lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
     : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
   dom.view.innerHTML = `<p class="result-count">${count}</p><div id="results"></div>`;
-  showList($("results"), sortResults(lastResults, searchSort));
+  showList($("results"), sortResults(lastResults, sorts.search));
 }
 
-// ---- result sorting (Spotify-style: a sort button beside the search field) --
+// ---- sorting (Spotify-style: a sort button with a direction arrow) ----------
+// Search has it beside the search field; tune lists in a row above the list.
+// "relevance" keeps a list's own order: the search ranking, or HVSC's order
+// in a list (shown as "Default").
 
-function loadSort() {
+function loadSort(kind) {
   try {
-    return normalizeSort(JSON.parse(localStorage.getItem(SORT_KEY)));
+    return normalizeSort(JSON.parse(localStorage.getItem(SORT_KEYS[kind])));
   } catch {
     return { ...DEFAULT_SORT };
   }
 }
 
 const sortDirection = ({ by, desc }) => (by === "year" ? (desc ? "newest first" : "oldest first") : desc ? "Z–A" : "A–Z");
+const sortLabel = (kind, id) => (kind === "list" && id === "relevance" ? "Default" : SORTS.find((s) => s.id === id).label);
 
-function sortCaption({ by, desc }, long = false) {
-  const label = SORTS.find((s) => s.id === by).label;
+function sortCaption(kind, { by, desc }, long = false) {
+  const label = sortLabel(kind, by);
   return long && by !== "relevance" ? `${label} (${sortDirection({ by, desc })})` : label;
+}
+
+// A folder page has no use for sorting by folder: it falls back to Default there.
+const listSortsLeftOut = () => (currentRoute().name === "browse" ? ["folder"] : []);
+
+function listSort() {
+  const sort = sorts.list;
+  return listSortsLeftOut().includes(sort.by) ? { ...DEFAULT_SORT } : sort;
 }
 
 function showSortButton() {
   const visible = currentRoute().name === "search" && !!searchQuery;
   $("sort-button").hidden = !visible;
-  $("sort-label").textContent = sortCaption(searchSort);
-  const direction = $("sort-direction");
-  direction.hidden = !visible || searchSort.by === "relevance";
-  direction.querySelector("ion-icon").name = searchSort.desc ? "arrow-down" : "arrow-up";
+  $("sort-label").textContent = sortCaption("search", sorts.search);
+  showDirection($("sort-direction"), sorts.search, visible);
+}
+
+function showDirection(button, sort, visible = true) {
+  button.hidden = !visible || sort.by === "relevance";
+  button.querySelector("ion-icon").name = sort.desc ? "arrow-down" : "arrow-up";
   // ion-button throws on aria changes while it is still loading
-  const label = () => direction.setAttribute("aria-label", `Reverse order (now ${sortDirection(searchSort)})`);
-  const ready = direction.componentOnReady?.();
+  const label = () => button.setAttribute("aria-label", `Reverse order (now ${sortDirection(sort)})`);
+  const ready = button.componentOnReady?.();
   if (ready) ready.then(label);
   else label();
 }
 
-function setSort(next) {
-  searchSort = normalizeSort(next);
+// The row above a sortable tune list: its count (unless the page shows it
+// already), the sort button and arrow.
+function listSortBar(count) {
+  const sort = listSort();
+  return `<div class="list-bar">
+    <p class="result-count">${count == null ? "" : count === 1 ? "1 tune" : `${count.toLocaleString()} tunes`}</p>
+    <ion-button id="list-sort" class="sort-button" fill="clear" aria-label="Sort tunes">
+      <ion-icon slot="start" name="swap-vertical"></ion-icon>${esc(sortCaption("list", sort))}
+    </ion-button>
+    <ion-button id="list-sort-direction" class="sort-direction" fill="clear" ${sort.by === "relevance" ? "hidden" : ""} aria-label="Reverse order (now ${sortDirection(sort)})">
+      <ion-icon slot="icon-only" name="${sort.desc ? "arrow-down" : "arrow-up"}"></ion-icon>
+    </ion-button>
+  </div>`;
+}
+
+function setSort(kind, next) {
+  sorts[kind] = normalizeSort(next);
   try {
-    localStorage.setItem(SORT_KEY, JSON.stringify(searchSort));
+    localStorage.setItem(SORT_KEYS[kind], JSON.stringify(sorts[kind]));
   } catch {
     // storage blocked: the order lasts for this visit
   }
-  showSortButton();
-  if (lastResults) renderSearch();
+  if (kind === "search") {
+    showSortButton();
+    if (lastResults) renderSearch();
+  } else {
+    render();
+  }
 }
 
 // Picking the current order again also reverses it; the arrow button does it in one tap.
-function chooseSort() {
-  actionSheet("Sort by", SORTS.map((s) => {
-    const current = s.id === searchSort.by;
+function chooseSort(kind) {
+  const sort = kind === "list" ? listSort() : sorts.search;
+  const leftOut = kind === "list" ? listSortsLeftOut() : [];
+  actionSheet("Sort by", SORTS.filter((s) => !leftOut.includes(s.id)).map((s) => {
+    const current = s.id === sort.by;
     return {
-      text: current ? sortCaption(searchSort, true) : s.label,
+      text: current ? sortCaption(kind, sort, true) : sortLabel(kind, s.id),
       icon: current ? "checkmark" : undefined,
       cssClass: current ? "sort-current" : undefined,
-      handler: () => setSort({ by: s.id, desc: current ? !searchSort.desc : false }),
+      handler: () => setSort(kind, { by: s.id, desc: current ? !sort.desc : false }),
     };
   }));
 }
@@ -404,8 +442,9 @@ function renderBrowse(dir) {
         <ion-label>${esc(d.split("/").pop().replace(/_/g, " "))}</ion-label>
       </ion-item>`).join("")}
     </ion-list>
+    ${tunes.length > 1 ? listSortBar(tunes.length) : ""}
     <div id="dir-tunes"></div>`;
-  const items = tunes.map((t) => asItem(t));
+  const items = sortResults(tunes.map((t) => asItem(t)), listSort());
   showList($("dir-tunes"), items, { all: true });
   $("play-all")?.addEventListener("click", () => items.length && player.setQueue(items, 0));
 }
@@ -568,29 +607,30 @@ const composerHref = (name) => `#/composer/${encodeURIComponent(name)}`;
 // Joint credits read "A & B" or "A, B & C".
 const creditParts = (credit) => credit.split(/\s*[&,]\s*/);
 const tuneYear = (tune) => Number(tune.released?.match(/\b(19|20)\d\d\b/)?.[0]);
-const byTitle = (a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: "base" });
 
-// Their own tunes, and those credited jointly with others.
+// Their own tunes, and those credited jointly with others, in HVSC's order.
 function composerTunes(name) {
   const own = [], shared = [];
   for (const t of index.tunes) {
     if (composerName(t.author) === name) own.push(t);
     else if (/[&,]/.test(t.author) && creditParts(t.author).some((part) => composerName(part) === name)) shared.push(t);
   }
-  return { own: own.sort(byTitle), shared: shared.sort(byTitle) };
+  return { own, shared };
 }
 
 // Like an artist page: who, how much and when, what you play most, then everything.
 function renderComposer(name) {
   const [label] = composerChip(name);
   const realName = name.replace(/\s*\([^)]*\)\s*$/, "");
-  const { own, shared } = composerTunes(name);
-  const tunes = [...own, ...shared].map((t) => asItem(t));
+  const sorted = (list) => sortResults(list.map((t) => asItem(t)), listSort());
+  const { own: ownTunes, shared: sharedTunes } = composerTunes(name);
+  const own = sorted(ownTunes), shared = sorted(sharedTunes);
+  const tunes = [...own, ...shared];
   const paths = new Set(tunes.map((t) => t.path));
   const top = resolveItems(store.mostPlayed().filter((p) => paths.has(p.path)).slice(0, TOP_TUNES)).filter((i) => !i.missing);
   const years = tunes.map(tuneYear).filter(Number.isFinite);
   const span = years.length ? [...new Set([Math.min(...years), Math.max(...years)])].join("–") : "";
-  const dirs = new Set(own.map((t) => t.dir));
+  const dirs = new Set(ownTunes.map((t) => t.dir));
   const folder = dirs.size === 1 ? [...dirs][0] : null;
   const meta = [realName !== label && realName, `${tunes.length.toLocaleString()} tune${tunes.length === 1 ? "" : "s"}`, span].filter(Boolean);
   setChrome({ title: "", back: "history", tab: "home" });
@@ -606,10 +646,10 @@ function renderComposer(name) {
         <ion-button id="composer-search" fill="clear"><ion-icon slot="start" name="search"></ion-icon>Search</ion-button>
       </div>
     </section>
-    ${tunes.length ? "" : `<div class="empty"><p>No tunes are credited to ${esc(name)}.</p></div>`}
+    ${tunes.length ? (tunes.length > 1 ? listSortBar(null) : "") : `<div class="empty"><p>No tunes are credited to ${esc(name)}.</p></div>`}
     <div id="composer-tunes"></div>`;
   paintAvatars(dom.view);
-  const parts = [["Your top tunes", top], ["Tunes", own.map((t) => asItem(t))], ["With others", shared.map((t) => asItem(t))]].filter(([, items]) => items.length);
+  const parts = [["Your top tunes", top], ["Tunes", own], ["With others", shared]].filter(([, items]) => items.length);
   let start = 0;
   const sections = parts.map(([title, items]) => ({ title, start: (start += items.length) - items.length, count: items.length }));
   showList($("composer-tunes"), parts.flatMap(([, items]) => items), { all: true, sections });
@@ -849,6 +889,8 @@ function listItemAt(el) {
 }
 
 dom.view.addEventListener("click", (e) => {
+  if (e.target.closest("#list-sort")) return chooseSort("list");
+  if (e.target.closest("#list-sort-direction")) return setSort("list", { ...listSort(), desc: !listSort().desc });
   const menu = e.target.closest("[data-menu]");
   if (menu) {
     e.stopPropagation();
@@ -868,8 +910,8 @@ dom.view.addEventListener("click", (e) => {
 });
 
 dom.searchbar.addEventListener("ionInput", (e) => runSearch(e.target.value || ""));
-$("sort-button").addEventListener("click", chooseSort);
-$("sort-direction").addEventListener("click", () => setSort({ ...searchSort, desc: !searchSort.desc }));
+$("sort-button").addEventListener("click", () => chooseSort("search"));
+$("sort-direction").addEventListener("click", () => setSort("search", { ...sorts.search, desc: !sorts.search.desc }));
 dom.infinite.addEventListener("ionInfinite", (e) => {
   appendPage();
   e.target.complete();
