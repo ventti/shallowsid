@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MIX_SIZE, mixDefinition, mixTunes, pickMixes } from "../js/mixes.js";
+import { MIX_SIZE, mixDefinition, mixTunes, pickMixes, weekSeed } from "../js/mixes.js";
 
 const tune = (i, extra = {}) => ({ path: `GAMES/A/t${i}.sid`, dir: "GAMES/A", author: "Rob Hubbard", released: "1986 Ocean", start: 1, lengths: [120], multiSid: false, ...extra });
 const tunes = [
@@ -32,4 +32,12 @@ test("a mix holds matching tunes, at most MIX_SIZE", () => {
 test("composer mixes are titled by the handle", () => {
   assert.equal(mixDefinition("composer-Søren Lund (Jeff)").title, "Jeff mix");
   assert.equal(mixDefinition("composer-Rob Hubbard").title, "Rob Hubbard mix");
+});
+
+test("the seed changes on Monday and holds all week", () => {
+  const day = (d) => weekSeed(new Date(2026, 8, d, 12));   // September 2026: the 21st is a Monday
+  assert.equal(day(21), day(27));
+  assert.notEqual(day(20), day(21));
+  assert.notEqual(day(27), day(28));
+  assert.equal(weekSeed(new Date(2026, 8, 21, 0, 5)), weekSeed(new Date(2026, 8, 27, 23, 55)));
 });

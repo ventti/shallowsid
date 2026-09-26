@@ -214,24 +214,37 @@ body.has-side-panel .mini {
   margin-bottom: 8px;
 }
 
-/* A mix's name on its cover, Spotify-style */
-.shelf-art {
+/* Mix covers: the mix's name in large type and a faint icon on a gradient */
+.shelf-art.mix-art {
   position: relative;
   overflow: hidden;
+  display: block;
+  color: #16131f;
 }
 
-.art-label {
+.mix-art .art-label {
   position: absolute;
-  inset: auto 0 0;
-  padding: 24px 10px 8px;
-  background: linear-gradient(transparent, rgba(22, 19, 31, 0.92));
-  color: #fff;
-  font-size: 17px;
+  inset: 12px 12px auto;
+  font-size: 20px;
   font-weight: 800;
   line-height: 1.1;
-  text-align: start;
   overflow-wrap: anywhere;
 }
+
+.mix-art ion-icon {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 40px;
+  opacity: 0.35;
+}
+
+.mix-art-0 { background: linear-gradient(135deg, #a99cff, #6c5eb5); }
+.mix-art-1 { background: linear-gradient(135deg, #7dd3fc, #3f6fb8); }
+.mix-art-2 { background: linear-gradient(135deg, #ffd166, #c7852e); }
+.mix-art-3 { background: linear-gradient(135deg, #b8e986, #4f8a4f); }
+.mix-art-4 { background: linear-gradient(135deg, #ff8fb1, #a3466f); }
+.mix-art-5 { background: linear-gradient(135deg, #5ee0c0, #2f7d8c); }
 
 .has-avatar {
   position: relative;

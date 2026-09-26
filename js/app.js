@@ -12,7 +12,7 @@ import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
-import { mixDefinition, mixTunes, pickMixes } from "./mixes.js";
+import { mixDefinition, mixTunes, pickMixes, weekSeed } from "./mixes.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
@@ -272,8 +272,9 @@ function shelfCards() {
     : c);
 }
 
-// "Mixes for you": new picks each visit, stable while the page is open.
-const MIX_SEED = Math.random().toString(36).slice(2);
+// "Mixes for you": which mixes show changes each visit; their tunes each week.
+const MIX_SEED = weekSeed();
+const MIX_PICK_SEED = Math.random().toString(36).slice(2);
 const mixCache = new Map();
 
 function mixItems(id) {
@@ -281,12 +282,15 @@ function mixItems(id) {
   return mixCache.get(id);
 }
 
+// Covers are quiet type on the app's gradients (as on "Jump back in"), a
+// different one per card, so the shelf doesn't compete with the tune art.
+const MIX_GRADIENTS = 6;
 let mixes = null;
 function mixCards() {
-  mixes ??= pickMixes(index.tunes, COMPOSERS, MIX_SEED);
-  return mixes.map((m) => ({
-    href: `#/mix/${encodeURIComponent(m.id)}`, name: m.title, sub: m.note, label: m.label,
-    ...playlistArt({ items: mixItems(m.id) }),
+  mixes ??= pickMixes(index.tunes, COMPOSERS, MIX_PICK_SEED);
+  return mixes.map((m, i) => ({
+    href: `#/mix/${encodeURIComponent(m.id)}`, name: m.title, sub: m.note,
+    art: `mix-art mix-art-${i % MIX_GRADIENTS}`, label: m.label, icon: m.icon,
   }));
 }
 

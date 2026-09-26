@@ -1,7 +1,8 @@
-// Spotify-style mixes for Home: a random handful per visit (a couple of year
-// mixes, one composer and some themes), each a random sample of the tunes that
-// fit it. The same seed gives the same mixes and tunes, so a mix opened from
-// Home holds what its card showed. Pure, so it runs under `node --test`.
+// Spotify-style mixes for Home: a random handful (a couple of year mixes, one
+// composer and some themes), each a random sample of the tunes that fit it.
+// Which mixes show can change on every visit; a mix's tunes are seeded by the
+// week (weekSeed), so they stay put for a week and then change. Pure, so it
+// runs under `node --test`.
 
 export const MIX_SIZE = 50;
 const MIN_TUNES = 60;         // a year or composer needs this many to make a mix
@@ -11,17 +12,23 @@ const THEME_MIXES = 4;
 const lengthOf = (t) => t.lengths?.[t.start - 1] ?? 0;
 const yearOf = (t) => /^(\d{4})/.exec(t.released ?? "")?.[1];
 
-// Themes: [id, title, note, filter]
+// Themes: [id, title, note, icon, filter]
 const THEMES = [
-  ["multi-sid", "Multi-SID", "Tunes for two or three SID chips", (t) => t.multiSid],
-  ["games", "Game music", "From the GAMES folders", (t) => t.dir.startsWith("GAMES/")],
-  ["demos", "Demo tunes", "From the DEMOS folders", (t) => t.dir.startsWith("DEMOS/")],
-  ["8580", "8580 sound", "Made for the newer SID chip", (t) => t.model === "8580"],
-  ["ntsc", "NTSC", "Tunes timed for American machines", (t) => t.clock === "NTSC"],
-  ["epic", "Epic length", "Six minutes or more", (t) => lengthOf(t) >= 360],
-  ["short", "Short and sweet", "Half a minute to a minute and a half", (t) => lengthOf(t) >= 30 && lengthOf(t) <= 90],
-  ["random", "Random songs", "Anything from the whole collection", () => true],
+  ["multi-sid", "Multi-SID", "Tunes for two or three SID chips", "layers-outline", (t) => t.multiSid],
+  ["games", "Game music", "From the GAMES folders", "game-controller-outline", (t) => t.dir.startsWith("GAMES/")],
+  ["demos", "Demo tunes", "From the DEMOS folders", "sparkles-outline", (t) => t.dir.startsWith("DEMOS/")],
+  ["8580", "8580 sound", "Made for the newer SID chip", "hardware-chip-outline", (t) => t.model === "8580"],
+  ["ntsc", "NTSC", "Tunes timed for American machines", "globe-outline", (t) => t.clock === "NTSC"],
+  ["epic", "Epic length", "Six minutes or more", "hourglass-outline", (t) => lengthOf(t) >= 360],
+  ["short", "Short and sweet", "Half a minute to a minute and a half", "flash-outline", (t) => lengthOf(t) >= 30 && lengthOf(t) <= 90],
+  ["random", "Random songs", "Anything from the whole collection", "shuffle", () => true],
 ];
+
+// The week of `date` (local time) as a seed; weeks start on Monday.
+export function weekSeed(date = new Date()) {
+  const days = Math.floor((date.getTime() - date.getTimezoneOffset() * 60000) / 86400000);
+  return `week-${Math.floor((days + 3) / 7)}`;   // 1970-01-01 was a Thursday
+}
 
 // mulberry32 over a string hash: small, fast and good enough for shuffling.
 export function seededRandom(seed) {
@@ -48,16 +55,16 @@ function sample(list, count, rand) {
 // A mix by id ("year-1987", "composer-<credit>", or a theme id), or null.
 export function mixDefinition(id) {
   const year = /^year-(\d{4})$/.exec(id)?.[1];
-  if (year) return { id, title: `${year} mix`, note: `Released in ${year}`, label: year, filter: (t) => yearOf(t) === year };
+  if (year) return { id, title: `${year} mix`, note: `Released in ${year}`, label: year, icon: "calendar-outline", filter: (t) => yearOf(t) === year };
   if (id.startsWith("composer-")) {
     const credit = id.slice("composer-".length);
     const name = credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit;   // the handle, as on the composer chips
-    return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, filter: (t) => t.author === credit };
+    return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, icon: "person-outline", filter: (t) => t.author === credit };
   }
   const theme = THEMES.find(([themeId]) => themeId === id);
   if (!theme) return null;
-  const [, title, note, filter] = theme;
-  return { id, title, note, label: title, filter };
+  const [, title, note, icon, filter] = theme;
+  return { id, title, note, label: title, icon, filter };
 }
 
 // The tunes of mix `id` for `seed`: a random sample, or [] for an unknown mix.
