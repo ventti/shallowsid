@@ -97,6 +97,9 @@ export const COMPOSERS = [
   "Attila Szõke (da Blondie)",
   "Anders Rodahl (Rage)",
   "Chris Hülsbeck",
+  "Tero Hilpinen (TBB)",
+  "Juha-Matti Hilpinen (AMJ)",
+  "Glenn Rune Gallefoss",
 ];
 
 // HVSC credits that should show (and search) as another name: handles that
