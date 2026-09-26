@@ -1,55 +1,52 @@
-// Deterministic "album covers": a two-hue gradient derived from the tune path,
-// with the tune's initials in a C64-ish pixel font.
+// Deterministic tune covers: a mirrored 8x8 pixel sprite (pixelavatar.js) in
+// one of the app accents, lit by a two-hue color slide, both seeded by the tune path.
 
-function hash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
+import "./pixelavatar.js";   // sets self.PixelAvatar
+
+// The app accents, as on the composer critters (avatars.js); the seed picks one.
+const COLORS = ["#a99cff", "#5ee0c0", "#ff8fb1", "#ffd166", "#7dd3fc", "#b8e986"];
+const OPTIONS = {
+  cols: 8, rows: 8, mirror: "x", symmetry: "full", colors: 1, density: 0.5, pixelAspect: 1,
+  size: 44,   // .thumb; CSS scales it to the other cover sizes
+  color: COLORS,
+  background: "#221d31",   // --app-surface
+  slide: "auto", slideMode: "pixels", slideOpacity: 1, slideBlend: "overlay",
+};
+
+const svgCache = new Map();
+
+function coverSvg(item) {
+  if (!svgCache.has(item.path)) svgCache.set(item.path, self.PixelAvatar.svg(item.path, OPTIONS));
+  return svgCache.get(item.path);
 }
 
-function palette(item) {
-  const h = hash(item.path);
-  const hue1 = h % 360;
-  const hue2 = (hue1 + 40 + ((h >>> 9) % 100)) % 360;
-  const angle = (h >>> 17) % 360;
-  return { hue1, hue2, angle };
-}
+const svgUrl = (item) => `data:image/svg+xml,${encodeURIComponent(coverSvg(item))}`;
 
-export function initials(item) {
-  const words = (item.title || item.name).replace(/[^\p{L}\p{N} ]/gu, " ").split(/\s+/).filter(Boolean);
-  return (words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2)).toUpperCase();
-}
+// A CSS background-image value.
+export const artworkImage = (item) => `url("${svgUrl(item)}")`;
 
+// For a style="" attribute in markup.
 export function artworkStyle(item) {
-  const { hue1, hue2, angle } = palette(item);
-  return `background: linear-gradient(${angle}deg, hsl(${hue1} 70% 45%), hsl(${hue2} 75% 30%))`;
+  return `background-image: ${artworkImage(item).replaceAll('"', "&quot;")}`;
 }
 
-const dataUrlCache = new Map();
+// A PNG for the Media Session, which can't rely on SVG artwork.
+const pngCache = new Map();
 
-export function artworkDataUrl(item, size) {
+export function artworkPng(item, size) {
   const key = `${item.path}@${size}`;
-  if (dataUrlCache.has(key)) return dataUrlCache.get(key);
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size;
-  const g = canvas.getContext("2d");
-  const { hue1, hue2, angle } = palette(item);
-  const rad = (angle * Math.PI) / 180;
-  const dx = (Math.sin(rad) * size) / 2, dy = (-Math.cos(rad) * size) / 2;
-  const grad = g.createLinearGradient(size / 2 - dx, size / 2 - dy, size / 2 + dx, size / 2 + dy);
-  grad.addColorStop(0, `hsl(${hue1} 70% 45%)`);
-  grad.addColorStop(1, `hsl(${hue2} 75% 30%)`);
-  g.fillStyle = grad;
-  g.fillRect(0, 0, size, size);
-  g.fillStyle = "rgba(255,255,255,0.92)";
-  g.font = `${Math.round(size / 4)}px "Press Start 2P", monospace`;
-  g.textAlign = "center";
-  g.textBaseline = "middle";
-  g.fillText(initials(item), size / 2, size / 2);
-  const url = canvas.toDataURL("image/png");
-  dataUrlCache.set(key, url);
-  return url;
+  if (!pngCache.has(key)) pngCache.set(key, new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      const g = canvas.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.drawImage(img, 0, 0, size, size);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = svgUrl(item);
+  }));
+  return pngCache.get(key);
 }

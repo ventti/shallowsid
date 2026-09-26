@@ -1,7 +1,7 @@
 // Small UI helpers: escaping, formatting, tune rows and Ionic overlays created
 // the web-component way (no framework controllers needed).
 
-import { artworkStyle, initials } from "./artwork.js";
+import { artworkStyle } from "./artwork.js";
 
 export function esc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -14,7 +14,7 @@ export function formatTime(seconds) {
 }
 
 export function thumb(item, cls = "thumb") {
-  return `<div class="${cls}" style="${artworkStyle(item)}" aria-hidden="true"><span>${esc(initials(item))}</span></div>`;
+  return `<div class="${cls}" style="${artworkStyle(item)}" aria-hidden="true"></div>`;
 }
 
 export function subtitle(item) {

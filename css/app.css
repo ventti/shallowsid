@@ -85,11 +85,10 @@ body.has-side-panel .mini {
   width: 44px;
   height: 44px;
   border-radius: 6px;
+  background: var(--app-surface) center / cover no-repeat;
+  image-rendering: pixelated;
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, 0.92);
-  font-family: "Press Start 2P", monospace;
-  font-size: 10px;
   flex-shrink: 0;
   user-select: none;
 }
@@ -97,7 +96,6 @@ body.has-side-panel .mini {
 .thumb-sm {
   width: 36px;
   height: 36px;
-  font-size: 8px;
 }
 
 .thumb-missing,
@@ -305,7 +303,6 @@ body.has-side-panel .mini {
   width: 168px;
   height: 168px;
   border-radius: 12px;
-  font-size: 36px;
 }
 
 .composer-meta a {
@@ -418,9 +415,9 @@ ion-app > .np {
   border-radius: 12px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #6c5eb5, #2e2560);
+  background: linear-gradient(135deg, #6c5eb5, #2e2560) center / cover no-repeat;
+  image-rendering: pixelated;
   color: rgba(255, 255, 255, 0.92);
-  font-family: "Press Start 2P", monospace;
   font-size: clamp(32px, 12vw, 64px);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   touch-action: pan-y;

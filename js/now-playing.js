@@ -1,7 +1,7 @@
 // Mini-player (above the tab bar) and the Now Playing view. On phones Now
 // Playing lives in a sheet modal; from 992px up it is a persistent side panel.
 
-import { artworkStyle, initials } from "./artwork.js";
+import { artworkImage } from "./artwork.js";
 import { swipeable } from "./gestures.js";
 import { Waveform } from "./player/waveform.js";
 import { esc, formatTime, subtitle, thumb } from "./ui.js";
@@ -148,8 +148,8 @@ export class NowPlaying {
     el.miniArt = document.getElementById("mini-art");
     el.miniTitle.textContent = item.title;
     el.miniAuthor.textContent = item.author;
-    el.art.setAttribute("style", artworkStyle(item));
-    el.art.querySelector("span").textContent = initials(item);
+    el.art.style.backgroundImage = artworkImage(item);
+    el.art.querySelector("span").textContent = "";
     el.title.textContent = item.title;
     el.author.textContent = item.author;
     el.author.classList.toggle("is-link", item.author !== "<?>");

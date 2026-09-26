@@ -1,6 +1,6 @@
 // Lock-screen, headset and keyboard media keys via the Media Session API.
 
-import { artworkDataUrl } from "../artwork.js";
+import { artworkPng } from "../artwork.js";
 
 export function connectMediaSession(player) {
   if (!("mediaSession" in navigator)) return;
@@ -23,13 +23,21 @@ export function connectMediaSession(player) {
     }
   }
 
-  player.addEventListener("track", ({ detail: { item } }) => {
-    ms.metadata = new MediaMetadata({
+  // The cover is rendered asynchronously, so the text goes up first and the
+  // artwork follows, unless another track has started meanwhile.
+  player.addEventListener("track", async ({ detail: { item } }) => {
+    const info = {
       title: item.song > 1 || item.songs > 1 ? `${item.title} (#${item.song})` : item.title,
       artist: item.author,
       album: item.released,
-      artwork: [{ src: artworkDataUrl(item, 512), sizes: "512x512", type: "image/png" }],
-    });
+    };
+    const metadata = ms.metadata = new MediaMetadata(info);
+    try {
+      const src = await artworkPng(item, 512);
+      if (ms.metadata === metadata) ms.metadata = new MediaMetadata({ ...info, artwork: [{ src, sizes: "512x512", type: "image/png" }] });
+    } catch {
+      // no artwork then
+    }
   });
 
   player.addEventListener("state", ({ detail: { state } }) => {
