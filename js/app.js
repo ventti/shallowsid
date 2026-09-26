@@ -12,6 +12,7 @@ import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
+import { mixDefinition, mixTunes, pickMixes } from "./mixes.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
@@ -271,20 +272,45 @@ function shelfCards() {
     : c);
 }
 
+// "Mixes for you": new picks each visit, stable while the page is open.
+const MIX_SEED = Math.random().toString(36).slice(2);
+const mixCache = new Map();
+
+function mixItems(id) {
+  if (!mixCache.has(id)) mixCache.set(id, mixTunes(id, index.tunes, MIX_SEED).map((t) => asItem(t)));
+  return mixCache.get(id);
+}
+
+let mixes = null;
+function mixCards() {
+  mixes ??= pickMixes(index.tunes, COMPOSERS, MIX_SEED);
+  return mixes.map((m) => ({
+    href: `#/mix/${encodeURIComponent(m.id)}`, name: m.title, sub: m.note, label: m.label,
+    ...playlistArt({ items: mixItems(m.id) }),
+  }));
+}
+
+function renderMix(id) {
+  const mix = mixDefinition(id);
+  if (!mix) return go("#/home");
+  const items = mixItems(id);
+  renderGenerated(mix.title, items, `${mix.note} · ${items.length} picked at random`);
+}
+
 // A playlist's cover mosaic, or a note icon while it's empty.
 function playlistArt(playlist) {
   const style = playlistArtStyle(playlist);
   return { art: "playlist-art", style, icon: style ? null : "musical-notes" };
 }
 
-const artBox = (cls, { art, style, icon }, attrs = "") =>
-  `<div ${attrs} class="${cls} ${art}" ${style ? `style="${style}"` : ""}>${icon ? `<ion-icon name="${icon}"></ion-icon>` : ""}</div>`;
+const artBox = (cls, { art, style, icon, label }, attrs = "") =>
+  `<div ${attrs} class="${cls} ${art}" ${style ? `style="${style}"` : ""}>${icon ? `<ion-icon name="${icon}"></ion-icon>` : ""}${label ? `<span class="art-label">${esc(label)}</span>` : ""}</div>`;
 
 const shelf = (cards) => `<div class="shelf">${cards.map((c) => `
   <a class="shelf-card" href="${c.href}">
     ${artBox("shelf-art", c)}
     <span class="shelf-title">${esc(c.name)}</span>
-    <span class="shelf-sub">${c.count} tune${c.count === 1 ? "" : "s"}</span>
+    <span class="shelf-sub">${c.sub ? esc(c.sub) : `${c.count} tune${c.count === 1 ? "" : "s"}`}</span>
   </a>`).join("")}</div>`;
 
 // Composers by the plays of all their tunes; HVSC credits unknown ones as "<?>".
@@ -404,6 +430,7 @@ function renderSearch() {
         ${chips(suggestions)}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
+        <h2 class="section-title">Mixes for you</h2>${shelf(mixCards())}
       </section>`;
     paintAvatars(dom.view);
     dom.infinite.disabled = true;
@@ -836,6 +863,7 @@ function render() {
     case "composer": return renderComposer(arg);
     case "tune": return renderTune(arg);
     case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes ${playedWhere()}`);
+    case "mix": return renderMix(arg);
     case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
     case "home": return renderHome();
     default: return renderSearch();
