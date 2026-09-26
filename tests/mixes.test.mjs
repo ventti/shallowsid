@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { HOT_TUNES } from "../js/hot-tunes.js";
 import { MIX_SIZE, mixDefinition, mixTunes, pickMixes, weekSeed } from "../js/mixes.js";
 
 const tune = (i, extra = {}) => ({ path: `GAMES/A/t${i}.sid`, dir: "GAMES/A", author: "Rob Hubbard", released: "1986 Ocean", start: 1, lengths: [120], multiSid: false, ...extra });
@@ -36,9 +37,10 @@ test("composer mixes are titled by the handle", () => {
 });
 
 test("group mixes match the released credit and need enough tunes", () => {
-  const ids = pickMixes(tunes, [], "g").map((m) => m.id);
-  assert.ok(ids.includes("group-Maniacs of Noise"));
-  assert.ok(!ids.includes("group-Side B"));
+  const picks = Array.from({ length: 40 }, (_, i) => pickMixes(tunes, [], `g${i}`).map((m) => m.id));
+  const withGroup = picks.filter((ids) => ids.includes("group-Maniacs of Noise")).length;
+  assert.ok(withGroup > 0 && withGroup < picks.length, "groups are drawn at random, not every time");
+  assert.ok(picks.every((ids) => !ids.includes("group-Side B")));
   const group = mixTunes("group-Maniacs of Noise", tunes, "s");
   assert.equal(group.length, MIX_SIZE);
   assert.ok(group.every((t) => t.released.includes("Maniacs of Noise")));
@@ -52,4 +54,12 @@ test("the seed changes on Monday and holds all week", () => {
   assert.notEqual(day(20), day(21));
   assert.notEqual(day(27), day(28));
   assert.equal(weekSeed(new Date(2026, 8, 21, 0, 5)), weekSeed(new Date(2026, 8, 27, 23, 55)));
+});
+
+test("Hot tunes shows first on every visit when its tunes are in the index", () => {
+  const hot = [...HOT_TUNES][0];
+  const withHot = [...tunes, tune(900, { path: hot })];
+  for (const seed of ["a", "b", "c"]) assert.equal(pickMixes(withHot, [], seed)[0].id, "hot");
+  assert.ok(!pickMixes(tunes, [], "a").some((m) => m.id === "hot"));
+  assert.deepEqual(mixTunes("hot", withHot, "s").map((t) => t.path), [hot]);
 });

@@ -1,14 +1,17 @@
-// Spotify-style mixes for Home: a random handful (a couple of year mixes, one
-// composer, one music group or label and some themes), each a random sample of the tunes that fit it.
+// Spotify-style mixes for Home: Hot tunes first, then a random handful (a couple
+// of year mixes, one composer and some themes or music groups/labels), each a random sample of the tunes that fit it.
 // Which mixes show can change on every visit; a mix's tunes are seeded by the
 // week (weekSeed), so they stay put for a week and then change. Pure, so it
 // runs under `node --test`.
+
+import { HOT_TUNES } from "./hot-tunes.js";
 
 export const MIX_SIZE = 50;
 const MIN_TUNES = 60;         // a year or composer needs this many to make a mix
 const MIN_GROUP_TUNES = 25;   // groups are smaller; Side B has about 30
 const YEAR_MIXES = 2;
-const THEME_MIXES = 3;
+const THEME_MIXES = 3;        // drawn from the themes and groups together
+const ALWAYS_MIX = "hot";     // shown on every visit, first
 
 const lengthOf = (t) => t.lengths?.[t.start - 1] ?? 0;
 const yearOf = (t) => /^(\d{4})/.exec(t.released ?? "")?.[1];
@@ -22,6 +25,7 @@ const THEMES = [
   ["ntsc", "NTSC", "Tunes timed for American machines", "globe-outline", (t) => t.clock === "NTSC"],
   ["epic", "Epic length", "Six minutes or more", "hourglass-outline", (t) => lengthOf(t) >= 360],
   ["short", "Short and sweet", "Half a minute to a minute and a half", "flash-outline", (t) => lengthOf(t) >= 30 && lengthOf(t) <= 90],
+  ["hot", "Hot tunes", "From the community's top 1000 list", "flame-outline", (t) => HOT_TUNES.has(t.path)],
   ["random", "Random songs", "Anything from the whole collection", "shuffle", () => true],
 ];
 
@@ -92,8 +96,8 @@ export function mixTunes(id, tunes, seed) {
   return def ? sample(tunes.filter(def.filter), MIX_SIZE, seededRandom(`${seed}:${id}`)) : [];
 }
 
-// The mixes to show for `seed`: year mixes, a composer from `composers`
-// (credits), a group, then themes, each with enough tunes.
+// The mixes to show for `seed`: Hot tunes, year mixes, a composer from
+// `composers` (credits), then themes and groups, each with enough tunes.
 export function pickMixes(tunes, composers, seed) {
   const rand = seededRandom(seed);
   const perYear = new Map();
@@ -106,6 +110,7 @@ export function pickMixes(tunes, composers, seed) {
   const years = [...perYear].filter(([, n]) => n >= MIN_TUNES).map(([y]) => `year-${y}`);
   const credits = composers.filter((c) => (perAuthor.get(c) ?? 0) >= MIN_TUNES).map((c) => `composer-${c}`);
   const groups = GROUPS.filter(([, pattern]) => tunes.filter((t) => pattern.test(groupOf(t))).length >= MIN_GROUP_TUNES).map(([name]) => `group-${name}`);
-  const themes = THEMES.map(([id]) => id);
-  return [...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample(groups, 1, rand), ...sample(themes, THEME_MIXES, rand)].map(mixDefinition);
+  const themes = THEMES.map(([id]) => id).filter((id) => id !== ALWAYS_MIX);
+  const always = tunes.some(mixDefinition(ALWAYS_MIX).filter) ? [ALWAYS_MIX] : [];
+  return [...always, ...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample([...groups, ...themes], THEME_MIXES, rand)].map(mixDefinition);
 }
