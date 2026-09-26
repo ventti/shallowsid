@@ -239,6 +239,26 @@ body.has-side-panel .mini {
   opacity: 0.35;
 }
 
+.mix-art .art-avatar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--app-surface);
+  color: var(--app-muted);
+  box-shadow: 0 2px 8px rgba(22, 19, 31, 0.35);
+}
+
+.mix-art .art-avatar ion-icon {
+  position: static;
+  font-size: 28px;
+  opacity: 1;
+}
+
 .mix-art-0 { background: linear-gradient(135deg, #a99cff, #6c5eb5); }
 .mix-art-1 { background: linear-gradient(135deg, #7dd3fc, #3f6fb8); }
 .mix-art-2 { background: linear-gradient(135deg, #ffd166, #c7852e); }

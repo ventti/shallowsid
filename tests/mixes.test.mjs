@@ -32,6 +32,7 @@ test("a mix holds matching tunes, at most MIX_SIZE", () => {
 test("composer mixes are titled by the handle", () => {
   assert.equal(mixDefinition("composer-Søren Lund (Jeff)").title, "Jeff mix");
   assert.equal(mixDefinition("composer-Rob Hubbard").title, "Rob Hubbard mix");
+  assert.equal(mixDefinition("composer-Rob Hubbard").composer, "Rob Hubbard");
 });
 
 test("the seed changes on Monday and holds all week", () => {

@@ -59,7 +59,7 @@ export function mixDefinition(id) {
   if (id.startsWith("composer-")) {
     const credit = id.slice("composer-".length);
     const name = credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit;   // the handle, as on the composer chips
-    return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, icon: "person-outline", filter: (t) => t.author === credit };
+    return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, icon: "person-outline", composer: credit, filter: (t) => t.author === credit };
   }
   const theme = THEMES.find(([themeId]) => themeId === id);
   if (!theme) return null;

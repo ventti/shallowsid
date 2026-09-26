@@ -283,14 +283,16 @@ function mixItems(id) {
 }
 
 // Covers are quiet type on the app's gradients (as on "Jump back in"), a
-// different one per card, so the shelf doesn't compete with the tune art.
+// different one per card, so the shelf doesn't compete with the tune art. A
+// composer mix shows that composer's critter, seeded as on their page.
 const MIX_GRADIENTS = 6;
 let mixes = null;
 function mixCards() {
   mixes ??= pickMixes(index.tunes, COMPOSERS, MIX_PICK_SEED);
   return mixes.map((m, i) => ({
     href: `#/mix/${encodeURIComponent(m.id)}`, name: m.title, sub: m.note,
-    art: `mix-art mix-art-${i % MIX_GRADIENTS}`, label: m.label, icon: m.icon,
+    art: `mix-art mix-art-${i % MIX_GRADIENTS}`, label: m.label,
+    ...(m.composer ? { avatar: COMPOSER_ALIASES[m.composer] ?? m.composer } : { icon: m.icon }),
   }));
 }
 
@@ -307,8 +309,8 @@ function playlistArt(playlist) {
   return { art: "playlist-art", style, icon: style ? null : "musical-notes" };
 }
 
-const artBox = (cls, { art, style, icon, label }, attrs = "") =>
-  `<div ${attrs} class="${cls} ${art}" ${style ? `style="${style}"` : ""}>${icon ? `<ion-icon name="${icon}"></ion-icon>` : ""}${label ? `<span class="art-label">${esc(label)}</span>` : ""}</div>`;
+const artBox = (cls, { art, style, icon, avatar, label }, attrs = "") =>
+  `<div ${attrs} class="${cls} ${art}" ${style ? `style="${style}"` : ""}>${icon ? `<ion-icon name="${icon}"></ion-icon>` : ""}${avatar ? `<div class="art-avatar" data-composer="${esc(avatar)}"><ion-icon name="person"></ion-icon></div>` : ""}${label ? `<span class="art-label">${esc(label)}</span>` : ""}</div>`;
 
 const shelf = (cards) => `<div class="shelf">${cards.map((c) => `
   <a class="shelf-card" href="${c.href}">
