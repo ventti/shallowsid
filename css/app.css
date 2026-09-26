@@ -537,12 +537,6 @@ ion-app > .np {
   max-width: 200px;
 }
 
-.np-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--app-muted);
-}
-
 .np-queue {
   margin-top: 8px;
   background: transparent;
@@ -662,37 +656,39 @@ ion-app > .np {
   color: var(--app-accent);
 }
 
-/* Sort button on the search row (Spotify-style) */
-.sort-button {
-  --padding-start: 6px;
-  --padding-end: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.sort-button ion-icon {
-  font-size: 18px;
-  margin-inline-end: 4px;
-}
-
-.sort-direction {
-  --padding-start: 4px;
-  --padding-end: 4px;
-  margin-inline-start: -4px;
-  font-size: 16px;
-}
-
-/* Count and sort button above a tune list (folders, composer pages) */
+/* Count and sort button above a tune list (search, folders, composer pages) */
 .list-bar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-inline-end: 8px;
+  margin: 8px 8px 0 16px;
 }
 
 .list-bar .result-count {
   flex: 1;
+  margin: 0;
+}
+
+/* The order's name and its direction arrow, sized alike to read as one control */
+.sort-button,
+.sort-direction {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.sort-direction {
+  --padding-start: 4px;
+  --padding-end: 8px;
+  margin-inline-start: -8px;
+}
+
+.sort-direction ion-icon {
+  font-size: 14px;
 }
 
 ion-action-sheet .sort-current {
@@ -715,6 +711,24 @@ ion-action-sheet .sort-current {
    safe-area inset (notch) Ionic only adds to the first toolbar, plus air. */
 #title-toolbar[hidden] + #search-toolbar {
   padding-top: calc(var(--ion-safe-area-top, 0px) + 8px);
+}
+
+/* Recent searches (Spotify-style), shown while the empty search bar is focused */
+.recent-query {
+  background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 20px;
+  border-radius: 50%;
+}
+
+.recent-searches ion-item {
+  --min-height: 60px;
+}
+
+.recent-clear {
+  display: flex;
+  justify-content: center;
+  padding: 16px 16px 24px;
 }
 
 /* Numbered steps in plain-text dialogs (see infoDialog) */

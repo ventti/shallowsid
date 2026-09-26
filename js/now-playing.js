@@ -7,7 +7,6 @@ import { Waveform } from "./player/waveform.js";
 import { esc, formatTime, subtitle, thumb } from "./ui.js";
 
 const DESKTOP = window.matchMedia("(min-width: 992px)");
-const HINT_KEY = "shallowsid.swipeHintSeen";
 
 export class NowPlaying {
   constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
@@ -27,7 +26,7 @@ export class NowPlaying {
       art: $("np-art"), title: $("np-title"), author: $("np-author"), released: $("np-released"),
       badges: $("np-badges"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
-      add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"), hint: $("np-hint"),
+      add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"),
     };
     this.waveform = new Waveform($("np-wave"), {
       onScrub: (s) => player.scrub(s),
@@ -112,15 +111,6 @@ export class NowPlaying {
       onLeft: () => p.next(),
       onRight: () => p.previous(),
     });
-    try {
-      if (localStorage.getItem(HINT_KEY)) el.hint.hidden = true;
-      el.modal.addEventListener("didDismiss", () => {
-        localStorage.setItem(HINT_KEY, "1");
-        el.hint.hidden = true;
-      });
-    } catch {
-      // storage unavailable: keep showing the hint
-    }
   }
 
   bindPlayer() {

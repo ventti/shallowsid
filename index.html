@@ -56,15 +56,7 @@
             </ion-buttons>
           </ion-toolbar>
           <ion-toolbar id="search-toolbar">
-            <ion-searchbar id="searchbar" placeholder="Search tunes, composers, groups…" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
-            <ion-buttons slot="end">
-              <ion-button id="sort-button" class="sort-button" hidden aria-label="Sort results">
-                <ion-icon slot="start" name="swap-vertical"></ion-icon><span id="sort-label">Relevance</span>
-              </ion-button>
-              <ion-button id="sort-direction" class="sort-direction" hidden aria-label="Reverse order">
-                <ion-icon slot="icon-only" name="arrow-up"></ion-icon>
-              </ion-button>
-            </ion-buttons>
+            <ion-searchbar id="searchbar" placeholder="Search High Voltage SID Collection tunes, composers, groups, …" debounce="200" autocapitalize="off" spellcheck="false"></ion-searchbar>
           </ion-toolbar>
         </ion-header>
 
@@ -162,7 +154,6 @@
         <ion-button fill="clear" size="small" id="np-folder"><ion-icon slot="start" name="folder-open-outline"></ion-icon>Folder</ion-button>
         <ion-button fill="clear" size="small" id="np-sound"><ion-icon slot="start" name="options-outline"></ion-icon>Sound</ion-button>
       </div>
-      <p id="np-hint" class="np-hint">Tap the cover to play/pause · swipe it to skip</p>
       <ion-list id="np-queue" class="np-queue" lines="none"></ion-list>
     </section>
 

@@ -11,6 +11,7 @@ import { SoundSettings } from "./sound-settings.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
+import { SearchHistory } from "./search-history.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
@@ -40,6 +41,7 @@ const dom = {
 };
 
 const store = new PlaylistStore();
+const searchHistory = new SearchHistory();
 const sound = new SoundSettings();
 const player = new Player({ sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender });
 connectMediaSession(player);
@@ -143,6 +145,88 @@ function searchFor(query) {
   runSearch(query);
 }
 
+// ---- recent searches (Spotify-style) -------------------------------------------
+
+// Focusing the empty search bar swaps Home for the recent searches: queries
+// run with Enter and tunes played from the results. The list stays while it's
+// being used (scrolled, tapped) and closes with Esc, a tap outside it, the
+// Home tab or leaving.
+let recentOpen = false;
+let searchFocused = false;
+let pointerInRecent = false;
+
+function setRecentOpen(open) {
+  if (open === recentOpen) return;
+  recentOpen = open;
+  if (isHome()) renderSearch();
+}
+
+const isHome = () => ["", "home"].includes(currentRoute().name);
+
+function recentRow(entry, i) {
+  const remove = `<ion-button slot="end" fill="clear" color="medium" data-recent-remove="${i}" aria-label="Remove from recent searches"><ion-icon slot="icon-only" name="close"></ion-icon></ion-button>`;
+  if (entry.q != null) {
+    return `<ion-item button detail="false" data-recent="${i}">
+      <div slot="start" class="thumb recent-query"><ion-icon name="search"></ion-icon></div>
+      <ion-label><h2>${esc(entry.q)}</h2><p>Search</p></ion-label>${remove}
+    </ion-item>`;
+  }
+  const [item] = resolveItems([entry]);
+  if (item.missing) return "";
+  const song = item.songs > 1 ? ` <span class="song-chip">#${item.song}/${item.songs}</span>` : "";
+  return `<ion-item button detail="false" data-recent="${i}">
+    <div slot="start">${thumb(item)}</div>
+    <ion-label><h2>${esc(item.title)}${song}</h2><p>Tune · ${esc(item.author)}</p></ion-label>${remove}
+  </ion-item>`;
+}
+
+const recentSearches = () => `
+  <section class="recent-searches">
+    <h2 class="section-title">Recent searches</h2>
+    <ion-list lines="none">${searchHistory.items.map(recentRow).join("")}</ion-list>
+    <div class="recent-clear"><ion-button fill="outline" shape="round" color="medium" data-clear-searches>Clear recent searches</ion-button></div>
+  </section>`;
+
+async function blurSearchbar() {
+  (await dom.searchbar.getInputElement()).blur();
+}
+
+function openRecent(entry, i) {
+  searchHistory.add(entry);
+  if (entry.q != null) {
+    recentOpen = false;
+    searchFor(entry.q);
+    blurSearchbar();
+    return;
+  }
+  const [item] = resolveItems([entry]);
+  player.setQueue([item], 0);
+  blurSearchbar();
+  renderSearch();   // it moved to the top
+}
+
+// Taps in the list blur the bar first: remember where the pointer went.
+dom.view.addEventListener("pointerdown", (e) => {
+  pointerInRecent = !!e.target.closest(".recent-searches");
+  if (!pointerInRecent && !searchFocused) setRecentOpen(false);
+}, true);
+dom.searchbar.addEventListener("ionFocus", () => {
+  searchFocused = true;
+  if (!searchQuery) setRecentOpen(true);
+});
+dom.searchbar.addEventListener("ionBlur", () => {
+  searchFocused = false;
+  if (!pointerInRecent) setRecentOpen(false);
+  pointerInRecent = false;
+});
+dom.searchbar.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && dom.searchbar.value?.trim()) searchHistory.add({ q: dom.searchbar.value });
+  else if (e.key === "Escape") {
+    setRecentOpen(false);
+    blurSearchbar();
+  }
+});
+
 function runSearch(query) {
   searchQuery = query.trim();
   // Results live at #/search, an empty search is Home (no history entry per keystroke).
@@ -235,7 +319,6 @@ function currentRoute() {
 }
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
-  showSortButton();
   dom.title.textContent = title;
   dom.titleToolbar.hidden = !title && !back && !actions;   // Home and search results show just the search bar
   dom.back.hidden = !back;
@@ -243,6 +326,7 @@ function setChrome({ title, back = null, actions = "", search = false, tab }) {
   dom.back.onclick = back === "history" ? () => (history.length > 1 ? history.back() : go("#/home")) : back ? () => go(back) : null;
   dom.actions.innerHTML = actions;
   dom.searchToolbar.hidden = !search;
+  if (!search) recentOpen = false;
   dom.tabBar.selectedTab = tab;
 }
 
@@ -306,6 +390,11 @@ function renderHome() {
 
 function renderSearch() {
   setChrome({ title: "", search: true, tab: "home" });
+  if (!searchQuery && recentOpen && searchHistory.items.length) {
+    dom.view.innerHTML = recentSearches();
+    dom.infinite.disabled = true;
+    return;
+  }
   if (!searchQuery) {
     const composers = favoriteComposers();
     const cards = shelfCards();
@@ -315,7 +404,6 @@ function renderSearch() {
         ${chips(suggestions)}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
-        <div class="empty"><p>Search ${index ? index.tunes.length.toLocaleString() : "the"} C64 tunes of the High Voltage SID Collection.</p></div>
       </section>`;
     paintAvatars(dom.view);
     dom.infinite.disabled = true;
@@ -340,12 +428,13 @@ function renderSearch() {
   const shown = lastResults.length;
   const count = lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
     : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
-  dom.view.innerHTML = `<p class="result-count">${count}</p><div id="results"></div>`;
+  dom.view.innerHTML = `${sortBar("search", count)}<div id="results"></div>`;
   showList($("results"), sortResults(lastResults, sorts.search));
 }
 
 // ---- sorting (Spotify-style: a sort button with a direction arrow) ----------
-// Search has it beside the search field; tune lists in a row above the list.
+// Search results and tune lists have it in a row above the list, so the search
+// bar keeps its width.
 // "relevance" keeps a list's own order: the search ranking, or HVSC's order
 // in a list (shown as "Default").
 
@@ -373,37 +462,22 @@ function listSort() {
   return listSortsLeftOut().includes(sort.by) ? { ...DEFAULT_SORT } : sort;
 }
 
-function showSortButton() {
-  const visible = currentRoute().name === "search" && !!searchQuery;
-  $("sort-button").hidden = !visible;
-  $("sort-label").textContent = sortCaption("search", sorts.search);
-  showDirection($("sort-direction"), sorts.search, visible);
-}
-
-function showDirection(button, sort, visible = true) {
-  button.hidden = !visible || sort.by === "relevance";
-  button.querySelector("ion-icon").name = sort.desc ? "arrow-down" : "arrow-up";
-  // ion-button throws on aria changes while it is still loading
-  const label = () => button.setAttribute("aria-label", `Reverse order (now ${sortDirection(sort)})`);
-  const ready = button.componentOnReady?.();
-  if (ready) ready.then(label);
-  else label();
-}
-
 // The row above a sortable tune list: its count (unless the page shows it
-// already), the sort button and arrow.
-function listSortBar(count) {
-  const sort = listSort();
-  return `<div class="list-bar">
-    <p class="result-count">${count == null ? "" : count === 1 ? "1 tune" : `${count.toLocaleString()} tunes`}</p>
-    <ion-button id="list-sort" class="sort-button" fill="clear" aria-label="Sort tunes">
-      <ion-icon slot="start" name="swap-vertical"></ion-icon>${esc(sortCaption("list", sort))}
-    </ion-button>
-    <ion-button id="list-sort-direction" class="sort-direction" fill="clear" ${sort.by === "relevance" ? "hidden" : ""} aria-label="Reverse order (now ${sortDirection(sort)})">
+// already), the order's name (opens the choices) and an arrow that flips the
+// direction in one tap. `kind` is "search" or "list".
+function sortBar(kind, note) {
+  const sort = kind === "list" ? listSort() : sorts.search;
+  const arrow = sort.by === "relevance" ? "" : `
+    <ion-button data-sort-direction="${kind}" class="sort-direction" fill="clear" size="small" aria-label="Reverse order (now ${sortDirection(sort)})">
       <ion-icon slot="icon-only" name="${sort.desc ? "arrow-down" : "arrow-up"}"></ion-icon>
-    </ion-button>
+    </ion-button>`;
+  return `<div class="list-bar">
+    <p class="result-count">${esc(note ?? "")}</p>
+    <ion-button data-sort="${kind}" class="sort-button" fill="clear" size="small" aria-label="Sort by ${esc(sortCaption(kind, sort))}">${esc(sortCaption(kind, sort))}</ion-button>${arrow}
   </div>`;
 }
+
+const tuneCount = (count) => (count === 1 ? "1 tune" : `${count.toLocaleString()} tunes`);
 
 function setSort(kind, next) {
   sorts[kind] = normalizeSort(next);
@@ -413,14 +487,13 @@ function setSort(kind, next) {
     // storage blocked: the order lasts for this visit
   }
   if (kind === "search") {
-    showSortButton();
     if (lastResults) renderSearch();
   } else {
     render();
   }
 }
 
-// Picking the current order again also reverses it; the arrow button does it in one tap.
+// Picking the current order again also reverses it; the arrow does it in one tap.
 function chooseSort(kind) {
   const sort = kind === "list" ? listSort() : sorts.search;
   const leftOut = kind === "list" ? listSortsLeftOut() : [];
@@ -452,7 +525,7 @@ function renderBrowse(dir) {
         <ion-label>${esc(d.split("/").pop().replace(/_/g, " "))}</ion-label>
       </ion-item>`).join("")}
     </ion-list>
-    ${tunes.length > 1 ? listSortBar(tunes.length) : ""}
+    ${tunes.length > 1 ? sortBar("list", tuneCount(tunes.length)) : ""}
     <div id="dir-tunes"></div>`;
   const items = sortResults(tunes.map((t) => asItem(t)), listSort());
   showList($("dir-tunes"), items, { all: true });
@@ -696,7 +769,7 @@ function renderComposer(name) {
         <ion-button id="composer-search" fill="clear"><ion-icon slot="start" name="search"></ion-icon>Search</ion-button>
       </div>
     </section>
-    ${tunes.length ? (tunes.length > 1 ? listSortBar(null) : "") : `<div class="empty"><p>No tunes are credited to ${esc(name)}.</p></div>`}
+    ${tunes.length ? (tunes.length > 1 ? sortBar("list") : "") : `<div class="empty"><p>No tunes are credited to ${esc(name)}.</p></div>`}
     <div id="composer-tunes"></div>`;
   paintAvatars(dom.view);
   const parts = [["Your top tunes", top], ["Tunes", own], ["With others", shared]].filter(([, items]) => items.length);
@@ -941,8 +1014,28 @@ function listItemAt(el) {
 }
 
 dom.view.addEventListener("click", (e) => {
-  if (e.target.closest("#list-sort")) return chooseSort("list");
-  if (e.target.closest("#list-sort-direction")) return setSort("list", { ...listSort(), desc: !listSort().desc });
+  const recentRemove = e.target.closest("[data-recent-remove]");
+  if (recentRemove) {
+    e.stopPropagation();
+    searchHistory.remove(Number(recentRemove.dataset.recentRemove));
+    return renderSearch();
+  }
+  if (e.target.closest("[data-clear-searches]")) {
+    searchHistory.clear();
+    return renderSearch();
+  }
+  const recent = e.target.closest("[data-recent]");
+  if (recent) {
+    const i = Number(recent.dataset.recent);
+    return openRecent(searchHistory.items[i], i);
+  }
+  const sortButton = e.target.closest("[data-sort]");
+  if (sortButton) return chooseSort(sortButton.dataset.sort);
+  const direction = e.target.closest("[data-sort-direction]")?.dataset.sortDirection;
+  if (direction) {
+    const sort = direction === "list" ? listSort() : sorts.search;
+    return setSort(direction, { ...sort, desc: !sort.desc });
+  }
   const menu = e.target.closest("[data-menu]");
   if (menu) {
     e.stopPropagation();
@@ -957,18 +1050,20 @@ dom.view.addEventListener("click", (e) => {
     const section = listOptions.sections?.find((s) => pos >= s.start && pos < s.start + s.count);
     const playable = (section ? listItems.slice(section.start, section.start + section.count) : listItems).filter((i) => !i.missing);
     if (listOptions.playlistId) store.markPlayed(listOptions.playlistId);
+    if (searchQuery && currentRoute().name === "search") searchHistory.add({ path: listItems[pos].path, song: listItems[pos].song });
     player.setQueue(playable, playable.indexOf(listItems[pos]));
   }
 });
 
 dom.searchbar.addEventListener("ionInput", (e) => runSearch(e.target.value || ""));
-$("sort-button").addEventListener("click", () => chooseSort("search"));
-$("sort-direction").addEventListener("click", () => setSort("search", { ...sorts.search, desc: !sorts.search.desc }));
 dom.infinite.addEventListener("ionInfinite", (e) => {
   appendPage();
   e.target.complete();
 });
-dom.tabBar.addEventListener("ionTabButtonClick", (e) => go(`#/${e.detail.tab}`));
+dom.tabBar.addEventListener("ionTabButtonClick", (e) => {
+  recentOpen = false;
+  go(`#/${e.detail.tab}`);
+});
 dom.importInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   e.target.value = "";
@@ -1002,6 +1097,7 @@ document.addEventListener("keydown", (e) => {
 try {
   index = await loadIndex({ onText: (text) => searchWorker.postMessage({ type: "load", text }) });
   $("hvsc-version").textContent = index.version ? `HVSC #${index.version}` : "HVSC";
+  dom.searchbar.placeholder = `Search High Voltage SID Collection ${index.tunes.length.toLocaleString()} tunes, composers, groups, …`;
   render();
 } catch (err) {
   searchError = err.message;
