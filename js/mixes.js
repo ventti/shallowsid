@@ -1,13 +1,14 @@
 // Spotify-style mixes for Home: a random handful (a couple of year mixes, one
-// composer and some themes), each a random sample of the tunes that fit it.
+// composer, one music group or label and some themes), each a random sample of the tunes that fit it.
 // Which mixes show can change on every visit; a mix's tunes are seeded by the
 // week (weekSeed), so they stay put for a week and then change. Pure, so it
 // runs under `node --test`.
 
 export const MIX_SIZE = 50;
 const MIN_TUNES = 60;         // a year or composer needs this many to make a mix
+const MIN_GROUP_TUNES = 25;   // groups are smaller; Side B has about 30
 const YEAR_MIXES = 2;
-const THEME_MIXES = 4;
+const THEME_MIXES = 3;
 
 const lengthOf = (t) => t.lengths?.[t.start - 1] ?? 0;
 const yearOf = (t) => /^(\d{4})/.exec(t.released ?? "")?.[1];
@@ -23,6 +24,18 @@ const THEMES = [
   ["short", "Short and sweet", "Half a minute to a minute and a half", "flash-outline", (t) => lengthOf(t) >= 30 && lengthOf(t) <= 90],
   ["random", "Random songs", "Anything from the whole collection", "shuffle", () => true],
 ];
+
+// Music groups and labels, matched in the "released" credit (year, then
+// groups joined by "/"): [name, pattern]
+const GROUPS = [
+  ["Maniacs of Noise", /\bManiacs of Noise\b/i],
+  ["Vibrants", /\bVibrants\b/i],
+  ["Blues Muz'", /\bBlues Muz'/i],
+  ["Artline Designs", /\bArtline Designs\b/i],
+  ["MultiStyle Labs", /\bMultiStyle Labs\b/i],
+  ["Side B", /\bSide B\b/i],
+];
+const groupOf = (t) => (t.released ?? "").replace(/^\S+\s*/, "");   // the credit after the year
 
 // The week of `date` (local time) as a seed; weeks start on Monday.
 export function weekSeed(date = new Date()) {
@@ -52,7 +65,8 @@ function sample(list, count, rand) {
   return copy.slice(0, n);
 }
 
-// A mix by id ("year-1987", "composer-<credit>", or a theme id), or null.
+// A mix by id ("year-1987", "composer-<credit>", "group-<name>", or a theme
+// id), or null.
 export function mixDefinition(id) {
   const year = /^year-(\d{4})$/.exec(id)?.[1];
   if (year) return { id, title: `${year} mix`, note: `Released in ${year}`, label: year, icon: "calendar-outline", filter: (t) => yearOf(t) === year };
@@ -60,6 +74,11 @@ export function mixDefinition(id) {
     const credit = id.slice("composer-".length);
     const name = credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit;   // the handle, as on the composer chips
     return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, icon: "person-outline", composer: credit, filter: (t) => t.author === credit };
+  }
+  const group = id.startsWith("group-") && GROUPS.find(([name]) => `group-${name}` === id);
+  if (group) {
+    const [name, pattern] = group;
+    return { id, title: `${name} mix`, note: `Released by ${name}`, label: name, icon: "people-outline", filter: (t) => pattern.test(groupOf(t)) };
   }
   const theme = THEMES.find(([themeId]) => themeId === id);
   if (!theme) return null;
@@ -74,7 +93,7 @@ export function mixTunes(id, tunes, seed) {
 }
 
 // The mixes to show for `seed`: year mixes, a composer from `composers`
-// (credits), then themes, each with enough tunes.
+// (credits), a group, then themes, each with enough tunes.
 export function pickMixes(tunes, composers, seed) {
   const rand = seededRandom(seed);
   const perYear = new Map();
@@ -86,6 +105,7 @@ export function pickMixes(tunes, composers, seed) {
   }
   const years = [...perYear].filter(([, n]) => n >= MIN_TUNES).map(([y]) => `year-${y}`);
   const credits = composers.filter((c) => (perAuthor.get(c) ?? 0) >= MIN_TUNES).map((c) => `composer-${c}`);
+  const groups = GROUPS.filter(([, pattern]) => tunes.filter((t) => pattern.test(groupOf(t))).length >= MIN_GROUP_TUNES).map(([name]) => `group-${name}`);
   const themes = THEMES.map(([id]) => id);
-  return [...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample(themes, THEME_MIXES, rand)].map(mixDefinition);
+  return [...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample(groups, 1, rand), ...sample(themes, THEME_MIXES, rand)].map(mixDefinition);
 }

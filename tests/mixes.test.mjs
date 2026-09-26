@@ -35,6 +35,17 @@ test("composer mixes are titled by the handle", () => {
   assert.equal(mixDefinition("composer-Rob Hubbard").composer, "Rob Hubbard");
 });
 
+test("group mixes match the released credit and need enough tunes", () => {
+  const ids = pickMixes(tunes, [], "g").map((m) => m.id);
+  assert.ok(ids.includes("group-Maniacs of Noise"));
+  assert.ok(!ids.includes("group-Side B"));
+  const group = mixTunes("group-Maniacs of Noise", tunes, "s");
+  assert.equal(group.length, MIX_SIZE);
+  assert.ok(group.every((t) => t.released.includes("Maniacs of Noise")));
+  assert.ok(mixDefinition("group-Blues Muz'").filter({ released: "1994 SHAPE/Blues Muz'" }));
+  assert.equal(mixDefinition("group-Nobody"), null);
+});
+
 test("the seed changes on Monday and holds all week", () => {
   const day = (d) => weekSeed(new Date(2026, 8, d, 12));   // September 2026: the 21st is a Monday
   assert.equal(day(21), day(27));
