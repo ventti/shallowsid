@@ -98,9 +98,16 @@ body.has-side-panel .mini {
   height: 36px;
 }
 
-.thumb-missing,
-.playlist-thumb {
+.thumb-missing {
   background: var(--app-surface);
+  color: var(--app-muted);
+  font-size: 20px;
+}
+
+/* Cover mosaic (see playlistArtStyle), or a note icon while empty. */
+.playlist-art {
+  background: var(--app-surface) center / cover no-repeat;
+  image-rendering: pixelated;
   color: var(--app-muted);
   font-size: 20px;
 }

@@ -1,5 +1,6 @@
-// Deterministic tune covers: a mirrored 8x8 pixel sprite (pixelavatar.js) in
-// one of the app accents, lit by a two-hue color slide, both seeded by the tune path.
+// Deterministic covers from pixelavatar.js: a mirrored pixel sprite in one of
+// the app accents, lit by a two-hue color slide, seeded by the tune path.
+// Playlists show a mosaic of their tunes' covers.
 
 import "./pixelavatar.js";   // sets self.PixelAvatar
 
@@ -13,21 +14,29 @@ const OPTIONS = {
   slide: "auto", slideMode: "pixels", slideOpacity: 1, slideBlend: "overlay",
 };
 
-const svgCache = new Map();
+const urlCache = new Map();
 
-function coverSvg(item) {
-  if (!svgCache.has(item.path)) svgCache.set(item.path, self.PixelAvatar.svg(item.path, OPTIONS));
-  return svgCache.get(item.path);
+function svgUrl(path) {
+  if (!urlCache.has(path)) urlCache.set(path, `data:image/svg+xml,${encodeURIComponent(self.PixelAvatar.svg(path, OPTIONS))}`);
+  return urlCache.get(path);
 }
 
-const svgUrl = (item) => `data:image/svg+xml,${encodeURIComponent(coverSvg(item))}`;
+const cssUrl = (path) => `url(&quot;${svgUrl(path)}&quot;)`;
 
 // A CSS background-image value.
-export const artworkImage = (item) => `url("${svgUrl(item)}")`;
+export const artworkImage = (item) => `url("${svgUrl(item.path)}")`;
 
 // For a style="" attribute in markup.
-export function artworkStyle(item) {
-  return `background-image: ${artworkImage(item).replaceAll('"', "&quot;")}`;
+export const artworkStyle = (item) => `background-image: ${cssUrl(item.path)}`;
+
+// The first four distinct tunes' covers in a 2x2 mosaic; with fewer, the first
+// cover alone. Null for an empty playlist.
+export function playlistArtStyle(playlist) {
+  const paths = [...new Set(playlist.items.map((i) => i.path))];
+  if (!paths.length) return null;
+  if (paths.length < 4) return `background-image: ${cssUrl(paths[0])}`;
+  return `background-image: ${paths.slice(0, 4).map(cssUrl).join(", ")}; ` +
+    "background-position: 0 0, 100% 0, 0 100%, 100% 100%; background-size: 50% 50%";
 }
 
 // A PNG for the Media Session, which can't rely on SVG artwork.
@@ -46,7 +55,7 @@ export function artworkPng(item, size) {
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = reject;
-    img.src = svgUrl(item);
+    img.src = svgUrl(item.path);
   }));
   return pngCache.get(key);
 }

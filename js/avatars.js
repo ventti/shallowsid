@@ -1,9 +1,8 @@
-// Deterministic DiceBear art, in presets made for ShallowSID's dark lavender
+// Deterministic DiceBear art, in a preset made for ShallowSID's dark lavender
 // look: composers get a Critters creature seeded by their name (see the
-// composer page), playlists a Patchwork quilt seeded by their id (so renaming
-// keeps it). Both styles are CC0. Markup carries data-composer="<name>" or
-// data-avatar="<playlist id>" with a fallback; paintAvatars() swaps in the
-// art once DiceBear has loaded from the CDN. `data-animate` makes a critter
+// composer page). The style is CC0. Markup carries data-composer="<name>" with
+// a fallback; paintAvatars() swaps in the art once DiceBear has loaded from
+// the CDN. `data-animate` makes a critter
 // bob, blink and sway (paused under prefers-reduced-motion).
 
 const CDN = "https://cdn.jsdelivr.net/npm";
@@ -23,19 +22,11 @@ const PRESETS = {
     inkColor: ["16131f"],
     mouthVariant: NO_TONGUE,
   },
-  patchwork: {
-    backgroundColor: ["221d31"],
-    fabricAColor: ["a99cff", "5ee0c0", "ff8fb1"],
-    fabricBColor: ["6c5eb5", "2f7d8c", "a3466f"],
-    fabricCColor: ["ffd166", "ffb38a"],
-    scale: 1.3,   // fewer, bigger patches read better at thumbnail size
-  },
 };
 const ANIMATED = { animationVariant: ["medium", "slow", "slowest"] };   // the calm speeds; the seed picks one
 
 const SLOTS = [
   { attr: "composer", style: "critters" },
-  { attr: "avatar", style: "patchwork" },
 ];
 
 const loading = new Map();   // core and each style, fetched once when first needed

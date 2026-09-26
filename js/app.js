@@ -15,6 +15,7 @@ import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
+import { playlistArtStyle } from "./artwork.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
@@ -182,14 +183,22 @@ function shelfCards() {
   for (const p of store.recentPlaylists()) if (p !== favorites) cards.push({ playlist: p });
   return cards.slice(0, SHELF_COUNT).map((c) => c.playlist
     ? { href: `#/playlist/${c.playlist.id}`, name: c.playlist.name, count: c.playlist.items.length,
-        art: c.playlist.favorites ? "favorites-thumb" : "playlist-thumb", icon: c.playlist.favorites ? "star" : "musical-notes",
-        avatar: c.playlist.favorites ? null : c.playlist.id }
+        ...(c.playlist.favorites ? { art: "favorites-thumb", icon: "star" } : playlistArt(c.playlist)) }
     : c);
 }
 
+// A playlist's cover mosaic, or a note icon while it's empty.
+function playlistArt(playlist) {
+  const style = playlistArtStyle(playlist);
+  return { art: "playlist-art", style, icon: style ? null : "musical-notes" };
+}
+
+const artBox = (cls, { art, style, icon }, attrs = "") =>
+  `<div ${attrs} class="${cls} ${art}" ${style ? `style="${style}"` : ""}>${icon ? `<ion-icon name="${icon}"></ion-icon>` : ""}</div>`;
+
 const shelf = (cards) => `<div class="shelf">${cards.map((c) => `
   <a class="shelf-card" href="${c.href}">
-    <div class="shelf-art ${c.art}" ${c.avatar ? `data-avatar="${esc(c.avatar)}"` : ""}><ion-icon name="${c.icon}"></ion-icon></div>
+    ${artBox("shelf-art", c)}
     <span class="shelf-title">${esc(c.name)}</span>
     <span class="shelf-sub">${c.count} tune${c.count === 1 ? "" : "s"}</span>
   </a>`).join("")}</div>`;
@@ -466,7 +475,7 @@ function renderPlaylists() {
         <ion-item button detail="true" href="#/playlist/${p.id}" lines="full">
           ${p.favorites
             ? `<div slot="start" class="thumb favorites-thumb"><ion-icon name="star"></ion-icon></div>`
-            : `<div slot="start" class="thumb playlist-thumb" data-avatar="${esc(p.id)}"><ion-icon name="musical-notes"></ion-icon></div>`}
+            : artBox("thumb", playlistArt(p), 'slot="start"')}
           <ion-label><h2>${esc(p.name)}</h2><p>${p.items.length} tune${p.items.length === 1 ? "" : "s"}</p></ion-label>
         </ion-item>`).join("")}</ion-list>`
     : `<div class="empty"><ion-icon name="list" class="empty-icon"></ion-icon>
