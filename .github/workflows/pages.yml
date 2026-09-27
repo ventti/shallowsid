@@ -40,6 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # tags and history, for git describe
 
       - uses: actions/setup-node@v7
         with:
@@ -68,6 +70,9 @@ jobs:
       - name: Assemble site
         run: |
           cp -r index.html favicon.ico privacy.html about.html manifest.webmanifest service-worker.js icons css js _site/
+          version="$(git describe --tags --always)"
+          sed -i "s|<code data-version>[^<]*</code>|<code data-version>${version}</code>|" _site/about.html
+          grep -q "<code data-version>${version}</code>" _site/about.html
           touch _site/.nojekyll
           du -sh _site
 
