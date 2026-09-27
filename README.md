@@ -55,6 +55,7 @@ Gestures on phones:
 
 - Mini-player: **tap** or **swipe up** opens Now Playing. **Swipe down** plays or pauses. **Swipe left/right** skips.
 - Now Playing cover: **tap** plays or pauses. **Swipe left/right** skips. **Swipe down** closes.
+- Now Playing **shuffle** plays the rest of the queue in random order; off returns to the original order. **Repeat** cycles: off → whole queue → this tune. Both are remembered in this browser.
 
 Keyboard: **Space** plays or pauses. **Shift+←/→** skips. **F** toggles Favorite.
 

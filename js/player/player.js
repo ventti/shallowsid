@@ -18,12 +18,24 @@
 //   peaks  {peaks, bucketsPerSecond}     waveform overview grew
 //   queue  {queue, index}
 //   scrub  {enabled}                     whether audible scrubbing is available
+//   repeat {mode}                        "off" | "all" (the queue) | "one" (the tune)
+//   shuffle {on}
 //   error  {message, item}
 
 const PEAK_BUCKETS_PER_SECOND = 10;
 const DEFAULT_SONG_SECONDS = 180;       // tunes missing from Songlengths.md5
 const RESTART_THRESHOLD_SECONDS = 3;    // "previous" restarts the tune after this
 const MAX_CONSECUTIVE_ERRORS = 5;
+export const REPEAT_MODES = ["off", "all", "one"];
+
+export function shuffle(items) {
+  const a = items.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 const assetUrl = (path) => new URL(path, import.meta.url).href;
 
@@ -38,6 +50,9 @@ export class Player extends EventTarget {
     this.freshCacheGen = Infinity;      // first cache render with the current sound (live parks only on that)
     this.queue = [];
     this.index = -1;
+    this.repeat = "off";
+    this.shuffle = false;
+    this.ordered = [];                  // the queue as given, restored when shuffle goes off
     this.state = "idle";
     this.token = 0;                     // per loaded track
     this.gen = 0;                       // per render job, see sid-worklet.js
@@ -98,18 +113,43 @@ export class Player extends EventTarget {
   // ---- queue -------------------------------------------------------------
 
   setQueue(items, startIndex = 0) {
-    this.queue = items.slice();
+    this.ordered = items.slice();
+    this.queue = this.shuffle ? this.shuffledFrom(items[startIndex]) : items.slice();
+    if (this.shuffle) startIndex = 0;
     this.emit("queue", { queue: this.queue, index: startIndex });
     return this.playIndex(startIndex);
   }
 
   playNext(item) {
     this.queue.splice(this.index + 1, 0, item);
+    this.ordered.splice(this.ordered.indexOf(this.current) + 1, 0, item);
     this.emit("queue", { queue: this.queue, index: this.index });
   }
 
   enqueue(item) {
     this.queue.push(item);
+    this.ordered.push(item);
+    this.emit("queue", { queue: this.queue, index: this.index });
+  }
+
+  // `first`, then the rest of the queue as given in random order.
+  shuffledFrom(first) {
+    const rest = this.ordered.filter((item) => item !== first);
+    return first ? [first, ...shuffle(rest)] : shuffle(rest);
+  }
+
+  // On: what has played stays (so "previous" goes back through it), the rest
+  // follows in random order. Off: back to the order given, from the current tune.
+  setShuffle(on) {
+    if (on === this.shuffle) return;
+    this.shuffle = on;
+    this.emit("shuffle", { on });
+    if (!this.queue.length) return;
+    const current = this.current;
+    this.queue = on
+      ? [...this.queue.slice(0, this.index + 1), ...shuffle(this.queue.slice(this.index + 1))]
+      : this.ordered.slice();
+    this.index = Math.max(0, this.queue.indexOf(current));
     this.emit("queue", { queue: this.queue, index: this.index });
   }
 
@@ -237,22 +277,43 @@ export class Player extends EventTarget {
     }
   }
 
+  setRepeat(mode) {
+    if (!REPEAT_MODES.includes(mode) || mode === this.repeat) return;
+    this.repeat = mode;
+    this.emit("repeat", { mode });
+  }
+
+  // Index after the current one, wrapping round when the queue repeats (-1: none).
+  get nextIndex() {
+    if (this.index + 1 < this.queue.length) return this.index + 1;
+    return this.repeat === "all" && this.queue.length ? 0 : -1;
+  }
+
+  // Index before the current one, wrapping round when the queue repeats (-1: none).
+  get previousIndex() {
+    if (this.index > 0) return this.index - 1;
+    return this.repeat === "all" && this.queue.length > 1 ? this.queue.length - 1 : -1;
+  }
+
   next() {
-    if (this.index + 1 < this.queue.length) return this.playIndex(this.index + 1);
+    if (this.nextIndex >= 0) return this.playIndex(this.nextIndex);
     this.pause();
     this.seek(0);
   }
 
   previous() {
-    if (this.position > RESTART_THRESHOLD_SECONDS || this.index === 0) return this.seek(0);
-    return this.playIndex(this.index - 1);
+    if (this.position > RESTART_THRESHOLD_SECONDS || this.previousIndex < 0) return this.seek(0);
+    return this.playIndex(this.previousIndex);
   }
 
   // Switch subtune of the current item (1-based).
   selectSong(song) {
     const item = this.current;
     if (!item || song === item.song) return;
-    this.queue[this.index] = { ...item, song };
+    const updated = { ...item, song };
+    this.queue[this.index] = updated;
+    const at = this.ordered.indexOf(item);
+    if (at >= 0) this.ordered[at] = updated;
     return this.playIndex(this.index);
   }
 
@@ -318,7 +379,8 @@ export class Player extends EventTarget {
       this.emitTime();
     } else if (msg.type === "ended" && msg.token === this.token) {
       this.errors = 0;
-      this.next();
+      if (this.repeat === "one") this.seek(0);
+      else this.next();
     }
   }
 
@@ -344,11 +406,11 @@ export class Player extends EventTarget {
 
   fail(message, item) {
     this.emit("error", { message, item });
-    if (++this.errors >= MAX_CONSECUTIVE_ERRORS || this.index + 1 >= this.queue.length) {
+    if (++this.errors >= MAX_CONSECUTIVE_ERRORS || this.nextIndex < 0 || this.nextIndex === this.index) {
       this.pause();
       return;
     }
-    this.playIndex(this.index + 1);
+    this.playIndex(this.nextIndex);
   }
 
   setState(state) {

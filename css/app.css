@@ -567,6 +567,36 @@ ion-app > .np {
   font-size: 22px;
 }
 
+/* Shuffle and repeat: dimmed when off, accent colour when on. */
+.np-mode {
+  position: relative;
+  width: 44px;
+  font-size: 18px !important;
+}
+
+.np-mode[aria-pressed="false"],
+.np-repeat[data-mode="off"] {
+  opacity: 0.5;
+}
+
+.np-mode[aria-pressed="true"],
+.np-repeat:not([data-mode="off"]) {
+  --color: var(--ion-color-primary) !important;
+}
+
+/* Ionicons has no repeat-one glyph: badge the icon with a 1. */
+.np-repeat[data-mode="one"]::after {
+  content: "1";
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--ion-color-primary);
+  pointer-events: none;
+}
+
 .np-play {
   width: 72px;
   height: 72px;

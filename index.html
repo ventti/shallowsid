@@ -145,9 +145,11 @@
         <div class="np-times"><span id="np-pos">0:00</span><span id="np-state" class="np-state"></span><span id="np-dur">0:00</span></div>
       </div>
       <div class="np-controls">
+        <ion-button fill="clear" id="np-shuffle" class="np-mode" aria-pressed="false" aria-label="Shuffle: off"><ion-icon slot="icon-only" name="shuffle"></ion-icon></ion-button>
         <ion-button fill="clear" id="np-prev" aria-label="Previous"><ion-icon slot="icon-only" name="play-skip-back"></ion-icon></ion-button>
         <ion-button shape="round" id="np-play" class="np-play" aria-label="Play"><ion-icon slot="icon-only" name="play"></ion-icon></ion-button>
         <ion-button fill="clear" id="np-next" aria-label="Next"><ion-icon slot="icon-only" name="play-skip-forward"></ion-icon></ion-button>
+        <ion-button fill="clear" id="np-repeat" class="np-mode np-repeat" data-mode="off" aria-label="Repeat: off"><ion-icon slot="icon-only" name="repeat"></ion-icon></ion-button>
       </div>
       <div class="np-extra">
         <ion-select id="np-subtune" interface="action-sheet" label="Subtune" label-placement="stacked" hidden></ion-select>

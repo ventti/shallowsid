@@ -3,10 +3,15 @@
 
 import { artworkImage } from "./artwork.js";
 import { swipeable } from "./gestures.js";
+import { REPEAT_MODES } from "./player/player.js";
 import { Waveform } from "./player/waveform.js";
 import { esc, formatTime, subtitle, thumb } from "./ui.js";
 
 const DESKTOP = window.matchMedia("(min-width: 992px)");
+const REPEAT_KEY = "shallowsid.repeat";
+const SHUFFLE_KEY = "shallowsid.shuffle";
+const REPEAT_LABELS = { off: "Repeat: off", all: "Repeat: playlist", one: "Repeat: this tune" };
+const UP_NEXT_MAX = 50;
 
 export class NowPlaying {
   constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
@@ -27,6 +32,7 @@ export class NowPlaying {
       badges: $("np-badges"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
       add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"),
+      repeat: $("np-repeat"), shuffle: $("np-shuffle"),
     };
     this.waveform = new Waveform($("np-wave"), {
       onScrub: (s) => player.scrub(s),
@@ -37,6 +43,9 @@ export class NowPlaying {
     this.el.modal.initialBreakpoint = 1;
     this.bindControls();
     this.bindPlayer();
+    this.showRepeat(player.repeat);
+    player.setRepeat(loadSetting(REPEAT_KEY, "off"));
+    player.setShuffle(loadSetting(SHUFFLE_KEY, "off") === "on");
     DESKTOP.addEventListener("change", () => this.placeView());
     this.placeView();
   }
@@ -67,6 +76,10 @@ export class NowPlaying {
     el.play.addEventListener("click", () => p.toggle());
     el.prev.addEventListener("click", () => p.previous());
     el.next.addEventListener("click", () => p.next());
+    el.shuffle.addEventListener("click", () => p.setShuffle(!p.shuffle));
+    el.repeat.addEventListener("click", () => {
+      p.setRepeat(REPEAT_MODES[(REPEAT_MODES.indexOf(p.repeat) + 1) % REPEAT_MODES.length]);
+    });
     el.add.addEventListener("click", () => p.current && this.onAddToPlaylist(p.current));
     el.share.addEventListener("click", () => p.current && this.onShare(p.current));   // with the subtune playing
     el.fav.addEventListener("click", () => p.current && this.onToggleFavorite(p.current));
@@ -128,6 +141,23 @@ export class NowPlaying {
     });
     p.addEventListener("peaks", ({ detail }) => this.waveform.setPeaks(detail.peaks, detail.bucketsPerSecond));
     p.addEventListener("queue", ({ detail }) => this.showQueue(detail.queue, detail.index));
+    p.addEventListener("repeat", ({ detail: { mode } }) => {
+      this.showRepeat(mode);
+      saveSetting(REPEAT_KEY, mode);
+      this.showQueue(p.queue, p.index);
+    });
+    p.addEventListener("shuffle", ({ detail: { on } }) => {
+      el.shuffle.setAttribute("aria-pressed", String(on));
+      el.shuffle.setAttribute("aria-label", `Shuffle: ${on ? "on" : "off"}`);
+      el.shuffle.title = `Shuffle: ${on ? "on" : "off"}`;
+      saveSetting(SHUFFLE_KEY, on ? "on" : "off");
+    });
+  }
+
+  showRepeat(mode) {
+    this.el.repeat.dataset.mode = mode;
+    this.el.repeat.setAttribute("aria-label", REPEAT_LABELS[mode]);
+    this.el.repeat.title = REPEAT_LABELS[mode];
   }
 
   showTrack(item) {
@@ -176,14 +206,33 @@ export class NowPlaying {
     this.el.np.classList.toggle("is-paused", !playing);
   }
 
+  // With the playlist on repeat, the start of the queue follows its end.
   showQueue(queue, index) {
-    const upcoming = queue.slice(index + 1, index + 51);
+    const order = queue.map((_, i) => i).slice(index + 1);
+    if (this.player.repeat === "all") order.push(...queue.map((_, i) => i).slice(0, index + 1));
+    const upcoming = order.slice(0, UP_NEXT_MAX);
     this.el.queue.innerHTML = upcoming.length
       ? `<ion-list-header><ion-label>Up next</ion-label></ion-list-header>` +
-        upcoming.map((item, i) => `<ion-item button detail="false" lines="none" data-queue="${index + 1 + i}">
-            <div slot="start">${thumb(item, "thumb thumb-sm")}</div>
-            <ion-label><h3>${esc(item.title)}${item.songs > 1 ? ` #${item.song}` : ""}</h3><p>${esc(subtitle(item))}</p></ion-label>
+        upcoming.map((i) => `<ion-item button detail="false" lines="none" data-queue="${i}">
+            <div slot="start">${thumb(queue[i], "thumb thumb-sm")}</div>
+            <ion-label><h3>${esc(queue[i].title)}${queue[i].songs > 1 ? ` #${queue[i].song}` : ""}</h3><p>${esc(subtitle(queue[i]))}</p></ion-label>
           </ion-item>`).join("")
       : "";
+  }
+}
+
+function loadSetting(key, fallback) {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveSetting(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // storage blocked: the setting lasts the session
   }
 }

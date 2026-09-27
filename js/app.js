@@ -2,7 +2,7 @@
 
 import { loadIndex } from "./index-store.js";
 import { NowPlaying } from "./now-playing.js";
-import { Player } from "./player/player.js";
+import { Player, shuffle } from "./player/player.js";
 import { connectMediaSession } from "./player/media-session.js";
 import { decodeShare, encodeShare, nameFromFileName, parseM3U8, safeFileName, toM3U8 } from "./playlist-format.js";
 import { PlaylistStore } from "./playlists.js";
@@ -886,15 +886,6 @@ function joinSyncLink(key) {
 }
 
 // ---- actions ----------------------------------------------------------------
-
-function shuffle(items) {
-  const a = items.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 function toggleFavorite(item) {
   const on = store.toggleFavorite(item);
