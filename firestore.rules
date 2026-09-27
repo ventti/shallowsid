@@ -1,39 +1,60 @@
 rules_version = '2';
 
-// ShallowSID sync: one document per sync key, at vaults/<64 hex id>.
-// The id is derived from a 128-bit key that only the user's devices know, and
-// the content is encrypted in the browser, so there are no accounts: knowing
-// the id is the permission. Listing is forbidden, so ids can't be discovered.
+// ShallowSID sync: one document per sync key, at vaults2/<64 hex id>.
+// The id and a write secret are derived from a 128-bit key that only the
+// user's devices know, and the content is encrypted in the browser, so there
+// are no accounts. Knowing the id lets you read the ciphertext, nothing more:
+// like lists/ below, `owner` is sha256(token_n) and an update must carry
+// proof = token_n, bump n and store owner = sha256(token_n+1), where token_n
+// comes from the write secret. Deleting takes a proven update that sets
+// `del` first. Listing is forbidden, so ids can't be discovered.
 // v 2 marks a "moved" record, left when a device is removed from sync (see
 // js/sync.js). It can't be changed or deleted, so the removed device, which
-// still knows this id, can't hide from the others where the data went.
+// still knows the old key, can't hide from the others where the data went.
+// vaults/ holds records from before write proofs: read-only, for migration.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /vaults/{id} {
-      function validId() {
-        return id.matches('^[0-9a-f]{64}$');
-      }
+    function validVaultId(id) {
+      return id.matches('^[0-9a-f]{64}$');
+    }
 
+    match /vaults/{id} {
+      allow get: if validVaultId(id);
+      allow list, create, update, delete: if false;
+    }
+
+    match /vaults2/{id} {
       function validData() {
         let d = request.resource.data;
-        return d.keys().hasOnly(['c', 'iv', 'v', 'expireAt'])
+        return d.keys().hasOnly(['c', 'iv', 'v', 'expireAt', 'owner', 'n', 'proof', 'del'])
           && d.c is string && d.c.size() <= 500000
           && d.iv is string && d.iv.size() == 16
           && d.v is int
           && d.expireAt is timestamp
           && d.expireAt > request.time
-          && d.expireAt < request.time + duration.value(400, 'd');
+          && d.expireAt < request.time + duration.value(400, 'd')
+          && d.owner is string && d.owner.matches('^[0-9a-f]{64}$')
+          && d.n is int
+          && (!('del' in d) || d.del is bool);
       }
 
-      function notMoved() {
-        return resource == null || resource.data.v < 2;
+      function proven() {
+        let d = request.resource.data;
+        return d.proof is string && d.proof.matches('^[0-9a-f]{64}$')
+          && hashing.sha256(d.proof).toHexString().lower() == resource.data.owner
+          && d.n == resource.data.n + 1;
       }
 
-      allow get: if validId();
-      allow delete: if validId() && notMoved();
-      allow create: if validId() && validData();
-      allow update: if validId() && validData() && notMoved();
+      allow get: if validVaultId(id);
       allow list: if false;
+      allow create: if validVaultId(id) && validData()
+        && request.resource.data.n == 0
+        && !('proof' in request.resource.data)
+        && !('del' in request.resource.data);
+      allow update: if validVaultId(id) && validData() && proven()
+        && resource.data.v < 2
+        && resource.data.get('del', false) == false;
+      allow delete: if validVaultId(id) && resource.data.get('del', false) == true;
     }
 
     // Unlisted playlists: lists/<12-char id>, readable by anyone with the link.

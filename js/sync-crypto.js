@@ -3,9 +3,12 @@
 //
 // The sync key (128 random bits) never leaves the device. From it we derive,
 // with HKDF-SHA-256:
-//   - the document id (64 hex chars) the backend stores the data under, and
-//   - an AES-256-GCM key that encrypts the data before upload.
+//   - the document id (64 hex chars) the backend stores the data under,
+//   - an AES-256-GCM key that encrypts the data before upload, and
+//   - a write seed for the owner proofs that let only key holders change or
+//     delete the document (see firestore.rules; the id alone isn't enough).
 // The backend therefore only ever sees an opaque id and ciphertext.
+// `legacyId` is where records lived before write proofs (read-only now).
 
 const KEY_BYTES = 16;
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";   // Crockford-ish: no 0/O, 1/I
@@ -56,12 +59,13 @@ async function hkdfBase(keyBytes) {
 
 const hkdf = (info) => ({ name: "HKDF", hash: "SHA-256", salt: enc.encode("shallowsid-sync-v1"), info: enc.encode(info) });
 
+const hex = (bits) => [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, "0")).join("");
+
 export async function deriveVault(keyBytes) {
   const base = await hkdfBase(keyBytes);
-  const idBits = await crypto.subtle.deriveBits(hkdf("document-id"), base, 256);
-  const id = [...new Uint8Array(idBits)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const derive = async (info) => hex(await crypto.subtle.deriveBits(hkdf(info), base, 256));
   const aesKey = await crypto.subtle.deriveKey(hkdf("encryption"), base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
-  return { id, aesKey };
+  return { id: await derive("document-id-v2"), legacyId: await derive("document-id"), writeSeed: await derive("write-token"), aesKey };
 }
 
 // Device key pairs (ECDH P-256) let one device hand a new sync key to the

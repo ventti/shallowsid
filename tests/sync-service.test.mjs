@@ -8,24 +8,42 @@ globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k,
 globalThis.document = { visibilityState: "visible", addEventListener() {} };
 globalThis.window = { addEventListener() {} };
 
-// --- fake Firestore: vaults/<id> with updateTime preconditions ---
-const docs = new Map();
+// --- fake Firestore: vaults2/<id> and read-only vaults/<id>, as firestore.rules ---
+const docs = new Map();         // vaults2
+const legacy = new Map();       // vaults (from before write proofs)
 let clock = 0;
 const requests = [];
+const sha256 = async (text) => Buffer.from(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))).toString("hex");
 globalThis.fetch = async (url, { method = "GET", body } = {}) => {
   const u = new URL(url);
-  const id = u.pathname.split("/").pop();
-  requests.push({ method, id, body });
+  const [collection, id] = u.pathname.split("/").slice(-2);
+  requests.push({ method, collection, id, body });
   const json = (status, obj) => ({ ok: status < 300, status, statusText: "", json: async () => obj });
-  const doc = docs.get(id);
+  const denied = (message) => json(403, { error: { status: "PERMISSION_DENIED", message } });
+  const store = collection === "vaults" ? legacy : docs;
+  const doc = store.get(id);
   if (method === "GET") return doc ? json(200, doc) : json(404, { error: { status: "NOT_FOUND", message: "no doc" } });
-  if (doc?.fields.v.integerValue === "2") return json(403, { error: { status: "PERMISSION_DENIED", message: "moved" } });   // as firestore.rules
-  if (method === "DELETE") { docs.delete(id); return json(200, {}); }
+  if (collection === "vaults") return denied("legacy vaults are read-only");
+  if (method === "DELETE") {
+    if (doc && !doc.fields.del?.booleanValue) return denied("not marked deleted");
+    docs.delete(id);
+    return json(200, {});
+  }
   const exists = u.searchParams.get("currentDocument.exists");
   const wantTime = u.searchParams.get("currentDocument.updateTime");
   if (exists === "false" && doc) return json(409, { error: { status: "ALREADY_EXISTS", message: "exists" } });
   if (wantTime && (!doc || doc.updateTime !== wantTime)) return json(400, { error: { status: "FAILED_PRECONDITION", message: "stale" } });
-  const next = { name: id, fields: JSON.parse(body).fields, updateTime: `t${++clock}` };
+  const fields = JSON.parse(body).fields;
+  const n = Number(fields.n?.integerValue);
+  if (!/^[0-9a-f]{64}$/.test(fields.owner?.stringValue ?? "")) return denied("no owner");
+  if (!doc) {
+    if (n !== 0 || fields.proof || fields.del) return denied("bad create");
+  } else {
+    if (doc.fields.v.integerValue === "2" || doc.fields.del?.booleanValue) return denied("moved or deleted");
+    const proof = fields.proof?.stringValue ?? "";
+    if (await sha256(proof) !== doc.fields.owner.stringValue || n !== Number(doc.fields.n.integerValue) + 1) return denied("bad proof");
+  }
+  const next = { name: id, fields, updateTime: `t${++clock}` };
   docs.set(id, next);
   return json(200, next);
 };
@@ -33,6 +51,7 @@ globalThis.fetch = async (url, { method = "GET", body } = {}) => {
 const { SyncService } = await import("../js/sync.js");
 const { PlaylistStore } = await import("../js/playlists.js");
 const { SoundSettings } = await import("../js/sound-settings.js");
+const { deriveVault, parseKey } = await import("../js/sync-crypto.js");
 
 const config = { apiKey: "test-key", projectId: "test" };
 function device(name) {
@@ -57,7 +76,7 @@ function device(name) {
   return { store, sound, sync };
 }
 
-beforeEach(() => { storage.clear(); docs.clear(); requests.length = 0; });
+beforeEach(() => { storage.clear(); docs.clear(); legacy.clear(); requests.length = 0; });
 
 test("turning on uploads only ciphertext under a 64-hex id", async () => {
   const a = device("a");
@@ -67,7 +86,7 @@ test("turning on uploads only ciphertext under a 64-hex id", async () => {
   assert.equal(docs.size, 1);
   const [id, doc] = [...docs.entries()][0];
   assert.match(id, /^[0-9a-f]{64}$/);
-  assert.deepEqual(Object.keys(doc.fields).sort(), ["c", "expireAt", "iv", "v"]);
+  assert.deepEqual(Object.keys(doc.fields).sort(), ["c", "expireAt", "iv", "n", "owner", "v"]);
   assert.ok(!JSON.stringify(doc).includes("Hubbard"));
 });
 
@@ -203,7 +222,7 @@ test("a device on an older version (no public key) is left behind, and the move 
   assert.deepEqual(a.sync.devices.map((d) => d.id), [a.sync.deviceId]);
   await b.sync.syncNow();
   assert.equal(b.sync.removed, true);
-  const del = await fetch(`https://x/vaults/${oldCopy}?key=k`, { method: "DELETE" });
+  const del = await fetch(`https://x/vaults2/${oldCopy}?key=k`, { method: "DELETE" });
   assert.equal(del.status, 403);
 });
 
@@ -254,4 +273,61 @@ test("a play conflicting with another device's push is counted once", async () =
   await b.sync.syncNow();       // stale precondition: b retries
   await a.sync.syncNow();
   for (const d of [a, b]) assert.equal(d.store.mostPlayed()[0].count, 2);
+});
+
+test("knowing the id alone can't change or delete the synced copy", async () => {
+  const a = device("a");
+  a.store.create("Mine");
+  await a.sync.turnOn();
+  const [[id, doc]] = [...docs.entries()];
+  const before = JSON.stringify(doc);
+  const url = (params) => `https://x/vaults2/${id}?${new URLSearchParams({ key: "k", "currentDocument.updateTime": doc.updateTime, ...params })}`;
+  const forged = (extra) => JSON.stringify({ fields: { ...doc.fields, owner: { stringValue: "0".repeat(64) }, n: { integerValue: "1" }, ...extra } });
+  for (const body of [forged({}), forged({ proof: { stringValue: "f".repeat(64) } }), forged({ proof: { stringValue: "f".repeat(64) }, del: { booleanValue: true } })]) {
+    assert.equal((await fetch(url(), { method: "PATCH", body })).status, 403);
+  }
+  assert.equal((await fetch(url(), { method: "DELETE" })).status, 403);
+  assert.equal(JSON.stringify(docs.get(id)), before);
+  await a.sync.deleteRemote();     // the key holder can
+  assert.equal(docs.size, 0);
+});
+
+test("a copy from before write proofs is read once, moved to the new place and left alone", async () => {
+  const a = device("a"), b = device("b");
+  a.store.create("Old");
+  await a.sync.turnOn();
+  // make it look like an old client's record and state
+  const vault = await deriveVault(parseKey(a.sync.key));
+  const [[, doc]] = [...docs.entries()];
+  const { c, iv, v, expireAt } = doc.fields;
+  legacy.set(vault.legacyId, { name: vault.legacyId, fields: { c, iv, v, expireAt }, updateTime: "old" });
+  docs.clear();
+  a.sync.state = { ...a.sync.state, rev: undefined, v2: undefined, updateTime: "old" };
+  await b.sync.useKey(a.sync.key);
+  assert.equal(b.sync.status, "synced");
+  assert.deepEqual(b.store.playlists.map((p) => p.name), ["Old"]);
+  assert.ok(docs.has(vault.id));
+  a.store.create("New");
+  await a.sync.syncNow();          // finds the new copy
+  await b.sync.syncNow();
+  assert.deepEqual(b.store.playlists.map((p) => p.name).sort(), ["New", "Old"]);
+  // once deleted, the stale legacy copy doesn't come back to undo later changes
+  await b.sync.deleteRemote();
+  await a.sync.syncNow();
+  assert.deepEqual(a.store.playlists.map((p) => p.name).sort(), ["New", "Old"]);
+  assert.equal(legacy.size, 1);
+  assert.ok(requests.every((r) => r.collection !== "vaults" || r.method === "GET"));
+});
+
+test("a delete another device couldn't finish is finished on the next sync", async () => {
+  const a = device("a"), b = device("b");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await a.sync.syncNow();
+  const vault = await deriveVault(parseKey(a.sync.key));
+  await a.sync.push(vault, {}, a.sync.state.rev, 1, { del: true });   // marked, but the DELETE never came
+  await b.sync.syncNow();
+  assert.equal(b.sync.status, "synced");
+  assert.equal(docs.get(vault.id).fields.del, undefined);             // deleted, then written fresh
+  assert.equal(docs.get(vault.id).fields.n.integerValue, "0");
 });

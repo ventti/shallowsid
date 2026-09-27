@@ -1,10 +1,11 @@
 // Optional end-to-end encrypted sync of playlists, sound presets,
-// preferences and play history through Firestore's REST API (no SDK, no accounts).
+// preferences and play history through Firestore's REST API (no accounts; see firestore-fetch.js).
 //
 // Local state (localStorage "shallowsid.sync"): the sync key, whether sync is
 // paused on this device, the last merged snapshot (base for three-way merges)
-// and the document's updateTime (used as a write precondition so two devices
-// can't overwrite each other). Pausing keeps the key so resuming rejoins.
+// and the document's revision `rev` (its updateTime, used as a write
+// precondition so two devices can't overwrite each other, and its proof
+// counter n). Pausing keeps the key so resuming rejoins.
 // Turning off keeps the last snapshot too, so rejoining the same key doesn't
 // count the synced plays twice.
 //
@@ -22,10 +23,19 @@
 // migrate on their own. Versions before it stop at the moved record (it's
 // newer than they know) instead of reading it as empty data.
 //
+// Only key holders can change or delete the synced copy: every write carries
+// an owner proof derived from the key (see firestore.rules and
+// live-share-core.js), and a delete must first be marked by a proven write.
+// Records from before proofs (vaults/, under `legacyId`) are read-only; a
+// device that hasn't used the new copy for its key yet reads the old one as
+// the remote and the next push creates the new copy (`state.v2` = that key).
+//
 // Events: "status" whenever status/lastSynced/error change, "applied" after
 // remote changes were merged into the local stores.
 
 import { FIREBASE } from "./sync-config.js";
+import { firestoreFetch } from "./firestore-fetch.js";
+import { ownerHash, tokenFor } from "./live-share-core.js";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateDeviceKeys, generateKey, parseKey, unwrapKey, wrapKeyFor } from "./sync-crypto.js";
 import { canonical, mergeSnapshots } from "./sync-merge.js";
 import { describeDevice } from "./device-info.js";
@@ -48,6 +58,8 @@ const HISTORY = ["plays", "recent", "playedLists"];
 const sameIn = (keys, a, b) => same(pick(a, keys), pick(b, keys));
 
 class ConflictError extends Error {}
+
+const revOf = (doc) => ({ updateTime: doc.updateTime, n: Number(doc.fields?.n?.integerValue ?? 0) });
 
 export class SyncService extends EventTarget {
   constructor({ store, sound, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
@@ -149,7 +161,7 @@ export class SyncService extends EventTarget {
   // Start (or restart) with a fresh key. Devices on the old key stop syncing
   // with this one; the old synced copy stays until deleted with that key.
   async turnOn() {
-    this.state = { key: formatKey(generateKey()), base: null, updateTime: null };
+    this.state = { key: formatKey(generateKey()), base: null, rev: null };
     this.persist();
     await this.syncNow();
   }
@@ -164,7 +176,7 @@ export class SyncService extends EventTarget {
   async useKey(text) {
     const key = formatKey(parseKey(text));
     const base = this.state.left?.key === key ? this.state.left.base : null;
-    this.state = { key, base, updateTime: null };
+    this.state = { key, base, rev: null };
     this.persist();
     await this.syncNow();
   }
@@ -196,8 +208,16 @@ export class SyncService extends EventTarget {
 
   async deleteRemote() {
     const vault = await this.vault();
-    const res = await fetch(this.url(vault.id), { method: "DELETE" });
-    if (!res.ok && res.status !== 404) throw new Error(await this.errorText(res));
+    for (let attempt = 0; ; attempt++) {
+      const doc = await this.get(this.url(vault.id));
+      if (!doc) break;
+      try {
+        await this.remove(vault, revOf(doc));
+        break;
+      } catch (err) {
+        if (!(err instanceof ConflictError) || attempt >= 2) throw err;   // another device wrote first: read again
+      }
+    }
     this.turnOff();
   }
 
@@ -248,12 +268,12 @@ export class SyncService extends EventTarget {
     const settingsChanged = !sameIn(SETTINGS, merged, local);
     const historyChanged = !sameIn(HISTORY, merged, local);
     if (settingsChanged) this.applySettings(merged);
-    let updateTime = remoteDoc?.updateTime ?? null;
-    if (!remote || !same(merged, remote)) updateTime = await this.push(vault, merged, updateTime);
+    let rev = remoteDoc?.rev ?? null;
+    if (!remote || !same(merged, remote) || !rev) rev = await this.push(vault, merged, rev);
     if (historyChanged) this.store.applySyncedHistory(merged, local);
     if (settingsChanged || historyChanged) this.dispatchEvent(new Event("applied"));
     // A copy: `merged` can share objects with the live stores, which later edits mutate.
-    this.state = { ...this.state, base: structuredClone(merged), devices: structuredClone(merged.devices), updateTime };
+    this.state = { ...this.state, base: structuredClone(merged), devices: structuredClone(merged.devices), rev, v2: this.state.key };
     this.persist();
   }
 
@@ -266,7 +286,7 @@ export class SyncService extends EventTarget {
       this.persist();
       throw new Error("Sync moved to a new key on another device, without this one. To sync again, use the key from a device that still syncs.");
     }
-    this.state = { ...this.state, key, updateTime: null };
+    this.state = { ...this.state, key, rev: null };
     this.persist();
     return this.syncOnce(moves + 1);
   }
@@ -281,15 +301,15 @@ export class SyncService extends EventTarget {
     const data = { ...this.state.base, devices };
     const key = formatKey(generateKey());
     const vault = await deriveVault(parseKey(key));
-    const updateTime = await this.push(vault, data, null);
+    const rev = await this.push(vault, data, null);
     try {
       const handover = await wrapKeyFor(key, devices.filter((d) => d.id !== this.deviceId));
-      await this.push(oldVault, { moved: handover }, this.state.updateTime, MOVED_VERSION);
+      await this.push(oldVault, { moved: handover }, this.state.rev, MOVED_VERSION);
     } catch (err) {
-      await fetch(this.url(vault.id), { method: "DELETE" }).catch(() => {});
+      await this.remove(vault, rev).catch(() => {});
       throw err;
     }
-    this.state = { ...this.state, key, base: structuredClone(data), devices: structuredClone(devices), updateTime };
+    this.state = { ...this.state, key, base: structuredClone(data), devices: structuredClone(devices), rev, v2: key };
     this.persist();
   }
 
@@ -334,46 +354,78 @@ export class SyncService extends EventTarget {
     return this.vaultFor.vault;
   }
 
-  url(id, params = {}) {
+  url(id, params = {}, collection = "vaults2") {
     const q = new URLSearchParams({ key: this.config.apiKey, ...params });
     const endpoint = this.config.endpoint ?? "https://firestore.googleapis.com";   // or a Firestore emulator
-    return `${endpoint}/v1/projects/${this.config.projectId}/databases/(default)/documents/vaults/${id}?${q}`;
+    return `${endpoint}/v1/projects/${this.config.projectId}/databases/(default)/documents/${collection}/${id}?${q}`;
   }
 
-  async pull(vault) {
-    const res = await fetch(this.url(vault.id));
+  async get(url) {
+    const res = await firestoreFetch(this.config, url);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(await this.errorText(res));
-    const doc = await res.json();
+    return res.json();
+  }
+
+  // {data | moved, rev} or null. `rev` ({updateTime, n}) is what the next
+  // write must match; it is null for a legacy record, which can only be read.
+  async pull(vault) {
+    let doc = await this.get(this.url(vault.id));
+    if (doc?.fields?.del?.booleanValue) {
+      // another device deleted the data but couldn't finish: finish it
+      await this.delete(vault.id);
+      doc = null;
+    }
+    const legacy = !doc && this.state.v2 !== this.state.key;
+    if (legacy) doc = await this.get(this.url(vault.legacyId, {}, "vaults"));
+    if (!doc) return null;
     const f = doc.fields ?? {};
     const version = Number(f.v?.integerValue);
     if (version > MOVED_VERSION) throw new Error("The synced data is from a newer ShallowSID; reload the page");
     const data = await decryptJSON(vault.aesKey, { c: f.c?.stringValue, iv: f.iv?.stringValue });
-    if (version === MOVED_VERSION) return { moved: data.moved, updateTime: doc.updateTime };
-    return { data, updateTime: doc.updateTime };
+    const rev = legacy ? null : revOf(doc);
+    if (version === MOVED_VERSION) return { moved: data.moved, rev };
+    return { data, rev };
   }
 
-  // Write with a precondition: create only if absent, update only if unchanged since we read it.
-  async push(vault, data, updateTime, version = FORMAT_VERSION) {
+  // Write with a precondition: create only if absent, update only if unchanged
+  // since we read it (`rev`), proving ownership with token n. Returns the new rev.
+  async push(vault, data, rev, version = FORMAT_VERSION, { del = false } = {}) {
     const box = await encryptJSON(vault.aesKey, data);
     const expireAt = new Date(Date.now() + RETENTION_DAYS * 86_400_000).toISOString();
-    const precondition = updateTime ? { "currentDocument.updateTime": updateTime } : { "currentDocument.exists": "false" };
-    const res = await fetch(this.url(vault.id, precondition), {
+    const precondition = rev ? { "currentDocument.updateTime": rev.updateTime } : { "currentDocument.exists": "false" };
+    const n = rev ? rev.n + 1 : 0;
+    const fields = {
+      c: { stringValue: box.c },
+      iv: { stringValue: box.iv },
+      v: { integerValue: String(version) },
+      expireAt: { timestampValue: expireAt },
+      owner: { stringValue: await ownerHash(await tokenFor(vault.writeSeed, n)) },
+      n: { integerValue: String(n) },
+    };
+    if (rev) fields.proof = { stringValue: await tokenFor(vault.writeSeed, rev.n) };
+    if (del) fields.del = { booleanValue: true };
+    const res = await firestoreFetch(this.config, this.url(vault.id, precondition), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fields: {
-          c: { stringValue: box.c },
-          iv: { stringValue: box.iv },
-          v: { integerValue: String(version) },
-          expireAt: { timestampValue: expireAt },
-        },
-      }),
+      body: JSON.stringify({ fields }),
     });
-    if (res.ok) return (await res.json()).updateTime;
+    if (res.ok) return { updateTime: (await res.json()).updateTime, n };
     const text = await this.errorText(res);
     if (res.status === 409 || /FAILED_PRECONDITION|ALREADY_EXISTS|NOT_FOUND/.test(text)) throw new ConflictError(text);
     throw new Error(text);
+  }
+
+  // Mark the copy deleted with a proven write, then delete it: firestore.rules
+  // only allow deleting a marked copy, so the id alone can't delete one.
+  async remove(vault, rev) {
+    await this.push(vault, {}, rev, FORMAT_VERSION, { del: true });
+    await this.delete(vault.id);
+  }
+
+  async delete(id) {
+    const res = await firestoreFetch(this.config, this.url(id), { method: "DELETE" });
+    if (!res.ok && res.status !== 404) throw new Error(await this.errorText(res));
   }
 
   async errorText(res) {

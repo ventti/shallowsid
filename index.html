@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
-  <!-- Only this site, jsDelivr (libraries), HVSC (tunes) and Firestore (sync, shared lists). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://cdn.jsdelivr.net; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <!-- Only this site, jsDelivr (libraries), HVSC (tunes), Firestore (sync, shared lists)
+       and, for those two, Firebase App Check with reCAPTCHA (Google, gstatic). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com https://www.google.com 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://content-firebaseappcheck.googleapis.com https://www.google.com https://cdn.jsdelivr.net; frame-src https://www.google.com; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#16131f">
   <meta name="description" content="ShallowSID is a free web player that gives you instant access to over 60,000 Commodore 64 tunes from the High Voltage SID Collection. No account, no ads: just press play.">
   <title>ShallowSID - the easy C64 music web player</title>

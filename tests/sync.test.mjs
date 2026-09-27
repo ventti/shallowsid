@@ -20,6 +20,12 @@ test("vault id is stable per key and differs between keys", async () => {
   assert.match(a.id, /^[0-9a-f]{64}$/);
   assert.equal(a.id, b.id);
   assert.notEqual(a.id, c.id);
+  for (const k of ["legacyId", "writeSeed"]) {
+    assert.match(a[k], /^[0-9a-f]{64}$/);
+    assert.equal(a[k], b[k]);
+    assert.notEqual(a[k], c[k]);
+  }
+  assert.equal(new Set([a.id, a.legacyId, a.writeSeed]).size, 3);
 });
 
 test("data round-trips encrypted, and the wrong key fails", async () => {

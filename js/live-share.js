@@ -7,6 +7,7 @@
 // devices can update the list too, and is never put in links or exports.
 
 import { FIREBASE } from "./sync-config.js";
+import { firestoreFetch } from "./firestore-fetch.js";
 import { ID_PATTERN, decodeList, encodeList, newListId, newSeed, ownerHash, tokenFor } from "./live-share-core.js";
 
 const FORMAT_VERSION = 1;
@@ -119,7 +120,7 @@ export class LiveShare extends EventTarget {
   }
 
   async get(id) {
-    const res = await fetch(this.url(id));
+    const res = await firestoreFetch(this.config, this.url(id));
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(await errorText(res));
     return res.json();
@@ -133,7 +134,7 @@ export class LiveShare extends EventTarget {
       v: { integerValue: String(FORMAT_VERSION) },
     };
     if (proof) fields.proof = { stringValue: proof };
-    return fetch(this.url(id, precondition), {
+    return firestoreFetch(this.config, this.url(id, precondition), {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fields }),
