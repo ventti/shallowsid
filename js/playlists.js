@@ -12,6 +12,8 @@ const PLAYS_KEY = "shallowsid.plays";
 const PLAYED_LISTS_KEY = "shallowsid.playedLists";
 const FAVORITES_NAME = "Favorites";
 
+const songOf = (item) => item.song ?? item.start ?? 1;
+
 function read(key, fallback) {
   try {
     return JSON.parse(localStorage.getItem(key)) ?? fallback;
@@ -110,7 +112,22 @@ export class PlaylistStore extends EventTarget {
   add(id, item) {
     const p = this.get(id);
     if (!p) return;
-    p.items.push({ path: item.path, song: item.song ?? item.start ?? 1 });
+    p.items.push({ path: item.path, song: songOf(item) });
+    this.save(p);
+  }
+
+  // Whether the playlist already has this tune (same file and subtune).
+  has(id, item) {
+    const song = songOf(item);
+    return !!this.get(id)?.items.some((i) => i.path === item.path && i.song === song);
+  }
+
+  // Duplicates are asked about unless the playlist opts in (synced like its name).
+  setAllowDuplicates(id, on) {
+    const p = this.get(id);
+    if (!p || !!p.allowDuplicates === on) return;
+    if (on) p.allowDuplicates = true;
+    else delete p.allowDuplicates;
     this.save(p);
   }
 

@@ -20,7 +20,7 @@ import { SyncSheet } from "./sync-sheet.js";
 import { playlistArtStyle } from "./artwork.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
-import { actionSheet, confirmDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
+import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
 // SID files come from the official HVSC site (CORS-enabled, fetched one by one).
@@ -685,6 +685,9 @@ function renderPlaylist(id) {
     { text: "Save playlist file…", icon: "download-outline", handler: () => exportPlaylist(pl) },
     { text: "Share…", icon: "share-outline", handler: () => sharePlaylist(pl) },
     ...(pl.share ? [{ text: "Stop Sharing Link", icon: "link-outline", handler: () => stopSharing(pl) }] : []),
+    ...(pl.id === store.favorites()?.id ? [] : [pl.allowDuplicates
+      ? { text: "Ask Before Adding Duplicates", icon: "copy-outline", handler: () => { store.setAllowDuplicates(id, false); toast("Duplicates will be asked about"); } }
+      : { text: "Allow Duplicates", icon: "copy-outline", handler: () => { store.setAllowDuplicates(id, true); toast("Duplicates are added without asking"); } }]),
     { text: "Rename", icon: "create-outline", handler: async () => {
       const name = await prompt("Rename playlist", { value: pl.name });
       if (name !== null) { store.rename(id, name); render(); }
@@ -923,9 +926,22 @@ function addToPlaylist(item) {
     ...store.playlists.map((pl) => ({
       text: pl.name,
       icon: "list",
-      handler: () => { store.add(pl.id, item); toast(`Added to “${pl.name}”`); },
+      handler: () => addToExisting(pl, item),
     })),
   ]);
+}
+
+// Tunes already there are asked about first, unless the playlist allows
+// duplicates. Favorites hold each tune once.
+async function addToExisting(pl, item) {
+  if (store.has(pl.id, item) && !pl.allowDuplicates) {
+    if (pl.id === store.favorites()?.id) return toast(`Already in “${pl.name}”`);
+    const answer = await duplicateDialog(item.title, pl.name);
+    if (answer === "cancel") return;
+    if (answer === "always") store.setAllowDuplicates(pl.id, true);
+  }
+  store.add(pl.id, item);
+  toast(`Added to “${pl.name}”`);
 }
 
 function rowMenu(item, position) {

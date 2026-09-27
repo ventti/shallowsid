@@ -61,6 +61,7 @@ Keyboard: **Space** plays or pauses. **Shift+←/→** skips. **F** toggles Favo
 
 Playlists:
 
+- Adding a tune (same subtune) that a playlist already has asks first. **Always Allow in This Playlist**, or **Allow Duplicates** in the playlist's **⋮** menu, stops asking for that playlist. Favorites keep each tune once.
 - **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute hvsc.c64.org URLs. The subtune goes in an `#EXTSID:subtune=N` line.
   - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
   - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.

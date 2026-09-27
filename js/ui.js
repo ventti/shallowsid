@@ -108,6 +108,25 @@ export function confirmDialog(header, message, confirm = "Delete") {
   });
 }
 
+// Adding a tune a playlist already has, as iOS asks: stacked choices, the
+// safe one last. Resolves "cancel", "once", or "always" (add, and stop asking
+// for this playlist).
+export function duplicateDialog(title, playlistName) {
+  return new Promise((resolve) => {
+    let result = "cancel";
+    const alert = present("ion-alert", {
+      header: "Already Added",
+      message: `“${title}” is already in “${playlistName}”.`,
+      buttons: [
+        { text: "Add Anyway", handler: () => (result = "once") },
+        { text: "Always Allow in This Playlist", handler: () => (result = "always") },
+        { text: "Don't Add", role: "cancel" },
+      ],
+    });
+    alert.addEventListener("didDismiss", () => resolve(result));
+  });
+}
+
 // Save a text file where the platform lets the user pick a place:
 // - phones: the share sheet (Save to Files -> iCloud Drive, Google Drive, Dropbox…)
 // - Chrome/Edge desktop: a native Save dialog (pick a synced cloud folder)
