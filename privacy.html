@@ -38,7 +38,8 @@
   <ul>
     <li><strong>What is stored:</strong> one encrypted record with your playlists, favorites, recently played tunes and playlists, play counts, sound presets, two preferences (selected sound preset, pre-rendering)
       and the list of devices using the key: for each, its OS, browser, whether it runs as an installed app, when it last synced, its public key for handing over a new sync key, and a place guessed from its time zone (such as “Helsinki”; no location services are used).
-      It is encrypted on your device with AES-256-GCM, using a key derived from your sync key. The record's ID is also derived from the sync key and reveals nothing about you.</li>
+      It is encrypted on your device with AES-256-GCM, using a key derived from your sync key. The record's ID is also derived from the sync key and reveals nothing about you.
+      Only devices with the sync key can change or delete the record: knowing its ID is not enough.</li>
     <li><strong>Removing a device:</strong> the data moves to a new key. The old record is replaced by a small one holding the new key, encrypted separately for each device you kept, with a key only that device has. It is kept so devices that were offline can still follow, and can't be changed or deleted.</li>
     <li><strong>What is not stored:</strong> no name, email, account or device identifier. The sync key itself never leaves your devices.</li>
     <li><strong>QR code:</strong> the sync key can be shown as a QR code (a link with the key after <code>#</code>, which browsers never send to a server).
@@ -46,7 +47,8 @@
     <li><strong>Where:</strong> Google Cloud Firestore (Firebase), in the EU region <code>europe-north1</code> (Finland), under Google's data processing terms.
       Like any web service, Google processes technical data such as IP addresses to deliver requests; ShallowSID does not collect or log them.</li>
     <li><strong>Why:</strong> to provide the sync you asked for (GDPR Art. 6(1)(b)).</li>
-    <li><strong>How long:</strong> until you delete it with <em>Sync → Delete Synced Data</em>. It is not deleted automatically.</li>
+    <li><strong>How long:</strong> until you delete it with <em>Sync → Delete Synced Data</em>. It is not deleted automatically.
+      Records written before September 2026 were moved to a new format the next time a device synced; the old copies can't be changed from the app and are removed by the maintainer.</li>
     <li><strong>Your rights:</strong> <em>Sync → Delete Synced Data</em> removes the record immediately. Because the data is encrypted with a key only you hold,
       we cannot look it up, read it or recover it for you. Without the key it can't be linked to you.</li>
   </ul>
@@ -61,6 +63,17 @@
     <li><strong>How long:</strong> until you choose <em>Stop Sharing</em>. That removes the name and tunes at once; the link then only shows
       “no longer shared”. It is not deleted automatically.</li>
     <li>Don't put personal information in the name of a playlist you share.</li>
+  </ul>
+
+  <h2>Bot protection (only with Sync or live links)</h2>
+  <ul>
+    <li>So that only this site can use its database, requests for Sync and live links carry a Firebase App Check token.
+      To get one, your browser runs Google <strong>reCAPTCHA v3</strong> in the background; there is no puzzle to solve.
+      It loads only when you use Sync or open or share a live link, not when you just play tunes.</li>
+    <li>reCAPTCHA sends Google technical data about your browser and how the page is used, which Google uses to tell people from bots.
+      The <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google Privacy Policy</a> and
+      <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Terms of Service</a> apply.</li>
+    <li><strong>Why:</strong> to keep the service you asked for safe from abuse (GDPR Art. 6(1)(b) and (f)).</li>
   </ul>
 
   <h2>Other services</h2>

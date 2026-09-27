@@ -98,18 +98,36 @@ In the devtools console, `shallowsid.player` and `shallowsid.store` are exposed 
 
 ## Sync backend (Firebase)
 
-Sync talks to Firestore's REST API directly, with no SDK and no secrets in the repo. To enable it:
+Sync talks to Firestore's REST API directly, with no secrets in the repo. The only Firebase SDK in use is App Check, loaded from gstatic on the first Firestore request. To enable it:
 
 1. Create a Firebase project and a Firestore database in an EU location (production mode).
 2. Paste [`firestore.rules`](firestore.rules) into **Firestore → Rules** and publish.
-3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
-4. Register a **Web app** and copy its `apiKey` and `projectId` into [`js/sync-config.js`](js/sync-config.js). Both are public.
+3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults2`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
+4. Register a **Web app** and copy its `apiKey`, `projectId` and `appId` into [`js/sync-config.js`](js/sync-config.js). All are public.
 5. In Google Cloud **Credentials**, restrict that API key:
    - **HTTP referrers:** `https://ventti.github.io/*` and `http://localhost:8765/*`
-   - **API restrictions:** Cloud Firestore API only
+   - **API restrictions:** Cloud Firestore API and Firebase App Check API
 6. Fill in the placeholders in [`privacy.html`](privacy.html).
 
 With `js/sync-config.js` left empty, sync is hidden.
+
+### App Check (bot protection)
+
+App Check makes Firestore answer only this site. It uses invisible reCAPTCHA v3, which is free up to 10,000 assessments a month. Tokens are cached, so that's plenty.
+
+1. Create a **reCAPTCHA v3** key at [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin) for the domains `ventti.github.io` and `localhost`.
+2. In **Firebase → App Check → Apps**, register the web app with the **reCAPTCHA** provider and the key's secret.
+3. Put the site key in `recaptchaSiteKey` in [`js/sync-config.js`](js/sync-config.js) and deploy.
+4. On localhost the browser console prints an App Check debug token. Add it under **App Check → Apps → Manage debug tokens**.
+5. Watch **App Check → APIs → Cloud Firestore** for a few days. Once nearly all requests show as verified, click **Enforce**.
+
+With `recaptchaSiteKey` empty, or with an emulator `endpoint`, requests go out without App Check.
+
+### Vaults and write proofs
+
+Synced records live at `vaults2/<id>`. Knowing an id lets you read the ciphertext, but only a device with the sync key can change or delete the record (see the comments in `firestore.rules`).
+
+Records from before this are in `vaults/`, which is read-only. A device reads its old record once and writes a new one to `vaults2`. The old records can't be deleted from the app, so remove the `vaults` collection in the Firestore console once devices have moved over.
 
 ## Deployment
 
