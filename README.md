@@ -113,10 +113,10 @@ With `js/sync-config.js` left empty, sync is hidden.
 
 ### App Check (bot protection)
 
-App Check makes Firestore answer only this site. It uses invisible reCAPTCHA v3, which is free up to 10,000 assessments a month. Tokens are cached, so that's plenty.
+App Check makes Firestore answer only this site. It uses invisible, score-based reCAPTCHA Enterprise, which is free up to 10,000 assessments a month. Tokens are cached, so that's plenty.
 
-1. Create a **reCAPTCHA v3** key at [google.com/recaptcha/admin](https://www.google.com/recaptcha/admin) for the domains `ventti.github.io` and `localhost`.
-2. In **Firebase → App Check → Apps**, register the web app with the **reCAPTCHA** provider and the key's secret.
+1. Create a score-based **reCAPTCHA** web key in Google Cloud **Security → reCAPTCHA** for the domains `ventti.github.io` and `localhost`.
+2. In **Firebase → App Check → Apps**, register the web app with the **reCAPTCHA Enterprise** provider and the site key.
 3. Put the site key in `recaptchaSiteKey` in [`js/sync-config.js`](js/sync-config.js) and deploy.
 4. On localhost the browser console prints an App Check debug token. Add it under **App Check → Apps → Manage debug tokens**.
 5. Watch **App Check → APIs → Cloud Firestore** for a few days. Once nearly all requests show as verified, click **Enforce**.
