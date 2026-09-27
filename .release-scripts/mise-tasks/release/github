@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Retry publishing a local tag as a GitHub Release"
+#MISE dir="{{cwd}}"
+#USAGE arg "<tag>" help="Existing local release tag to publish"
+#USAGE arg "[notes-file]" help="Release notes file; defaults to the generated notes"
+#USAGE flag "--prerelease" help="Mark the GitHub Release as a prerelease"
+#USAGE flag "--moving-tags <levels>" help="Moving aliases: major, minor, or major,minor" {
+#USAGE   choices "major" "minor" "major,minor"
+#USAGE }
+set -euo pipefail
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+exec "$REPOSITORY_ROOT/lib/github.sh" "$@"

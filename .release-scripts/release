@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    printf 'ERROR: not inside a Git repository\n' >&2
+    exit 1
+}
+CONFIG=${RELEASE_CONFIG:-$PROJECT_ROOT/.release.env}
+
+if [[ -f "$CONFIG" ]]; then
+    set -a
+    # This is project-owned configuration and may contain shell command strings.
+    # shellcheck disable=SC1090
+    source "$CONFIG"
+    set +a
+fi
+
+usage() {
+    cat <<'EOF'
+Usage: release <command> [options]
+
+Commands:
+  auto|major|minor|patch  Create a release
+  changelog               Generate a changelog entry
+  doctor                  Check release readiness
+  dropbox                 Upload release artifacts to Dropbox
+  github                  Retry publishing an existing tag
+  setup                   Configure this repository
+  setup-hooks             Install pre-commit hooks
+  update [version]        Update standalone scripts
+
+Release options such as --pre, --promote, and --dry-run may be placed before
+the bump, for example: release --dry-run patch
+EOF
+}
+
+command_name=${1:-}
+case "$command_name" in
+    changelog)
+        shift
+        exec "$SCRIPT_DIR/lib/changelog.sh" "$@"
+        ;;
+    doctor)
+        shift
+        exec "$SCRIPT_DIR/lib/doctor.sh" "$@"
+        ;;
+    dropbox)
+        shift
+        exec "$SCRIPT_DIR/lib/dropbox.sh" "$@"
+        ;;
+    github)
+        shift
+        exec "$SCRIPT_DIR/lib/github.sh" "$@"
+        ;;
+    setup)
+        shift
+        export RELEASE_SETUP_CONFIG_FORMAT=env
+        exec "$SCRIPT_DIR/mise-tasks/release/setup" "$@"
+        ;;
+    setup-hooks)
+        shift
+        exec "$SCRIPT_DIR/mise-tasks/release/setup-hooks" "$@"
+        ;;
+    update)
+        shift
+        if [[ $# -eq 0 && -f "$SCRIPT_DIR/.channel" ]]; then
+            set -- "$(<"$SCRIPT_DIR/.channel")"
+        fi
+        exec "$SCRIPT_DIR/install.sh" "${1:-latest}" --target "$SCRIPT_DIR"
+        ;;
+    help|-h|--help|'')
+        usage
+        ;;
+    *)
+        exec "$SCRIPT_DIR/lib/release.sh" "$@"
+        ;;
+esac

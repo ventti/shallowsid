@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Generate a changelog entry from Git history"
+#MISE dir="{{cwd}}"
+#USAGE flag "--version <version>" help="Release version; defaults to Unreleased"
+#USAGE flag "--from <tag>" help="Start after this tag; defaults to the latest tag"
+#USAGE flag "--output <file>" help="Changelog file; defaults to CHANGELOG.md"
+#USAGE flag "--notes <file>" help="Also write the release entry to this file"
+set -euo pipefail
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+exec "$REPOSITORY_ROOT/lib/changelog.sh" "$@"

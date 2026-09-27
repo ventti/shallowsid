@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Check release dependencies and GitHub access"
+#MISE dir="{{cwd}}"
+#USAGE flag "-h --help" help="Print help"
+set -euo pipefail
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+exec "$REPOSITORY_ROOT/lib/doctor.sh" "$@"

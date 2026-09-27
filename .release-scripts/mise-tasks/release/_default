@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Create a numbered, tagged GitHub release"
+#MISE dir="{{cwd}}"
+#USAGE arg "[bump]" help="Version bump to create; omit with --pre or --promote" {
+#USAGE   choices "auto" "major" "minor" "patch"
+#USAGE }
+#USAGE flag "--pre" help="Create or continue a release candidate; bump defaults to auto"
+#USAGE flag "--promote" help="Promote the latest release candidate"
+#USAGE flag "--dry-run" help="Show the release plan without changing files"
+#USAGE flag "--no-publish" help="Create only the local commit and tag"
+#USAGE flag "--moving-tags <levels>" help="Moving aliases: major, minor, or major,minor" {
+#USAGE   choices "major" "minor" "major,minor"
+#USAGE }
+set -euo pipefail
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+exec "$REPOSITORY_ROOT/lib/release.sh" "$@"

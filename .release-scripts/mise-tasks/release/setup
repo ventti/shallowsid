@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+#MISE description="Interactively configure release tasks for this project"
+#MISE dir="{{cwd}}"
+#USAGE flag "--dry-run" help="Show proposed actions without changing files"
+#USAGE flag "--yes" help="Accept recommended answers without prompting"
+set -euo pipefail
+
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    printf 'ERROR: not inside a Git repository\n' >&2
+    exit 1
+}
+CONFIG_FORMAT=${RELEASE_SETUP_CONFIG_FORMAT:-mise}
+if [[ "$CONFIG_FORMAT" == env ]]; then
+    CONFIG="$PROJECT_ROOT/.release.env"
+    SETUP_COMMAND='release setup'
+    RELEASE_COMMAND="$REPOSITORY_ROOT/release"
+else
+    CONFIG="$PROJECT_ROOT/mise.toml"
+    SETUP_COMMAND=release:setup
+    RELEASE_COMMAND='mise run release'
+fi
+DRY_RUN=false
+ACCEPT_DEFAULTS=false
+SETTINGS=()
+COLOR=false
+if [[ -t 2 && -z "${NO_COLOR:-}" ]]; then
+    COLOR=true
+fi
+
+usage() {
+    printf 'Usage: %s [--dry-run] [--yes]\n\n' "$SETUP_COMMAND"
+    cat <<'EOF'
+Configure release defaults and optional Git hooks without replacing existing
+release configuration.
+
+  --dry-run  show the proposed actions without changing files
+  --yes      accept the recommended answers without prompting
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run) DRY_RUN=true ;;
+        --yes) ACCEPT_DEFAULTS=true ;;
+        -h|--help) usage; exit 0 ;;
+        *) printf 'ERROR: unknown argument: %s\n' "$1" >&2; usage >&2; exit 1 ;;
+    esac
+    shift
+done
+
+QUESTION_TOTAL=5
+$DRY_RUN && QUESTION_TOTAL=4
+
+if ! $ACCEPT_DEFAULTS && [[ ! -t 0 ]]; then
+    printf 'ERROR: interactive setup requires a terminal; use --yes for recommended defaults\n' >&2
+    exit 1
+fi
+
+ask_choice() {
+    local number=$1
+    local prompt=$2
+    local default=$3
+    shift 3
+    local answer option options_display=''
+    printf '\n' >&2
+    if $COLOR; then
+        printf '\033[1m[%s/%s] %s?\033[0m [' "$number" "$QUESTION_TOTAL" "$prompt" >&2
+    else
+        printf '[%s/%s] %s? [' "$number" "$QUESTION_TOTAL" "$prompt" >&2
+    fi
+    for option in "$@"; do
+        [[ -z "$options_display" ]] || printf ' / ' >&2
+        if [[ "$option" == "$default" ]]; then
+            if $COLOR; then
+                printf '\033[33m%s\033[0m' "$option" >&2
+            else
+                printf '%s (default)' "$option" >&2
+            fi
+        else
+            printf '%s' "$option" >&2
+        fi
+        options_display=x
+    done
+    printf '] ' >&2
+    if $ACCEPT_DEFAULTS; then
+        printf '%s\n' "$default" >&2
+        ANSWER=$default
+        return 0
+    fi
+    while true; do
+        IFS= read -r answer
+        answer=${answer:-$default}
+        [[ "$answer" == y || "$answer" == Y ]] && answer=yes
+        [[ "$answer" == n || "$answer" == N ]] && answer=no
+        for option in "$@"; do
+            if [[ "$answer" == "$option" ]]; then
+                ANSWER=$answer
+                return 0
+            fi
+        done
+        printf 'Choose one of: %s. ' "$*" >&2
+    done
+}
+
+setting_exists() {
+    local name=$1
+    [[ ${!name+x} == x ]]
+}
+
+print_setting() {
+    local name=$1
+    local value=$2
+    if [[ "$CONFIG_FORMAT" == env ]]; then
+        value=${value//\'/\'\\\'\'}
+        printf "%s='%s'" "$name" "$value"
+    else
+        value=${value//\\/\\\\}
+        value=${value//\"/\\\"}
+        printf '%s="%s"' "$name" "$value"
+    fi
+}
+
+write_env_settings() {
+    local work next setting name value
+    work=$(mktemp "${TMPDIR:-/tmp}/release-env.XXXXXX")
+    if [[ -e "$CONFIG" ]]; then
+        cp "$CONFIG" "$work"
+    fi
+    for setting in "${SETTINGS[@]}"; do
+        name=${setting%%=*}
+        value=${setting#*=}
+        next=$(mktemp "${TMPDIR:-/tmp}/release-env-next.XXXXXX")
+        awk -v name="$name" '$0 !~ "^(export[[:space:]]+)?" name "="' "$work" > "$next"
+        mv "$next" "$work"
+        print_setting "$name" "$value" >> "$work"
+        printf '\n' >> "$work"
+    done
+    mv "$work" "$CONFIG"
+}
+
+queue_setting() {
+    local name=$1
+    local value=$2
+    if setting_exists "$name" && [[ "${!name}" == "$value" ]]; then
+        printf 'Keep existing '
+        print_setting "$name" "${!name}"
+        printf '\n'
+    else
+        SETTINGS+=("$name=$value")
+        if setting_exists "$name"; then
+            printf 'Update '
+        else
+            printf 'Configure '
+        fi
+        print_setting "$name" "$value"
+        printf '\n'
+    fi
+}
+
+cd "$PROJECT_ROOT"
+printf 'Release setup for %s\n' "$PROJECT_ROOT"
+
+PREFIX_DEFAULT=v
+PREFIX_OPTIONS=(v unprefixed)
+if setting_exists RELEASE_TAG_PREFIX; then
+    if [[ "$RELEASE_TAG_PREFIX" == v ]]; then
+        PREFIX_DEFAULT=v
+    elif [[ -z "$RELEASE_TAG_PREFIX" ]]; then
+        PREFIX_DEFAULT=unprefixed
+    else
+        PREFIX_DEFAULT=keep
+        PREFIX_OPTIONS=(keep v unprefixed)
+    fi
+else
+    if git tag --list | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([.-]|$)' &&
+       ! git tag --list | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-]|$)'; then
+        PREFIX_DEFAULT=unprefixed
+    fi
+fi
+ask_choice 1 'Release tag format' "$PREFIX_DEFAULT" "${PREFIX_OPTIONS[@]}"
+case "$ANSWER" in
+    v) queue_setting RELEASE_TAG_PREFIX v ;;
+    unprefixed) queue_setting RELEASE_TAG_PREFIX '' ;;
+    keep) queue_setting RELEASE_TAG_PREFIX "$RELEASE_TAG_PREFIX" ;;
+esac
+
+MOVING_DEFAULT=none
+MOVING_OPTIONS=(none major minor both)
+if setting_exists RELEASE_MOVING_TAGS; then
+    case "${RELEASE_MOVING_TAGS//,/ }" in
+        ''|none) MOVING_DEFAULT=none ;;
+        major) MOVING_DEFAULT=major ;;
+        minor) MOVING_DEFAULT=minor ;;
+        'major minor'|'minor major') MOVING_DEFAULT=both ;;
+        *) MOVING_DEFAULT=keep; MOVING_OPTIONS=(keep none major minor both) ;;
+    esac
+elif [[ -e action.yml || -e action.yaml ]]; then
+    MOVING_DEFAULT=major
+fi
+ask_choice 2 'Moving release tags' "$MOVING_DEFAULT" "${MOVING_OPTIONS[@]}"
+case "$ANSWER" in
+    major|minor) queue_setting RELEASE_MOVING_TAGS "$ANSWER" ;;
+    both) queue_setting RELEASE_MOVING_TAGS 'major minor' ;;
+    keep) queue_setting RELEASE_MOVING_TAGS "$RELEASE_MOVING_TAGS" ;;
+    none)
+        if setting_exists RELEASE_MOVING_TAGS; then
+            queue_setting RELEASE_MOVING_TAGS none
+        else
+            printf 'Keep moving release tags disabled.\n'
+        fi
+        ;;
+esac
+
+VERSION_DEFAULT=tags
+VERSION_OPTIONS=(tags manual)
+if setting_exists RELEASE_GET_VERSION || setting_exists RELEASE_SET_VERSION; then
+    VERSION_DEFAULT=existing
+    VERSION_OPTIONS=(existing)
+else
+    if [[ -f package.json ]]; then
+        if [[ -f pnpm-lock.yaml || -f yarn.lock ]] || \
+           grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"(pnpm|yarn)@' package.json; then
+            VERSION_DEFAULT=tags
+        else
+            if [[ -f package-lock.json ]] || \
+               grep -Eq '"packageManager"[[:space:]]*:[[:space:]]*"npm@' package.json; then
+                VERSION_DEFAULT=npm
+            fi
+            VERSION_OPTIONS=(npm tags manual)
+        fi
+    elif [[ -f pyproject.toml ]] && grep -Eq '^\[tool\.poetry\]' pyproject.toml; then
+        VERSION_DEFAULT=poetry
+        VERSION_OPTIONS=(poetry tags manual)
+    elif [[ -f pyproject.toml && -f uv.lock ]]; then
+        VERSION_DEFAULT=uv
+        VERSION_OPTIONS=(uv tags manual)
+    fi
+fi
+ask_choice 3 'Version source' "$VERSION_DEFAULT" "${VERSION_OPTIONS[@]}"
+case "$ANSWER" in
+    npm)
+        queue_setting RELEASE_GET_VERSION "npm pkg get version --workspaces=false | tr -d '\"'"
+        # Expanded later by the release hook.
+        # shellcheck disable=SC2016
+        queue_setting RELEASE_SET_VERSION 'npm version --no-git-tag-version --ignore-scripts "$RELEASE_VERSION"'
+        ;;
+    poetry)
+        queue_setting RELEASE_GET_VERSION 'poetry version --short'
+        # Expanded later by the release hook.
+        # shellcheck disable=SC2016
+        queue_setting RELEASE_SET_VERSION 'poetry version "$RELEASE_VERSION_PEP440"'
+        ;;
+    uv)
+        queue_setting RELEASE_GET_VERSION 'uv version --short'
+        # Expanded later by the release hook.
+        # shellcheck disable=SC2016
+        queue_setting RELEASE_SET_VERSION 'uv version "$RELEASE_VERSION_PEP440"'
+        ;;
+    tags) printf 'Use Git tags as the version source.\n' ;;
+    manual) printf 'Leave version hooks for manual configuration in %s.\n' "$CONFIG" ;;
+    existing) printf 'Keep existing version-ownership configuration.\n' ;;
+esac
+
+INSTALL_HOOKS=false
+HOOK_DEFAULT=yes
+if ! command -v pre-commit >/dev/null 2>&1 && ! command -v mise >/dev/null 2>&1; then
+    HOOK_DEFAULT=no
+fi
+ask_choice 4 'Install pre-commit and Conventional Commit hooks' "$HOOK_DEFAULT" yes no
+[[ "$ANSWER" == yes ]] && INSTALL_HOOKS=true
+
+printf '\nProposed actions (not applied yet):\n'
+if [[ ${#SETTINGS[@]} -gt 0 ]]; then
+    if [[ "$CONFIG_FORMAT" == env ]]; then
+        printf '  update %s:\n' "$CONFIG"
+    else
+        printf '  update %s through mise:\n' "$CONFIG"
+    fi
+    for setting in "${SETTINGS[@]}"; do
+        printf '    '
+        print_setting "${setting%%=*}" "${setting#*=}"
+        printf '\n'
+    done
+else
+    printf '  no release environment changes\n'
+fi
+$INSTALL_HOOKS && printf '  configure pre-commit and commit-msg hooks\n'
+if command -v gh >/dev/null 2>&1; then
+    printf '  use existing gh: %s\n' "$(command -v gh)"
+elif command -v mise >/dev/null 2>&1; then
+    printf '  use mise-managed gh@2 when GitHub access is needed\n'
+else
+    printf '  GitHub CLI must be installed before releasing\n'
+fi
+
+if $DRY_RUN; then
+    printf '\nDry run complete; no files changed.\n'
+    exit 0
+fi
+
+ask_choice 5 'Apply these actions' yes yes no
+if [[ "$ANSWER" != yes ]]; then
+    printf 'Setup cancelled; no files changed.\n'
+    exit 0
+fi
+
+if [[ ${#SETTINGS[@]} -gt 0 ]]; then
+    if [[ "$CONFIG_FORMAT" == env ]]; then
+        write_env_settings
+        set -a
+        # The setup command just wrote this project-owned configuration.
+        # shellcheck disable=SC1090
+        source "$CONFIG"
+        set +a
+    else
+        mise set --file "$CONFIG" "${SETTINGS[@]}"
+    fi
+fi
+if $INSTALL_HOOKS; then
+    "$REPOSITORY_ROOT/mise-tasks/release/setup-hooks"
+fi
+
+printf '\n==> Release doctor\n'
+if [[ "$CONFIG_FORMAT" == env ]]; then
+    DOCTOR=("$REPOSITORY_ROOT/lib/doctor.sh")
+else
+    DOCTOR=(mise exec --fresh-env -C "$PROJECT_ROOT" -- "$REPOSITORY_ROOT/lib/doctor.sh")
+fi
+if ! "${DOCTOR[@]}"; then
+    printf '\nSetup is complete, but doctor found items to resolve before releasing.\n' >&2
+    if command -v gh >/dev/null 2>&1; then
+        printf 'For GitHub authentication, run: gh auth login\n' >&2
+    elif command -v mise >/dev/null 2>&1; then
+        printf 'For GitHub authentication, run: mise exec gh@2 -- gh auth login\n' >&2
+    else
+        printf 'Install GitHub CLI, then run: gh auth login\n' >&2
+    fi
+    exit 0
+fi
+printf '\nSetup complete. Preview the first release with: %s --dry-run auto\n' "$RELEASE_COMMAND"

@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#MISE description="Install pre-commit and Conventional Commit hooks"
+#MISE dir="{{cwd}}"
+#USAGE flag "-h --help" help="Print help"
+set -euo pipefail
+
+REPOSITORY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+    printf 'ERROR: not inside a Git repository\n' >&2
+    exit 1
+}
+CONFIG="$PROJECT_ROOT/.pre-commit-config.yaml"
+
+if command -v pre-commit >/dev/null 2>&1; then
+    PRE_COMMIT=(pre-commit)
+    printf 'Using project pre-commit: %s\n' "$(command -v pre-commit)"
+elif command -v mise >/dev/null 2>&1; then
+    PRE_COMMIT=(mise exec pre-commit@4 -- pre-commit)
+    printf 'Project pre-commit not found; mise will install pre-commit 4.\n'
+else
+    printf 'ERROR: pre-commit is required when mise is unavailable\n' >&2
+    exit 1
+fi
+
+if [[ -e "$CONFIG" ]]; then
+    printf 'Using existing %s without changes.\n' "$CONFIG"
+else
+    cp "$REPOSITORY_ROOT/templates/pre-commit-config.yaml" "$CONFIG"
+    printf 'Created %s with Commitizen commit-message validation.\n' "$CONFIG"
+fi
+
+"${PRE_COMMIT[@]}" validate-config "$CONFIG"
+cd "$PROJECT_ROOT"
+"${PRE_COMMIT[@]}" install --hook-type pre-commit --hook-type commit-msg
+printf 'Installed pre-commit and commit-msg hooks.\n'
