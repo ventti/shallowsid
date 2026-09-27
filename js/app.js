@@ -376,7 +376,7 @@ function showList(container, items, options = {}) {
 function appendPage() {
   const list = $("tune-list");
   if (!list) return;
-  const cur = player.current;
+  const isCurrent = currentMatcher(listItems);
   const favorites = favoriteKeys();
   const page = listItems.slice(listShown, listShown + PAGE_SIZE);
   const heading = (at) => {
@@ -385,7 +385,8 @@ function appendPage() {
   };
   list.insertAdjacentHTML("beforeend", page.map((item, i) => heading(listShown + i) + tuneRow(item, listShown + i, {
     missing: item.missing,
-    current: cur && cur.path === item.path && cur.song === item.song,
+    current: isCurrent(item),
+    otherSubtune: isOtherSubtune(item),
     favorite: favorites.has(itemKey(item)),
   })).join(""));
   listShown += page.length;
@@ -398,14 +399,28 @@ function appendPage() {
 const itemKey = (item) => `${item.path}#${item.song}`;
 const favoriteKeys = () => new Set((store.favorites()?.items ?? []).map(itemKey));
 
+// Which of `items` is the tune playing. After a subtune switch that is still
+// the row it was queued from, unless the list has a row for the new subtune.
+function currentMatcher(items) {
+  const cur = player.current;
+  if (!cur) return () => false;
+  const listed = items.some((item) => item.path === cur.path && item.song === cur.song);
+  const song = listed ? cur.song : (cur.queuedSong ?? cur.song);
+  return (item) => item.path === cur.path && item.song === song;
+}
+
+// A current row that is playing another of its subtunes than the one listed.
+const isOtherSubtune = (item) => item.song !== player.current?.song;
+
 // Update the "now playing" and favorite marks of the rows shown, in place.
 function refreshRowMarks() {
-  const cur = player.current;
+  const isCurrent = currentMatcher(listItems);
   const favorites = favoriteKeys();
   document.querySelectorAll("#tune-list .tune-row[data-play]").forEach((row) => {
     const item = listItems[Number(row.dataset.play)];
     if (!item) return;
-    row.classList.toggle("is-current", !!cur && item.path === cur.path && item.song === cur.song);
+    row.classList.toggle("is-current", isCurrent(item));
+    row.classList.toggle("is-other-subtune", isOtherSubtune(item));
     row.classList.toggle("is-favorite", favorites.has(itemKey(item)));
   });
 }
@@ -628,14 +643,15 @@ function renderPlaylist(id) {
   const renderRows = (editing) => {
     listItems = items;
     listOptions = { playlistId: id };
-    const cur = player.current;
+    const isCurrent = currentMatcher(items);
     const favorites = favoriteKeys();
     const list = $("tune-list");
     list.classList.toggle("is-editing", editing);
     list.innerHTML = `<ion-reorder-group id="pl-reorder">${items.map((item, i) => tuneRow(item, i, {
       missing: item.missing,
       reorder: editing,
-      current: cur?.path === item.path && cur?.song === item.song,
+      current: isCurrent(item),
+      otherSubtune: isOtherSubtune(item),
       favorite: favorites.has(itemKey(item)),
     })).join("")}</ion-reorder-group>`;
     const group = $("pl-reorder");

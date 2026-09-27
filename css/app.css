@@ -20,6 +20,7 @@
   --ion-item-background: #16131f;
 
   --app-accent: var(--ion-color-primary);
+  --app-accent-alt: #f2b872;             /* the row's tune, playing another subtune */
   --app-muted: var(--ion-color-medium);
   --app-surface: #221d31;
   --app-border: rgba(255, 255, 255, 0.08);
@@ -118,6 +119,11 @@ body.has-side-panel .mini {
 
 .tune-row.is-current ion-label h2 {
   color: var(--app-accent);
+}
+
+.tune-row.is-current.is-other-subtune ion-label h2,
+.tune-row.is-current.is-other-subtune .song-chip {
+  color: var(--app-accent-alt);
 }
 
 .tune-row.is-missing {

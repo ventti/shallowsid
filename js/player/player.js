@@ -310,7 +310,7 @@ export class Player extends EventTarget {
   selectSong(song) {
     const item = this.current;
     if (!item || song === item.song) return;
-    const updated = { ...item, song };
+    const updated = { ...item, song, queuedSong: item.queuedSong ?? item.song };   // lists keep marking the row played from
     this.queue[this.index] = updated;
     const at = this.ordered.indexOf(item);
     if (at >= 0) this.ordered[at] = updated;

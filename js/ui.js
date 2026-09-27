@@ -23,7 +23,7 @@ export function subtitle(item) {
 
 // A tune row. `item` is a queue item ({...tune, song}); `index` is its position
 // in the list the row belongs to.
-export function tuneRow(item, index, { current, missing, reorder, favorite } = {}) {
+export function tuneRow(item, index, { current, otherSubtune, missing, reorder, favorite } = {}) {
   const menu = `<ion-button slot="end" fill="clear" data-menu="${index}" aria-label="More"><ion-icon slot="icon-only" name="ellipsis-horizontal"></ion-icon></ion-button>`;
   const handle = reorder ? `<ion-reorder slot="end"></ion-reorder>` : "";
   if (missing) {
@@ -35,7 +35,8 @@ export function tuneRow(item, index, { current, missing, reorder, favorite } = {
   }
   const song = item.songs > 1 ? `<span class="song-chip">#${item.song}/${item.songs}</span>` : "";
   const length = item.lengths?.[item.song - 1];
-  const classes = ["tune-row", current && "is-current", favorite && "is-favorite"].filter(Boolean).join(" ");
+  const classes = ["tune-row", current && "is-current", current && otherSubtune && "is-other-subtune", favorite && "is-favorite"]
+    .filter(Boolean).join(" ");
   return `<ion-item button detail="false" class="${classes}" data-play="${index}" lines="full">
     <div slot="start">${thumb(item)}</div>
     <ion-label>
