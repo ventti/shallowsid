@@ -68,7 +68,8 @@
           </ion-infinite-scroll>
           <footer class="credits">
             <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener" id="hvsc-version">HVSC</a> ·
-            <a href="about.html" target="_blank" rel="noopener">About ShallowSID</a><span id="install-app-wrap" hidden> ·
+            <a href="about.html" target="_blank" rel="noopener">About ShallowSID</a><span id="curation-wrap" hidden> ·
+            <a href="#/curation">Curation</a></span><span id="install-app-wrap" hidden> ·
             <a href="#" id="install-app">Install app</a></span>
           </footer>
         </ion-content>
@@ -123,6 +124,17 @@
       <ion-content class="sound-content"><div id="sync-sheet"></div></ion-content>
     </ion-modal>
 
+    <ion-modal id="tag-modal" class="sound-modal">
+      <ion-header>
+        <ion-toolbar>
+          <ion-buttons slot="start"><ion-button id="tag-cancel">Cancel</ion-button></ion-buttons>
+          <ion-title>Tags</ion-title>
+          <ion-buttons slot="end"><ion-button id="tag-done" strong="true">Done</ion-button></ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content class="sound-content"><div id="tag-sheet"></div></ion-content>
+    </ion-modal>
+
     <!-- Now Playing: moved between the modal (phones) and the side panel (desktop) -->
     <section id="np" class="np is-paused">
       <div class="np-art-wrap">
@@ -139,6 +151,7 @@
         </div>
         <p id="np-released" class="np-released"></p>
         <div id="np-badges" class="np-badges"></div>
+        <div id="np-tags" class="np-tags"></div>
       </div>
       <div class="np-scrub">
         <canvas id="np-wave" class="np-wave" tabindex="0" role="slider" aria-label="Seek"></canvas>

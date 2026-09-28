@@ -1,0 +1,72 @@
+{
+  "v": 1,
+  "groups": [
+    {
+      "name": "Style",
+      "tags": [
+        { "id": "ballad", "label": "Ballad" },
+        { "id": "pop", "label": "Pop" },
+        { "id": "rock", "label": "Rock" },
+        { "id": "metal", "label": "Metal" },
+        { "id": "funk", "label": "Funk" },
+        { "id": "jazz", "label": "Jazz" },
+        { "id": "blues", "label": "Blues" },
+        { "id": "disco", "label": "Disco" },
+        { "id": "electro", "label": "Electro" },
+        { "id": "synthpop", "label": "Synthpop" },
+        { "id": "techno", "label": "Techno" },
+        { "id": "house", "label": "House" },
+        { "id": "trance", "label": "Trance" },
+        { "id": "drum-and-bass", "label": "Drum & Bass" },
+        { "id": "hip-hop", "label": "Hip-Hop" },
+        { "id": "reggae", "label": "Reggae" },
+        { "id": "latin", "label": "Latin" },
+        { "id": "folk", "label": "Folk" },
+        { "id": "classical", "label": "Classical" },
+        { "id": "orchestral", "label": "Orchestral" },
+        { "id": "ambient", "label": "Ambient" },
+        { "id": "experimental", "label": "Experimental" }
+      ]
+    },
+    {
+      "name": "Mood",
+      "tags": [
+        { "id": "happy", "label": "Happy" },
+        { "id": "melancholic", "label": "Melancholic" },
+        { "id": "dark", "label": "Dark" },
+        { "id": "epic", "label": "Epic" },
+        { "id": "calm", "label": "Calm" },
+        { "id": "dreamy", "label": "Dreamy" },
+        { "id": "energetic", "label": "Energetic" },
+        { "id": "aggressive", "label": "Aggressive" },
+        { "id": "spooky", "label": "Spooky" },
+        { "id": "funny", "label": "Funny" }
+      ]
+    },
+    {
+      "name": "Use",
+      "tags": [
+        { "id": "title-tune", "label": "Title Tune", "description": "Plays on a game's title screen" },
+        { "id": "in-game", "label": "In-Game" },
+        { "id": "game-over", "label": "Game Over" },
+        { "id": "high-score", "label": "High Score" },
+        { "id": "loader", "label": "Loader", "description": "Plays while a game loads" },
+        { "id": "intro", "label": "Intro", "description": "Cracktro or demo intro" },
+        { "id": "demo", "label": "Demo Part" },
+        { "id": "jingle", "label": "Jingle", "description": "A short sting or sound effect" }
+      ]
+    },
+    {
+      "name": "Sound",
+      "tags": [
+        { "id": "digi", "label": "Digi Samples", "description": "Sampled drums, speech or other digis" },
+        { "id": "speech", "label": "Speech" },
+        { "id": "multispeed", "label": "Multispeed", "description": "Player called more than once a frame" },
+        { "id": "filter-work", "label": "Filter Work", "description": "Filter sweeps as a big part of the sound" },
+        { "id": "arpeggios", "label": "Arpeggios", "description": "Chords played as fast arpeggios" },
+        { "id": "cover", "label": "Cover", "description": "A version of a song from outside the C64" },
+        { "id": "remix-classic", "label": "Remix Classic", "description": "Often remixed in the C64 scene" }
+      ]
+    }
+  ]
+}

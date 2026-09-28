@@ -14,7 +14,7 @@ const REPEAT_LABELS = { off: "Repeat: off", all: "Repeat: playlist", one: "Repea
 const UP_NEXT_MAX = 50;
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound, tags, onOpenTag, onEditTags }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
@@ -23,13 +23,16 @@ export class NowPlaying {
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
     this.onOpenSound = onOpenSound;
+    this.tags = tags;
+    this.onOpenTag = onOpenTag;
+    this.onEditTags = onEditTags;
     const $ = (id) => document.getElementById(id);
     this.el = {
       mini: $("mini"), miniArt: $("mini-art"), miniTitle: $("mini-title"), miniAuthor: $("mini-author"),
       miniPlay: $("mini-play"), miniNext: $("mini-next"), miniBar: $("mini-bar"),
       np: $("np"), modal: $("np-modal"), modalHost: $("np-host"), side: $("side-panel"),
       art: $("np-art"), title: $("np-title"), author: $("np-author"), released: $("np-released"),
-      badges: $("np-badges"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
+      badges: $("np-badges"), tagList: $("np-tags"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
       add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"),
       repeat: $("np-repeat"), shuffle: $("np-shuffle"),
@@ -104,6 +107,14 @@ export class NowPlaying {
       }
     });
     el.subtune.addEventListener("ionChange", (e) => p.selectSong(Number(e.detail.value)));
+    el.tagList.addEventListener("click", (e) => {
+      if (!p.current) return;
+      if (e.target.closest("[data-tag-edit]")) return this.onEditTags(p.current);
+      const tag = e.target.closest("[data-tag]")?.dataset.tag;
+      if (!tag) return;
+      this.close();
+      this.onOpenTag(tag);
+    });
     el.queue.addEventListener("click", (e) => {
       const row = e.target.closest("[data-queue]");
       if (row) p.playIndex(Number(row.dataset.queue));
@@ -184,6 +195,7 @@ export class NowPlaying {
     el.subtune.value = String(item.song);
     el.fav.hidden = el.share.hidden = false;
     this.refreshFavorite();
+    this.refreshTags();
     document.title = `${item.title} – ${item.author} · ShallowSID`;
   }
 
@@ -194,6 +206,19 @@ export class NowPlaying {
     this.el.fav.querySelector("ion-icon").name = on ? "star" : "star-outline";
     this.el.fav.setAttribute("aria-pressed", String(on));
     this.el.fav.setAttribute("aria-label", on ? "Remove from Favorites" : "Add to Favorites");
+  }
+
+  // The tune's tags, then the subtune's own (marked with its number).
+  // Curators also get a chip that opens the Tags sheet.
+  refreshTags() {
+    const item = this.player.current;
+    if (!item) return;
+    const { whole, sub } = this.tags.tagsFor(item);
+    const chip = (id, song) => `<ion-chip data-tag="${esc(id)}" class="tag-chip">${esc(this.tags.label(id))}${song ? `<span class="tag-song">#${song}</span>` : ""}</ion-chip>`;
+    const edit = this.tags.canTag
+      ? `<ion-chip data-tag-edit class="tag-chip tag-edit" outline><ion-icon name="${whole.length || sub.length ? "pricetags-outline" : "add"}"></ion-icon><ion-label>${whole.length || sub.length ? "Edit Tags" : "Tag"}</ion-label></ion-chip>`
+      : "";
+    this.el.tagList.innerHTML = [...whole.map((id) => chip(id)), ...sub.map((id) => chip(id, item.song)), edit].join("");
   }
 
   showState(state) {

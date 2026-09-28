@@ -46,6 +46,15 @@ Sync (the cloud icon on **Playlists**, optional and off by default):
 - **Devices** lists everything using the key: OS, browser, when it last synced, and a place guessed from the time zone (no location permission). Tap an old device to remove it: sync moves to a new key, your other devices switch over on their next sync, and the removed one can't follow. Devices not yet updated to this version have to enter the new key by hand. The list is encrypted with the rest.
 - **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
+Tags:
+
+- Tunes can carry tags such as **Ballad**, **Title Tune** or **Digi Samples**, from a fixed list in [`js/tags-vocab.json`](js/tags-vocab.json). They show under the composer in Now Playing. Tap one for every tune with it. Home shows the most used tags, and typing `#` in search lists them.
+- A tag is on a whole tune or on one subtune. A subtune also shows the whole tune's tags.
+- Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
+- Curators join with a one-time invite link from an admin, valid for two weeks. It opens **Curation** (linked in the footer for curators), which also lists your edits. With Sync on, all your devices curate as one.
+- Admins also invite curators, see who tagged what, and revoke curators from **Curation**. Who tagged what is shown only to that curator and to admins.
+- Others see new tags after the next deploy, which runs daily. Curators see them at once.
+
 Install as an app:
 
 - **Install app** in the footer appears where the browser can install (Chrome and Edge on desktop and Android; on iOS it explains **Share → Add to Home Screen**).
@@ -131,9 +140,44 @@ Synced records live at `vaults2/<id>`. Knowing an id lets you read the ciphertex
 
 Records from before this are in `vaults/`, which is read-only. A device reads its old record once and writes a new one to `vaults2`. The old records can't be deleted from the app, so remove the `vaults` collection in the Firestore console once devices have moved over.
 
+### Tags and curators
+
+Curators have no accounts either. Each has a random seed that syncs with their data; `curators/<id>` holds a proof chain like the vaults, and every tag edit is one batch that also moves the curator's chain on. Invites live at `invites/<sha256(secret)>` and work once. See the comments in `firestore.rules`.
+
+The tools below use your gcloud login (`gcloud auth login`), which isn't bound by the rules. They read the project from `js/sync-config.js`.
+
+1. Put the tag list in Firestore, and again after each change to `js/tags-vocab.json`:
+
+   ```sh
+   tools/push_vocab.py
+   ```
+
+2. Make yourself an admin. Open the printed link in ShallowSID, on a device with Sync on:
+
+   ```sh
+   tools/curators.py invite --role admin
+   ```
+
+3. Invite curators from **Curation → Invite a Curator…** in the app (or `tools/curators.py invite`).
+4. `tools/curators.py list` lists everyone; `tools/curators.py revoke <id>` takes rights back, also an admin's.
+
+The deploy exports all tags into `data/tags-index.json` (`tools/export_tags.py`) with a service account through Workload Identity Federation:
+
+1. Create a service account with the **Cloud Datastore Viewer** role.
+2. Create a Workload Identity pool and GitHub provider for this repo, and let it impersonate the account (**Workload Identity User**).
+3. Set the repo variables `GCP_WORKLOAD_IDENTITY_PROVIDER` (`projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>`) and `GCP_SERVICE_ACCOUNT`.
+
+Without them, the export step is skipped and only curators see tags, on the tunes they open.
+
+The rules have their own check, which runs them in the Firestore emulator (needs Java 11+):
+
+```sh
+npx firebase-tools emulators:exec --only firestore --project demo-shallowsid "node tests/rules/rules-check.mjs"
+```
+
 ## Deployment
 
-`.github/workflows/pages.yml` builds the catalogue and deploys it with the app to GitHub Pages on every push to `main`. The site is about 5 MB. Enable Pages with source **GitHub Actions** in the repo settings.
+`.github/workflows/pages.yml` builds the catalogue and deploys it with the app to GitHub Pages on every push to `main`, and daily to pick up new tags. The site is about 5 MB. Enable Pages with source **GitHub Actions** in the repo settings.
 
 ## Local HVSC copy (optional)
 

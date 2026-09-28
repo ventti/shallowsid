@@ -89,6 +89,111 @@ service cloud.firestore {
         && request.resource.data.n == resource.data.n + 1;
     }
 
+    // ---- tune tags (see js/tags-core.js) ----------------------------------
+    // Anyone can read tags. Only active curators can set them, and only
+    // ids from config/vocab (written by tools/push_vocab.py) are accepted, so
+    // there is no free text. Curators have no accounts: curators/<cid> holds a
+    // proof chain like lists/ above, and each curator write is one batch that
+    // also moves the writer's chain on, which stepped() checks with
+    // get() (before the batch) and getAfter() (after it).
+    // Roles: "curator" tags; "admin" also invites curators and revokes them.
+    // Admins come only from invites made with tools/curators.py, which uses
+    // IAM credentials and isn't bound by these rules.
+    function curatorDoc(cid) {
+      return /databases/$(database)/documents/curators/$(cid);
+    }
+
+    function stepped(cid) {
+      return cid is string && validVaultId(cid)
+        && get(curatorDoc(cid)).data.active == true
+        && getAfter(curatorDoc(cid)).data.n == get(curatorDoc(cid)).data.n + 1;
+    }
+
+    function adminStepped(cid) {
+      return stepped(cid) && get(curatorDoc(cid)).data.role == 'admin';
+    }
+
+    function inviteDoc(h) {
+      return /databases/$(database)/documents/invites/$(h);
+    }
+
+    match /config/{id} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    match /curators/{cid} {
+      allow get: if validVaultId(cid);
+      allow list, delete: if false;
+      // Joining: the batch marks a valid, unused invite as used by this id.
+      allow create: if validVaultId(cid)
+        && request.resource.data.keys().hasOnly(['owner', 'n', 'role', 'active', 'invite'])
+        && request.resource.data.owner is string && request.resource.data.owner.matches('^[0-9a-f]{64}$')
+        && request.resource.data.n == 0
+        && request.resource.data.active == true
+        && request.resource.data.invite is string && validVaultId(request.resource.data.invite)
+        && get(inviteDoc(request.resource.data.invite)).data.used == null
+        && get(inviteDoc(request.resource.data.invite)).data.exp > request.time
+        && request.resource.data.role == get(inviteDoc(request.resource.data.invite)).data.role
+        && getAfter(inviteDoc(request.resource.data.invite)).data.used == cid;
+      // A step of the curator's own chain.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['owner', 'n', 'proof'])
+        && resource.data.active == true
+        && request.resource.data.owner is string && request.resource.data.owner.matches('^[0-9a-f]{64}$')
+        && request.resource.data.proof is string && request.resource.data.proof.matches('^[0-9a-f]{64}$')
+        && hashing.sha256(request.resource.data.proof).toHexString().lower() == resource.data.owner
+        && request.resource.data.n == resource.data.n + 1;
+      // An admin revoking a curator (admins are revoked with tools/curators.py).
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'revokedBy'])
+        && request.resource.data.active == false
+        && resource.data.role == 'curator'
+        && request.resource.data.revokedBy != cid
+        && adminStepped(request.resource.data.revokedBy);
+    }
+
+    // invites/<sha256(secret)>: made by an admin, used once before `exp`.
+    match /invites/{h} {
+      allow get: if validVaultId(h);
+      allow list, delete: if false;
+      allow create: if validVaultId(h)
+        && request.resource.data.keys().hasOnly(['role', 'by', 'exp', 'used'])
+        && request.resource.data.role == 'curator'
+        && request.resource.data.used == null
+        && request.resource.data.exp is timestamp
+        && request.resource.data.exp > request.time
+        && request.resource.data.exp < request.time + duration.value(15, 'd')
+        && adminStepped(request.resource.data.by);
+      // Used: the secret shows it was known; it's worthless once used.
+      allow update: if resource.data.used == null
+        && resource.data.exp > request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'secret'])
+        && request.resource.data.secret is string
+        && hashing.sha256(request.resource.data.secret).toHexString().lower() == h
+        && request.resource.data.used is string && validVaultId(request.resource.data.used)
+        && getAfter(curatorDoc(request.resource.data.used)).data.invite == h;
+    }
+
+    // tags/<sha256("path#s")>: s = 0 is the whole tune, s >= 1 a subtune.
+    match /tags/{id} {
+      function validTags() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['p', 's', 't', 'by', 'at'])
+          && d.p is string && d.p.size() <= 255
+          && d.p.matches('^(MUSICIANS|GAMES|DEMOS)/[^<>"`\\\\]+[.]sid$')
+          && !d.p.matches('.*(^|/)[.][.]?(/|$).*')
+          && d.s is int && d.s >= 0 && d.s <= 256
+          && hashing.sha256(d.p + '#' + string(d.s)).toHexString().lower() == id
+          && d.t is list && d.t.size() <= 12
+          && d.t.hasOnly(get(/databases/$(database)/documents/config/vocab).data.ids)
+          && d.at == request.time
+          && stepped(d.by);
+      }
+
+      allow get, list: if true;
+      allow create, update: if validVaultId(id) && validTags();
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

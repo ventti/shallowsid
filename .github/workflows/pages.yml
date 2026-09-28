@@ -12,6 +12,8 @@ on:
     # The months in between only re-enable this workflow (see the keepalive job),
     # which keeps the longest gap to about five weeks.
     - cron: "17 3 1 2-5,8-11 *"
+    # Daily: picks up new tune tags (see the tag export step).
+    - cron: "41 4 * * *"
 
 permissions:
   contents: read
@@ -66,6 +68,24 @@ jobs:
 
       - name: Build song catalogue
         run: python3 tools/build_index.py --out _site --keep-archive
+
+      # Tune tags from Firestore into data/tags-index.json, read with a service
+      # account (Workload Identity Federation, no key stored). Skipped until the
+      # repo variables are set; the app then just shows no tags from the index.
+      - name: Authenticate to Google Cloud
+        id: gcp
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Export tune tags
+        if: steps.gcp.outcome == 'success'
+        run: python3 tools/export_tags.py --out _site
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
 
       - name: Assemble site
         run: |

@@ -1,7 +1,8 @@
 // Three-way merge of synced data. Pure, so it runs under `node --test`.
 //
 // A snapshot is {playlists: [...], soundPresets: [...], prefs: {...},
-// devices: [...], plays: {...}, recent: [...], playedLists: [...]}; list
+// devices: [...], plays: {...}, recent: [...], playedLists: [...],
+// curation: {identity, notes}}; list
 // items have an `id` and, when edited, an `updated` time. `base` is the last
 // snapshot both sides agreed on, which tells additions from deletions:
 //   - kept on one side, gone on the other, unchanged since base -> deleted
@@ -10,7 +11,8 @@
 //     only takes that change; `items` lists are merged tune by tune; a field
 //     changed on both takes the side with the later `updated` (local on a tie)
 
-export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [], plays: {}, recent: [], playedLists: [] });
+export const EMPTY_CURATION = Object.freeze({ identity: null, notes: {} });
+export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [], plays: {}, recent: [], playedLists: [], curation: EMPTY_CURATION });
 
 export const MAX_RECENT = 30;
 export const MAX_PLAYS = 2000;   // tunes with play counts; the least played are dropped
@@ -149,6 +151,22 @@ export function mergeRecent(local = [], remote = [], limit = MAX_RECENT) {
     .slice(0, limit);
 }
 
+// The curator identity (tags.js): a device that has one keeps it, one that
+// hasn't takes the other side's; an identity dropped on one side since base
+// ("Stop Curating") is dropped.
+export function mergeCuration(base = EMPTY_CURATION, local = EMPTY_CURATION, remote = EMPTY_CURATION) {
+  const before = base?.identity ?? null;
+  const l = local?.identity ?? null, r = remote?.identity ?? null;
+  let identity;
+  if (l && r) identity = same(l, before) ? r : l;
+  else if (l || r) identity = same(l ?? r, before) ? null : l ?? r;
+  else identity = null;
+  return { identity, notes: mergeNotes(local?.notes, remote?.notes) };
+}
+
+// Notes are only ever added: keep both sides', this device's on a clash.
+const mergeNotes = (local = {}, remote = {}) => ({ ...remote, ...local });
+
 export function mergeSnapshots(base, local, remote, now = Date.now()) {
   base ??= EMPTY_SNAPSHOT;
   return {
@@ -161,5 +179,6 @@ export function mergeSnapshots(base, local, remote, now = Date.now()) {
     plays: remote === local ? local.plays ?? {} : mergePlays(base.plays, local.plays, remote.plays),
     recent: mergeRecent(local.recent, remote.recent),
     playedLists: mergeRecent(local.playedLists, remote.playedLists),
+    curation: mergeCuration(base.curation, local.curation, remote.curation),
   };
 }

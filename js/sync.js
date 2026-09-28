@@ -30,6 +30,9 @@
 // device that hasn't used the new copy for its key yet reads the old one as
 // the remote and the next push creates the new copy (`state.v2` = that key).
 //
+// The curator identity for tune tags (tags.js) syncs with the rest, so all
+// the user's devices tag as one curator.
+//
 // Events: "status" whenever status/lastSynced/error change, "applied" after
 // remote changes were merged into the local stores.
 
@@ -37,7 +40,7 @@ import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import { ownerHash, tokenFor } from "./live-share-core.js";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateDeviceKeys, generateKey, parseKey, unwrapKey, wrapKeyFor } from "./sync-crypto.js";
-import { canonical, mergeSnapshots } from "./sync-merge.js";
+import { EMPTY_CURATION, canonical, mergeSnapshots } from "./sync-merge.js";
 import { describeDevice } from "./device-info.js";
 
 const STORAGE_KEY = "shallowsid.sync";
@@ -53,7 +56,7 @@ const RETENTION_DAYS = 365;             // `expireAt` for an optional Firestore 
 const same = (a, b) => canonical(a) === canonical(b);
 const pick = (snapshot, keys) => Object.fromEntries(keys.map((k) => [k, snapshot[k]]));
 // What the local stores hold, applied in two steps (see syncOnce).
-const SETTINGS = ["playlists", "soundPresets", "prefs"];
+const SETTINGS = ["playlists", "soundPresets", "prefs", "curation"];
 const HISTORY = ["plays", "recent", "playedLists"];
 const sameIn = (keys, a, b) => same(pick(a, keys), pick(b, keys));
 
@@ -62,10 +65,11 @@ class ConflictError extends Error {}
 const revOf = (doc) => ({ updateTime: doc.updateTime, n: Number(doc.fields?.n?.integerValue ?? 0) });
 
 export class SyncService extends EventTarget {
-  constructor({ store, sound, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
+  constructor({ store, sound, curation = null, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
     super();
     this.store = store;
     this.sound = sound;
+    this.curation = curation;
     this.config = config;
     this.storageKey = storageKey;
     this.configured = !!(config.apiKey && config.projectId);
@@ -84,6 +88,7 @@ export class SyncService extends EventTarget {
     store.addEventListener("change", onLocalChange);
     store.addEventListener("history", onLocalChange);
     sound.addEventListener("change", onLocalChange);
+    curation?.addEventListener("identity", onLocalChange);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.enabled && Date.now() - (this.lastSynced ?? 0) > RESYNC_ON_FOCUS_MS) this.syncNow();
     });
@@ -324,6 +329,8 @@ export class SyncService extends EventTarget {
       plays: { ...this.store.plays },   // a copy: plays are counted in place
       recent: this.store.recent,
       playedLists: this.store.playedLists,
+      // Without a tag service here, pass on what was synced.
+      curation: this.curation?.snapshot() ?? this.state.base?.curation ?? EMPTY_CURATION,
     };
   }
 
@@ -342,6 +349,7 @@ export class SyncService extends EventTarget {
     try {
       this.store.replaceAll(structuredClone(merged.playlists));
       this.sound.applySynced({ presets: structuredClone(merged.soundPresets), activeId: merged.prefs.soundActiveId, prerender: merged.prefs.prerender });
+      this.curation?.applySynced(structuredClone(merged.curation));
     } finally {
       this.applying = false;
     }

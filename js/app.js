@@ -17,6 +17,9 @@ import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
 import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { SyncSheet } from "./sync-sheet.js";
+import { TagService } from "./tags.js";
+import { TagSheet } from "./tag-sheet.js";
+import { WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
 import { playlistArtStyle } from "./artwork.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
@@ -63,7 +66,9 @@ sound.addEventListener("change", () => {
 soundSheet.addEventListener("preview", (e) => applySound({ ...sound.current, ...e.detail }));
 soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
 applySound();
-const sync = new SyncService({ store, sound });
+const tags = new TagService();
+const tagSheet = new TagSheet(tags);
+const sync = new SyncService({ store, sound, curation: tags });
 const syncSheet = sync.configured ? new SyncSheet(sync) : null;
 const liveShare = new LiveShare({ store });
 liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
@@ -88,7 +93,7 @@ $("install-app").addEventListener("click", (e) => {
   install.install();
 });
 registerServiceWorker();
-globalThis.shallowsid = { player, store, sound, sync };   // handy from the devtools console
+globalThis.shallowsid = { player, store, sound, sync, tags };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
@@ -97,6 +102,15 @@ const nowPlaying = new NowPlaying(player, {
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
   onOpenSound: () => soundSheet.open(),
+  tags,
+  onOpenTag: (id) => go(tagHref(id)),
+  onEditTags: (item) => tagSheet.open(item),
+});
+// New tags (saved here, read live, synced identity): update what shows them.
+tags.addEventListener("change", () => {
+  nowPlaying.refreshTags();
+  $("curation-wrap").hidden = !tags.cid;
+  if (["tag", "tags", "curation"].includes(currentRoute().name)) render();
 });
 
 let index = null;               // IndexStore, once loaded
@@ -235,7 +249,7 @@ function runSearch(query) {
   if (searchQuery && route !== "search") history.replaceState(null, "", "#/search");
   else if (!searchQuery && route === "search") history.replaceState(null, "", "#/home");
   lastResults = lastIds = null;
-  if (searchQuery) searchWorker.postMessage({ type: "search", id: ++searchSeq, query: searchQuery });
+  if (searchQuery && !searchQuery.startsWith("#")) searchWorker.postMessage({ type: "search", id: ++searchSeq, query: searchQuery });
   renderSearch();
 }
 
@@ -451,12 +465,14 @@ function renderSearch() {
         ${chips(suggestions)}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
+        ${tagChips()}
         <h2 class="section-title">Mixes for you</h2>${shelf(mixCards())}
       </section>`;
     paintAvatars(dom.view);
     dom.infinite.disabled = true;
     return;
   }
+  if (searchQuery.startsWith("#")) return renderTagSearch(searchQuery.slice(1));
   if (searchError) {
     dom.view.innerHTML = `<div class="empty"><p>Search is unavailable: ${esc(searchError)}</p><p>Browse still works.</p></div>`;
     dom.infinite.disabled = true;
@@ -834,6 +850,266 @@ function renderComposer(name) {
   $("composer-search").addEventListener("click", () => searchFor(name));
 }
 
+// ---- tags ------------------------------------------------------------------
+
+const tagHref = (id) => `#/tag/${encodeURIComponent(id)}`;
+const HOME_TAGS = 12;
+
+// Tunes with a tag: those tagged as a whole (playing from their start song),
+// then subtunes tagged on their own.
+function tagItems(id) {
+  const tunes = [], subtunes = [];
+  for (const { path, song, tags: ids } of tags.entries()) {
+    const tune = ids.includes(id) && index.get(path);
+    if (!tune) continue;
+    if (song === WHOLE_TUNE) tunes.push(asItem(tune));
+    else if (song <= tune.songs) subtunes.push(asItem(tune, song));
+  }
+  return { tunes: sortResults(tunes, listSort()), subtunes: sortResults(subtunes, listSort()) };
+}
+
+const tagChip = (id, count) => `<ion-chip data-open-tag="${esc(id)}" class="tag-chip">${esc(tags.label(id))}${count != null ? `<span class="tag-count">${count}</span>` : ""}</ion-chip>`;
+
+// Home: the most used tags, and a way to all of them.
+function tagChips() {
+  const top = [...tags.counts()].sort((a, b) => b[1] - a[1]).slice(0, HOME_TAGS);
+  if (!top.length) return "";
+  return `<h2 class="section-title">Tags</h2>
+    <div class="chips">${top.map(([id, count]) => tagChip(id, count)).join("")}<ion-chip data-all-tags outline>All tags</ion-chip></div>`;
+}
+
+// "#fu" in the search bar: tags whose name matches, those in use first.
+function renderTagSearch(text) {
+  const q = text.trim().toLowerCase();
+  const counts = tags.counts();
+  const found = [...tags.vocab.byId.values()]
+    .filter((t) => !q || t.label.toLowerCase().includes(q) || t.id.includes(q))
+    .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.label.localeCompare(b.label));
+  dom.infinite.disabled = true;
+  dom.view.innerHTML = found.length
+    ? `<p class="result-count">Tags</p><div class="chips">${found.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`
+    : `<div class="empty"><p>No tag matches “${esc(text)}”.</p></div>`;
+}
+
+function renderAllTags() {
+  setChrome({ title: "Tags", back: "history", tab: "home" });
+  dom.infinite.disabled = true;
+  const counts = tags.counts();
+  dom.view.innerHTML = tags.vocab.groups.map((g) => `
+    <h2 class="section-title">${esc(g.name)}</h2>
+    <div class="chips">${g.tags.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`).join("")
+    + `<p class="result-count">Tags are picked by curators from this fixed list.</p>`;
+}
+
+function renderTag(id) {
+  const tag = tags.vocab.byId.get(id);
+  setChrome({ title: "", back: "history", tab: "home" });
+  if (!tag) {
+    dom.infinite.disabled = true;
+    dom.view.innerHTML = `<div class="empty"><p>There's no tag “${esc(id)}”.</p></div>`;
+    return;
+  }
+  const { tunes, subtunes } = tagItems(id);
+  const all = [...tunes, ...subtunes];
+  const meta = [tag.group, tuneCount(all.length)].filter(Boolean);
+  dom.view.innerHTML = `
+    <section class="composer-head">
+      <div class="tag-avatar"><ion-icon name="pricetag"></ion-icon></div>
+      <h1 class="composer-name">${esc(tag.label)}</h1>
+      <p class="composer-meta">${meta.map(esc).join(" · ")}</p>
+      ${tag.description ? `<p class="composer-meta">${esc(tag.description)}</p>` : ""}
+      <div class="playlist-head composer-actions">
+        <ion-button id="top-play" ${all.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+        <ion-button id="top-shuffle" fill="outline" ${all.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+      </div>
+    </section>
+    ${all.length ? (all.length > 1 ? sortBar("list") : "") : `<div class="empty"><p>No tunes have this tag yet.</p></div>`}
+    <div id="tag-tunes"></div>`;
+  const parts = [["Tunes", tunes], ["Subtunes", subtunes]].filter(([, items]) => items.length);
+  let start = 0;
+  const sections = parts.length > 1 ? parts.map(([title, items]) => ({ title, start: (start += items.length) - items.length, count: items.length })) : undefined;
+  showList($("tag-tunes"), all, { all: true, sections });
+  $("top-play").addEventListener("click", () => player.setQueue(all, 0));
+  $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(all), 0));
+}
+
+// ---- curation: invites, curators, their edits --------------------------------------
+
+let pendingInvite = null;       // an invite link's secret, kept out of the address bar
+let curationSeq = 0;
+
+// An invite link opens #/curate/<secret>: move it out of the address (and
+// history) at once, then show it on the Curation page.
+function openInviteLink(secret) {
+  pendingInvite = isInviteSecret(secret) ? secret : "invalid";
+  history.replaceState(null, "", "#/curation");
+  renderCuration("");
+}
+
+const ROLE_NAMES = { curator: "Curator", admin: "Admin" };
+
+async function renderCuration(arg) {
+  setChrome({ title: arg ? "Edits" : "Curation", back: arg ? "#/curation" : "history", tab: "home" });
+  dom.infinite.disabled = true;
+  const seq = ++curationSeq;
+  const stale = () => seq !== curationSeq || currentRoute().name !== "curation";
+  if (!tags.configured) {
+    dom.view.innerHTML = `<div class="empty"><p>Tagging isn't set up on this site.</p></div>`;
+    return;
+  }
+  if (arg) return renderEdits(arg, stale);
+  dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  const sections = [];
+  if (pendingInvite) sections.push(await inviteCard(pendingInvite));
+  if (stale()) return;
+  if (tags.cid) {
+    const role = tags.role;
+    sections.push(`<section class="composer-head">
+      <div class="tag-avatar"><ion-icon name="${role === "admin" ? "shield-checkmark" : role ? "pricetags" : "close"}"></ion-icon></div>
+      <h1 class="composer-name">${role ? `You're ${role === "admin" ? "an admin" : "a curator"}` : "No longer a curator"}</h1>
+      <p class="composer-meta">${role
+        ? `Tag tunes with <strong>Tag</strong> in Now Playing, <strong>Edit Tags…</strong> in a tune's <strong>⋯</strong> menu, or the <strong>T</strong> key.`
+        : "An admin has taken back your rights."}</p>
+      ${sync.enabled || !role ? "" : `<p class="composer-meta">Turn on Sync (the cloud on <strong>Playlists</strong>) to tag from your other devices too.</p>`}
+      <div class="playlist-head composer-actions">
+        <ion-button id="my-edits" fill="outline" href="#/curation/${esc(tags.cid)}">Your Edits</ion-button>
+        <ion-button id="leave-curation" fill="clear" color="medium">Stop Curating Here…</ion-button>
+      </div>
+    </section>`);
+  }
+  if (tags.isAdmin) {
+    sections.push(`<h2 class="section-title">Curators</h2>
+      <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
+      <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
+  }
+  if (!sections.length) sections.push(`<div class="empty"><p>Curators tag tunes. You need an invite link from an admin to become one.</p></div>`);
+  dom.view.innerHTML = sections.join("");
+  $("accept-invite")?.addEventListener("click", acceptInvite);
+  $("dismiss-invite")?.addEventListener("click", () => { pendingInvite = null; render(); });
+  $("leave-curation")?.addEventListener("click", async () => {
+    if (!(await confirmDialog("Stop curating here?", "This device, and your devices syncing with it, can't tag tunes any more. You'd need a new invite to start again.", "Stop Curating"))) return;
+    tags.leave();
+    render();
+  });
+  $("new-invite")?.addEventListener("click", newInvite);
+  if (tags.isAdmin) fillCurators(stale);
+}
+
+async function inviteCard(secret) {
+  const card = (title, text, buttons = "") => `<section class="composer-head invite-card">
+    <div class="tag-avatar"><ion-icon name="mail-open-outline"></ion-icon></div>
+    <h1 class="composer-name">${title}</h1><p class="composer-meta">${text}</p>
+    <div class="playlist-head composer-actions">${buttons}<ion-button id="dismiss-invite" fill="clear" color="medium">${buttons ? "Not Now" : "OK"}</ion-button></div>
+  </section>`;
+  if (secret === "invalid") return card("Broken invite", "This invite link is incomplete. Ask for a new one.");
+  let status;
+  try {
+    status = await tags.checkInvite(secret);
+  } catch (err) {
+    return card("Couldn't check the invite", esc(err.message));
+  }
+  if (status.status === "missing") return card("Unknown invite", "This invite doesn't exist. Ask for a new one.");
+  if (status.status === "used") return card("Invite already used", "Each invite works once. Ask for a new one if it wasn't you.");
+  if (status.status === "expired") return card("Invite expired", "Invites last two weeks. Ask for a new one.");
+  if (tags.role === "admin" || (tags.role && status.role === "curator")) return card("You're already " + (tags.role === "admin" ? "an admin" : "a curator"), "Keep this invite for someone else.");
+  return card(`You're invited to tag tunes`, status.role === "admin"
+    ? "As an admin you can tag tunes, invite curators and take their rights back."
+    : "As a curator you pick tags for tunes and subtunes from a fixed list. Everyone sees them.",
+    `<ion-button id="accept-invite">Become ${status.role === "admin" ? "an Admin" : "a Curator"}</ion-button>`);
+}
+
+async function acceptInvite() {
+  try {
+    const role = await tags.claim(pendingInvite);
+    pendingInvite = null;
+    toast(`You're ${role === "admin" ? "an admin" : "a curator"} now`);
+  } catch (err) {
+    toast(`Couldn't join: ${err.message}`, { color: "danger" });
+  }
+  render();
+}
+
+async function newInvite() {
+  const note = await prompt("Invite a Curator", { placeholder: "Who it's for (only you see this)", confirm: "Create Link" });
+  if (note === null) return;
+  try {
+    const link = await tags.createInvite(note);
+    await shareUrl("ShallowSID curator invite", link, "Tag C64 tunes on ShallowSID: this link works once, for two weeks");
+  } catch (err) {
+    toast(`Couldn't create an invite: ${err.message}`, { color: "danger" });
+  }
+  render();
+}
+
+function inviteStatus(row) {
+  if (row.curator) return row.curator.active ? ROLE_NAMES[row.curator.role] ?? "Curator" : "Revoked";
+  if (row.missing) return "Not found";
+  if (!row.exp || row.exp <= Date.now()) return "Expired, unused";
+  return `Waiting · expires ${new Date(row.exp).toLocaleDateString()}`;
+}
+
+async function fillCurators(stale) {
+  let rows;
+  try {
+    rows = await tags.invites();
+  } catch (err) {
+    if (!stale()) $("curator-list").innerHTML = `<div class="empty"><p>Couldn't load: ${esc(err.message)}</p></div>`;
+    return;
+  }
+  if (stale()) return;
+  const list = $("curator-list");
+  list.innerHTML = rows.length ? rows.map((row) => `
+    <ion-item ${row.curator ? `button detail="false" data-curator="${esc(row.curator.cid)}" data-note="${esc(row.note)}"` : ""} lines="full">
+      <ion-icon slot="start" name="${row.curator?.active ? "person-outline" : row.curator ? "person-remove-outline" : "hourglass-outline"}" color="${row.curator?.active ? "primary" : "medium"}"></ion-icon>
+      <ion-label><h3>${esc(row.note || "No name")}</h3><p>${esc(inviteStatus(row))} · invited ${esc(new Date(row.created).toLocaleDateString())}</p></ion-label>
+    </ion-item>`).join("")
+    : `<div class="empty"><p>No invites yet. Invites you make show here.</p></div>`;
+  list.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-curator]");
+    if (row) curatorMenu(row.dataset.curator, row.dataset.note, rows);
+  });
+}
+
+function curatorMenu(cid, note, rows) {
+  const curator = rows.find((r) => r.curator?.cid === cid)?.curator;
+  actionSheet(note || "Curator", [
+    { text: "See Edits", icon: "list", handler: () => go(`#/curation/${cid}`) },
+    ...(curator?.active && curator.role === "curator" ? [{ text: "Revoke", role: "destructive", icon: "person-remove-outline", handler: async () => {
+      if (!(await confirmDialog("Revoke curator?", `${note || "This curator"} can't tag tunes any more. Their tags stay.`, "Revoke"))) return;
+      try {
+        await tags.revoke(cid);
+        toast("Revoked");
+      } catch (err) {
+        toast(`Couldn't revoke: ${err.message}`, { color: "danger" });
+      }
+      render();
+    } }] : []),
+  ]);
+}
+
+// A curator's latest edits: to themself, and to admins.
+async function renderEdits(cid, stale) {
+  if (!isCuratorId(cid) || (cid !== tags.cid && !tags.isAdmin)) {
+    dom.view.innerHTML = `<div class="empty"><p>Only admins can see others' edits.</p></div>`;
+    return;
+  }
+  dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  let edits;
+  try {
+    edits = await tags.editsBy(cid);
+  } catch (err) {
+    if (!stale()) dom.view.innerHTML = `<div class="empty"><p>Couldn't load edits: ${esc(err.message)}</p></div>`;
+    return;
+  }
+  if (stale()) return;
+  const items = edits.map((e) => ({ edit: e, tune: index.get(e.path) })).filter((x) => x.tune)
+    .map(({ edit, tune }) => asItem(tune, edit.song === WHOLE_TUNE ? tune.start : Math.min(edit.song, tune.songs)));
+  const who = cid === tags.cid ? "Your" : "Their";
+  dom.view.innerHTML = `<p class="result-count">${who} ${items.length === 1 ? "latest edit" : `latest ${items.length} edits, newest first`}</p><div id="edit-list"></div>`;
+  if (!items.length) $("edit-list").innerHTML = `<div class="empty"><p>No edits yet.</p></div>`;
+  else showList($("edit-list"), items, { all: true });
+}
+
 function renderGenerated(title, items, note) {
   setChrome({ title, back: "#/home", tab: "home" });
   dom.view.innerHTML = `
@@ -887,6 +1163,10 @@ function render() {
     case "sync": return joinSyncLink(arg);
     case "composer": return renderComposer(arg);
     case "tune": return renderTune(arg);
+    case "tag": return renderTag(arg);
+    case "tags": return renderAllTags();
+    case "curate": return openInviteLink(arg);
+    case "curation": return renderCuration(arg);
     case "most-played": return renderGenerated("Your most played", mostPlayedItems(), `Your ${MOST_PLAYED_COUNT} most played tunes ${playedWhere()}`);
     case "mix": return renderMix(arg);
     case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
@@ -955,6 +1235,7 @@ function rowMenu(item, position) {
       { text: "Add to playlist…", icon: "add-circle-outline", handler: () => setTimeout(() => addToPlaylist(item), 300) },
       { text: "Go to folder", icon: "folder-open-outline", handler: () => go(`#/browse/${encodeURIComponent(item.dir)}`) },
       { text: "Share…", icon: "share-outline", handler: () => shareTune(item) },
+      ...(tags.canTag ? [{ text: "Edit Tags…", icon: "pricetags-outline", handler: () => tagSheet.open(item) }] : []),
     );
   }
   if (listOptions.playlistId) {
@@ -1100,6 +1381,9 @@ dom.view.addEventListener("click", (e) => {
   }
   const composer = e.target.closest("[data-open-composer]");
   if (composer) return go(composerHref(composer.dataset.openComposer));
+  const tag = e.target.closest("[data-open-tag]");
+  if (tag) return go(tagHref(tag.dataset.openTag));
+  if (e.target.closest("[data-all-tags]")) return go("#/tags");
   const row = e.target.closest("[data-play]");
   if (row && !row.closest(".is-editing")) {
     const pos = Number(row.dataset.play);
@@ -1136,6 +1420,9 @@ player.addEventListener("time", ({ detail: { position, duration } }) => {
   }
 });
 player.addEventListener("track", ({ detail: { item } }) => {
+  // Curators see others' edits at once; everyone else reads the deployed index,
+  // so playing tunes still doesn't talk to Firestore.
+  if (tags.canTag) tags.refresh(item).catch((err) => console.error("tags:", err));
   uncounted = item;
   store.addRecent(item);
   refreshRowMarks();
@@ -1149,10 +1436,13 @@ document.addEventListener("keydown", (e) => {
   else if (e.key === "ArrowRight" && e.shiftKey) player.next();
   else if (e.key === "ArrowLeft" && e.shiftKey) player.previous();
   else if (e.key === "f" && player.current) toggleFavorite(player.current);
+  else if (e.key === "t" && player.current && tags.canTag) tagSheet.open(player.current);
 });
 
 try {
+  const tagsReady = tags.init();
   index = await loadIndex({ onText: (text) => searchWorker.postMessage({ type: "load", text }) });
+  await tagsReady;
   $("hvsc-version").textContent = index.version ? `HVSC #${index.version}` : "HVSC";
   dom.searchbar.placeholder = `Search High Voltage SID Collection ${index.tunes.length.toLocaleString()} tunes, composers, groups, …`;
   render();
