@@ -13,6 +13,7 @@
 // source had (a restarted render), a lower one is stale and dropped.
 
 const FADE_FRAMES = 256;            // click-free ramp after a seek/resume/gap
+const FADE_OUT_SECONDS = 1.5;       // the end fades out, in case the tune loops back before it
 const GRAIN_FRAMES = 2048;          // ~45 ms scrub grain
 const POS_REPORT_FRAMES = 2048;     // ~23 position reports per second
 const EVICT_ABOVE_SECONDS = 600;    // keep at most ~10 min of cached PCM ...
@@ -82,6 +83,9 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
         this.fade = 0;
         this.live = [];               // belongs to the old position; the live engine re-syncs
         this.report();
+        break;
+      case "stop-at":
+        this.stopFrame = msg.frame;
         break;
       case "scrub":
         this.scrubFrame = msg.frame;
@@ -190,7 +194,8 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
         this.fade = 0;
         return;
       }
-      const gain = this.fade < FADE_FRAMES ? this.fade++ / FADE_FRAMES : 1;
+      const fadeIn = this.fade < FADE_FRAMES ? this.fade++ / FADE_FRAMES : 1;
+      const gain = Math.max(0, Math.min(fadeIn, (this.stopFrame - this.playhead) / (FADE_OUT_SECONDS * sampleRate)));
       left[i] = l * gain;
       right[i] = this.sampleAt(this.playhead, 1) * gain;
       if (++this.playhead >= this.stopFrame) {

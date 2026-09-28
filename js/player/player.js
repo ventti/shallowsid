@@ -27,6 +27,10 @@ const DEFAULT_SONG_SECONDS = 180;       // tunes missing from Songlengths.md5
 const RESTART_THRESHOLD_SECONDS = 3;    // "previous" restarts the tune after this
 const MAX_CONSECUTIVE_ERRORS = 5;
 export const REPEAT_MODES = ["off", "all", "one"];
+const LOOP_SEARCH_SECONDS = 3;          // a tune looping back early shows in its last seconds ...
+const LOOP_QUIET_LEVEL = 0.01;          // ... as near-silence (RMS) ...
+const LOOP_QUIET_SECONDS = 0.3;         // ... held this long ...
+const LOOP_RESTART_LEVEL = 0.05;        // ... then loud again: its start playing once more
 
 export function shuffle(items) {
   const a = items.slice();
@@ -35,6 +39,21 @@ export function shuffle(items) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+// Where a tune that loops back before its listed length really ends (seconds),
+// or null. Songlengths.md5 can run a second or so long, and the tune's start
+// would then be heard again. `peaks` are RMS levels per waveform bucket.
+export function loopedEnd(peaks, bucketsPerSecond, duration) {
+  const last = Math.min(peaks.length, Math.floor(duration * bucketsPerSecond));
+  const minQuiet = Math.round(LOOP_QUIET_SECONDS * bucketsPerSecond);
+  let quiet = 0;
+  for (let b = Math.max(0, last - Math.round(LOOP_SEARCH_SECONDS * bucketsPerSecond)); b < last; b++) {
+    if (peaks[b] < LOOP_QUIET_LEVEL) quiet++;
+    else if (peaks[b] > LOOP_RESTART_LEVEL && quiet >= minQuiet) return b / bucketsPerSecond;
+    else quiet = 0;
+  }
+  return null;
 }
 
 const assetUrl = (path) => new URL(path, import.meta.url).href;
@@ -317,6 +336,15 @@ export class Player extends EventTarget {
     return this.playIndex(this.index);
   }
 
+  // Once the whole tune is rendered: end at the silence before it loops back, if it does.
+  trimLoopedEnd() {
+    const end = loopedEnd(this.peaks, PEAK_BUCKETS_PER_SECOND, this.duration);
+    if (end === null) return;
+    this.duration = end;
+    this.node.port.postMessage({ type: "stop-at", frame: Math.round(end * this.ctx.sampleRate) });
+    this.emitTime();
+  }
+
   // ---- transport ---------------------------------------------------------
 
   play() {
@@ -395,6 +423,9 @@ export class Player extends EventTarget {
         this.emitPeaks();
         break;
       }
+      case "done":
+        if (msg.role === "cache") this.trimLoopedEnd();
+        break;
       case "progress":
         if (msg.role === "live") this.errors = 0;
         break;
