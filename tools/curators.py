@@ -8,7 +8,8 @@ Usage:
   tools/curators.py invite --role admin [--days 14] [--site URL]
   tools/curators.py invite                  # a curator invite
   tools/curators.py list
-  tools/curators.py revoke <curator id>     # works for admins too
+  tools/curators.py off <curator id>        # can't tag any more; works for admins too
+  tools/curators.py on <curator id>         # can tag again
 """
 
 import argparse
@@ -37,15 +38,15 @@ def list_curators(db):
     for doc in db.list("curators"):
         f = doc.get("fields", {})
         cid = doc["name"].rsplit("/", 1)[1]
-        state = "active" if value(f.get("active")) else "revoked"
+        state = "on" if value(f.get("active")) else "off"
         print(f"{cid}  {value(f.get('role')):8}  {state:8}  steps {value(f.get('n'))}  invite {value(f.get('invite'))[:12]}…")
 
 
-def revoke(db, cid):
+def set_active(db, cid, active):
     if not db.get("curators", cid):
         raise SystemExit(f"No curator {cid}")
-    db.patch("curators", cid, {"active": {"booleanValue": False}, "revokedBy": s("cli")}, mask=["active", "revokedBy"])
-    print(f"Revoked {cid}")
+    db.patch("curators", cid, {"active": {"booleanValue": active}, "changedBy": s("cli")}, mask=["active", "changedBy"])
+    print(f"{cid} is {'on' if active else 'off'}")
 
 
 def main():
@@ -57,8 +58,9 @@ def main():
     p.add_argument("--days", type=int, default=14, choices=range(1, 15), metavar="1-14")
     p.add_argument("--site", default=SITE)
     sub.add_parser("list", help="list curators and admins")
-    p = sub.add_parser("revoke", help="take a curator's or admin's rights")
-    p.add_argument("cid")
+    for command, text in (("off", "stop a curator or admin from tagging"), ("on", "let them tag again")):
+        p = sub.add_parser(command, help=text)
+        p.add_argument("cid")
     args = parser.parse_args()
     db = Firestore(args.project)
     if args.command == "invite":
@@ -66,7 +68,7 @@ def main():
     elif args.command == "list":
         list_curators(db)
     else:
-        revoke(db, args.cid)
+        set_active(db, args.cid, args.command == "on")
 
 
 if __name__ == "__main__":

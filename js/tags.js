@@ -14,7 +14,7 @@ import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import {
   WHOLE_TUNE, chainStep, claimWrites, cleanTags, curatorId, decodeCurator, decodeInvite, decodeTagDoc, decodeTagIndex,
-  inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, revokeWrite, str, tagDocId, tagKey, tagWrite,
+  inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, str, tagDocId, tagKey, tagWrite,
 } from "./tags-core.js";
 
 const STORAGE_KEY = "shallowsid.curation";
@@ -165,7 +165,7 @@ export class TagService extends EventTarget {
     return invite.role;
   }
 
-  // Forget this device's curator identity (the record stays until revoked).
+  // Forget this device's curator identity (the record stays, and an admin can still turn it off).
   leave() {
     this.state = { notes: this.state.notes ?? {} };
     this.curator = null;
@@ -209,10 +209,11 @@ export class TagService extends EventTarget {
     return invites.find((i) => i.used === cid)?.note || null;
   }
 
-  async revoke(cid) {
-    if (!this.isAdmin) throw new Error("Only admins can revoke curators");
-    if (!isCuratorId(cid) || cid === this.cid) throw new Error("Can't revoke that curator");
-    await this.step(async () => [revokeWrite(this.name, this.cid, cid)]);
+  // Turn a curator off (can't tag any more; their tags stay) or back on.
+  async setActive(cid, active) {
+    if (!this.isAdmin) throw new Error("Only admins can turn curators off or on");
+    if (!isCuratorId(cid) || cid === this.cid) throw new Error("Can't change that curator");
+    await this.step(async () => [activeWrite(this.name, this.cid, cid, active)]);
   }
 
   // A curator's latest edits, newest first: [{path, song, tags, at}].

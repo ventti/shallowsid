@@ -122,9 +122,9 @@ async function check(key, before, after, all) {
       if (sget(f.role) !== sget(inv.fields.role) || nget(f.n) !== 0) return "claim";
       return null;
     }
-    if (f.revokedBy) {
-      const admin = sget(f.revokedBy);
-      return stepped(admin) && sget(docs.get(`curators/${admin}`).fields.role) === "admin" && sget(before.fields.role) === "curator" ? null : "revoke";
+    if (f.active?.booleanValue !== before.fields.active?.booleanValue || sget(f.changedBy) !== sget(before.fields.changedBy)) {
+      const admin = sget(f.changedBy);
+      return admin !== id && stepped(admin) && sget(docs.get(`curators/${admin}`).fields.role) === "admin" && sget(before.fields.role) === "curator" ? null : "active";
     }
     if (before.fields.active?.booleanValue !== true) return "inactive";
     if (await ownerHash(sget(f.proof)) !== sget(before.fields.owner) || nget(f.n) !== nget(before.fields.n) + 1) return "proof";
@@ -226,7 +226,7 @@ test("an admin from the CLI invites a curator, who tags a tune and a subtune", a
   assert.equal((await admin.editsBy(curator.cid)).length, 2);
 });
 
-test("curators can't invite, and a revoked curator can't tag", async () => {
+test("curators can't invite; a curator turned off can't tag until turned back on", async () => {
   const admin = service("admin");
   await admin.init();
   await cliInvite("admin", "b".repeat(32));
@@ -243,9 +243,15 @@ test("curators can't invite, and a revoked curator can't tag", async () => {
   curator.state.role = "curator";
   curator.curator = { ...curator.curator, role: "curator" };
 
-  await admin.revoke(curator.cid);
+  await admin.setActive(curator.cid, false);
   await assert.rejects(curator.save(TUNE, [{ song: 0, tags: ["funk"] }]), /no longer a curator/);
   assert.equal(curator.canTag, false);
+  await assert.rejects(admin.setActive(admin.cid, false), /Can't change/);
+
+  await admin.setActive(curator.cid, true);
+  await curator.refreshCurator();
+  assert.equal(curator.canTag, true);
+  await curator.save(TUNE, [{ song: 0, tags: ["funk"] }]);
 });
 
 test("someone without rights can't tag, even with a made-up curator id", async () => {

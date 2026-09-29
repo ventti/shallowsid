@@ -193,10 +193,11 @@ export async function inviteWrite(name, cid, secret, now = Date.now(), days = IN
   };
 }
 
-export function revokeWrite(name, adminCid, cid) {
+// An admin turning a curator off or back on.
+export function activeWrite(name, adminCid, cid, active) {
   return {
-    update: { name: name("curators", cid), fields: { active: bool(false), revokedBy: str(adminCid) } },
-    updateMask: { fieldPaths: ["active", "revokedBy"] },
+    update: { name: name("curators", cid), fields: { active: bool(active), changedBy: str(adminCid) } },
+    updateMask: { fieldPaths: ["active", "changedBy"] },
     currentDocument: { exists: true },
   };
 }

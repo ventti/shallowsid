@@ -95,7 +95,8 @@ service cloud.firestore {
     // proof chain like lists/ above, and each curator write is one batch that
     // also moves the writer's chain on, which stepped() checks with
     // get() (before the batch) and getAfter() (after it).
-    // Roles: "curator" tags; "admin" also invites curators and revokes them.
+    // Roles: "curator" tags; "admin" also invites curators and turns them
+    // off and on again.
     // Admins come only from invites made with tools/curators.py, which uses
     // IAM credentials and isn't bound by these rules.
     // Generated from js/tags-vocab.json (tags and retired ids) by
@@ -198,12 +199,14 @@ service cloud.firestore {
         && request.resource.data.proof is string && request.resource.data.proof.matches('^[0-9a-f]{64}$')
         && hashing.sha256(request.resource.data.proof).toHexString().lower() == resource.data.owner
         && request.resource.data.n == resource.data.n + 1;
-      // An admin revoking a curator (admins are revoked with tools/curators.py).
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'revokedBy'])
-        && request.resource.data.active == false
+      // An admin turning a curator off, or back on (admins only with
+      // tools/curators.py). A curator that's off can't step its chain, so
+      // it can't tag or turn itself back on.
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['active', 'changedBy'])
+        && request.resource.data.active is bool
         && resource.data.role == 'curator'
-        && request.resource.data.revokedBy != cid
-        && adminStepped(request.resource.data.revokedBy);
+        && request.resource.data.changedBy != cid
+        && adminStepped(request.resource.data.changedBy);
     }
 
     // invites/<sha256(secret)>: made by an admin, used once before `exp`.

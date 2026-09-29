@@ -106,10 +106,18 @@ const nowPlaying = new NowPlaying(player, {
   onOpenTag: (id) => go(tagHref(id)),
   onEditTags: (item) => tagSheet.open(item),
 });
+// Curators and admins get a tab right of Playlists: "Admin" for admins,
+// "Curation" for curators (also once turned off, to see why).
+function showCurationTab() {
+  const tab = document.querySelector('ion-tab-button[tab="curation"]');   // Ionic replaces tab buttons' ids
+  tab.hidden = !tags.cid;
+  tab.querySelector("ion-label").textContent = tags.isAdmin ? "Admin" : "Curation";
+  tab.querySelector("ion-icon").name = tags.isAdmin ? "shield-checkmark" : "pricetags";
+}
 // New tags (saved here, read live, synced identity): update what shows them.
 tags.addEventListener("change", () => {
   nowPlaying.refreshTags();
-  $("curation-wrap").hidden = !tags.cid;
+  showCurationTab();
   if (["tag", "tags", "curation"].includes(currentRoute().name)) render();
 });
 
@@ -948,8 +956,11 @@ function openInviteLink(secret) {
 
 const ROLE_NAMES = { curator: "Curator", admin: "Admin" };
 
+// The Curation tab ("Admin" for admins): an invite to accept, your role and
+// edits and, for admins, invites and curators to turn off and on.
 async function renderCuration(arg) {
-  setChrome({ title: arg ? "Edits" : "Curation", back: arg ? "#/curation" : "history", tab: "home" });
+  const title = arg ? "Edits" : tags.isAdmin ? "Admin" : "Curation";
+  setChrome({ title, back: arg ? "history" : null, tab: tags.cid ? "curation" : "home" });
   dom.infinite.disabled = true;
   const seq = ++curationSeq;
   const stale = () => seq !== curationSeq || currentRoute().name !== "curation";
@@ -966,10 +977,10 @@ async function renderCuration(arg) {
     const role = tags.role;
     sections.push(`<section class="composer-head">
       <div class="tag-avatar"><ion-icon name="${role === "admin" ? "shield-checkmark" : role ? "pricetags" : "close"}"></ion-icon></div>
-      <h1 class="composer-name">${role ? `You're ${role === "admin" ? "an admin" : "a curator"}` : "No longer a curator"}</h1>
+      <h1 class="composer-name">${role ? `You're ${role === "admin" ? "an admin" : "a curator"}` : "Your curator rights are off"}</h1>
       <p class="composer-meta">${role
         ? `Tag tunes with <strong>Tag</strong> in Now Playing, <strong>Edit Tags…</strong> in a tune's <strong>⋯</strong> menu, or the <strong>T</strong> key.`
-        : "An admin has taken back your rights."}</p>
+        : "An admin has turned your curator rights off. They can turn them back on."}</p>
       ${sync.enabled || !role ? "" : `<p class="composer-meta">Turn on Sync (the cloud on <strong>Playlists</strong>) to tag from your other devices too.</p>`}
       <div class="playlist-head composer-actions">
         <ion-button id="my-edits" fill="outline" href="#/curation/${esc(tags.cid)}">Your Edits</ion-button>
@@ -980,7 +991,8 @@ async function renderCuration(arg) {
   if (tags.isAdmin) {
     sections.push(`<h2 class="section-title">Curators</h2>
       <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
-      <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
+      <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>
+      <p class="result-count">A curator that's off can't tag. Their tags stay, and you can turn them back on.</p>`);
   }
   if (!sections.length) sections.push(`<div class="empty"><p>Curators tag tunes. You need an invite link from an admin to become one.</p></div>`);
   dom.view.innerHTML = sections.join("");
@@ -1042,7 +1054,7 @@ async function newInvite() {
 }
 
 function inviteStatus(row) {
-  if (row.curator) return row.curator.active ? ROLE_NAMES[row.curator.role] ?? "Curator" : "Revoked";
+  if (row.curator) return row.curator.active ? ROLE_NAMES[row.curator.role] ?? "Curator" : "Off";
   if (row.missing) return "Not found";
   if (!row.exp || row.exp <= Date.now()) return "Expired, unused";
   return `Waiting · expires ${new Date(row.exp).toLocaleDateString()}`;
@@ -1058,33 +1070,30 @@ async function fillCurators(stale) {
   }
   if (stale()) return;
   const list = $("curator-list");
+  // Curators get an on/off switch; admins are managed with tools/curators.py.
+  const toggle = (c) => (c.role === "curator"
+    ? `<ion-toggle slot="end" data-curator-active="${esc(c.cid)}" ${c.active ? "checked" : ""} aria-label="Can tag"></ion-toggle>` : "");
   list.innerHTML = rows.length ? rows.map((row) => `
-    <ion-item ${row.curator ? `button detail="false" data-curator="${esc(row.curator.cid)}" data-note="${esc(row.note)}"` : ""} lines="full">
+    <ion-item lines="full" class="curator-row">
       <ion-icon slot="start" name="${row.curator?.active ? "person-outline" : row.curator ? "person-remove-outline" : "hourglass-outline"}" color="${row.curator?.active ? "primary" : "medium"}"></ion-icon>
       <ion-label><h3>${esc(row.note || "No name")}</h3><p>${esc(inviteStatus(row))} · invited ${esc(new Date(row.created).toLocaleDateString())}</p></ion-label>
+      ${row.curator ? `<ion-button slot="end" fill="clear" size="small" href="#/curation/${esc(row.curator.cid)}">Edits</ion-button>${toggle(row.curator)}` : ""}
     </ion-item>`).join("")
     : `<div class="empty"><p>No invites yet. Invites you make show here.</p></div>`;
-  list.addEventListener("click", (e) => {
-    const row = e.target.closest("[data-curator]");
-    if (row) curatorMenu(row.dataset.curator, row.dataset.note, rows);
+  list.addEventListener("ionChange", async (e) => {
+    const cid = e.target.dataset?.curatorActive;
+    if (!cid) return;
+    const on = e.detail.checked;
+    const note = rows.find((r) => r.curator?.cid === cid)?.note || "Curator";
+    e.target.disabled = true;
+    try {
+      await tags.setActive(cid, on);
+      toast(on ? `${note} can tag again` : `${note} is off: can't tag, their tags stay`);
+    } catch (err) {
+      toast(`Couldn't change ${note}: ${err.message}`, { color: "danger" });
+    }
+    render();
   });
-}
-
-function curatorMenu(cid, note, rows) {
-  const curator = rows.find((r) => r.curator?.cid === cid)?.curator;
-  actionSheet(note || "Curator", [
-    { text: "See Edits", icon: "list", handler: () => go(`#/curation/${cid}`) },
-    ...(curator?.active && curator.role === "curator" ? [{ text: "Revoke", role: "destructive", icon: "person-remove-outline", handler: async () => {
-      if (!(await confirmDialog("Revoke curator?", `${note || "This curator"} can't tag tunes any more. Their tags stay.`, "Revoke"))) return;
-      try {
-        await tags.revoke(cid);
-        toast("Revoked");
-      } catch (err) {
-        toast(`Couldn't revoke: ${err.message}`, { color: "danger" });
-      }
-      render();
-    } }] : []),
-  ]);
 }
 
 // A curator's latest edits: to themself, and to admins.

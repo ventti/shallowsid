@@ -51,8 +51,8 @@ Tags:
 - Tunes can carry tags such as **Ballad**, **Title Tune** or **Digi Samples**, from a fixed list in [`js/tags-vocab.json`](js/tags-vocab.json). They show under the composer in Now Playing. Tap one for every tune with it. Home shows the most used tags, and typing `#` in search lists them.
 - A tag is on a whole tune or on one subtune. A subtune also shows the whole tune's tags.
 - Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
-- Curators join with a one-time invite link from an admin, valid for two weeks. It opens **Curation** (linked in the footer for curators), which also lists your edits. With Sync on, all your devices curate as one.
-- Admins also invite curators, see who tagged what, and revoke curators from **Curation**. Who tagged what is shown only to that curator and to admins.
+- Curators join with a one-time invite link from an admin, valid for two weeks. They then get a **Curation** tab right of **Playlists**, with their edits. With Sync on, all your devices curate as one.
+- Admins get an **Admin** tab there instead. It also invites curators, shows their edits and has an on/off switch per curator. A curator that's off can't tag; their tags stay. Who tagged what is shown only to that curator and to admins.
 - Others see new tags after the next deploy, which runs daily. Curators see them at once.
 
 Install as an app:
@@ -157,8 +157,8 @@ The accepted tag ids are written into `firestore.rules`, so the rules and the ap
    tools/curators.py invite --role admin
    ```
 
-2. Invite curators from **Curation → Invite a Curator…** in the app (or `tools/curators.py invite`).
-3. `tools/curators.py list` lists everyone; `tools/curators.py revoke <id>` takes rights back, also an admin's.
+2. Invite curators from **Admin → Invite a Curator…** in the app (or `tools/curators.py invite`).
+3. `tools/curators.py list` lists everyone. `tools/curators.py off <id>` and `on <id>` turn anyone off and back on, admins too; in the app, admins can only switch curators.
 
 ## Deploying the Firebase rules
 

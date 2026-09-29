@@ -827,6 +827,11 @@ ion-alert.info-alert .alert-message {
 
 /* ---- tags ---------------------------------------------------------------- */
 
+/* The Curation/Admin tab, only for curators: Ionic's display would override [hidden]. */
+ion-tab-button[hidden] {
+  display: none;
+}
+
 .np-tags {
   display: flex;
   flex-wrap: wrap;
