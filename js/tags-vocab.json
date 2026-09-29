@@ -8,6 +8,7 @@
         { "id": "ballad", "label": "Ballad" },
         { "id": "pop", "label": "Pop" },
         { "id": "rock", "label": "Rock" },
+        { "id": "prog", "label": "Prog" },
         { "id": "metal", "label": "Metal" },
         { "id": "funk", "label": "Funk" },
         { "id": "jazz", "label": "Jazz" },
@@ -24,8 +25,11 @@
         { "id": "latin", "label": "Latin" },
         { "id": "folk", "label": "Folk" },
         { "id": "classical", "label": "Classical" },
-        { "id": "orchestral", "label": "Orchestral" },
+        { "id": "novelty", "label": "Novelty" },
+        { "id": "prank", "label": "Prank" },
         { "id": "ambient", "label": "Ambient" },
+        { "id": "noise", "label": "Noise" },
+        { "id": "fake-music", "label": "Fake Music" },
         { "id": "experimental", "label": "Experimental" }
       ]
     },
@@ -33,6 +37,7 @@
       "name": "Mood",
       "tags": [
         { "id": "happy", "label": "Happy" },
+        { "id": "melodic", "label": "Melodic" },
         { "id": "melancholic", "label": "Melancholic" },
         { "id": "dark", "label": "Dark" },
         { "id": "epic", "label": "Epic" },
@@ -53,7 +58,7 @@
         { "id": "high-score", "label": "High Score" },
         { "id": "loader", "label": "Loader", "description": "Plays while a game loads" },
         { "id": "intro", "label": "Intro", "description": "Cracktro or demo intro" },
-        { "id": "demo", "label": "Demo Part" },
+        { "id": "demo", "label": "Demo Soundtrack" },
         { "id": "jingle", "label": "Jingle", "description": "A short sting or sound effect" }
       ]
     },
@@ -63,7 +68,7 @@
         { "id": "digi", "label": "Digi Samples", "description": "Sampled drums, speech or other digis" },
         { "id": "speech", "label": "Speech" },
         { "id": "multispeed", "label": "Multispeed", "description": "Player called more than once a frame" },
-        { "id": "filter-work", "label": "Filter Work", "description": "Filter sweeps as a big part of the sound" },
+        { "id": "filter", "label": "Filter", "description": "Filter sweeps or distortion as a big part of the sound" },
         { "id": "arpeggios", "label": "Arpeggios", "description": "Chords played as fast arpeggios" },
         { "id": "cover", "label": "Cover", "description": "A version of a song from outside the C64" },
         { "id": "remix-classic", "label": "Remix Classic", "description": "Often remixed in the C64 scene" }
