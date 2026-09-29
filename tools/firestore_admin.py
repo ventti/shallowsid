@@ -1,14 +1,15 @@
 """Firestore REST with admin (IAM) credentials, for the tag tools.
 
 These requests aren't bound by firestore.rules: they use your gcloud login
-(`gcloud auth print-access-token`), or GOOGLE_OAUTH_ACCESS_TOKEN (CI). With
-FIRESTORE_EMULATOR_HOST set they go to the emulator instead.
+(`gcloud auth print-access-token`), or GOOGLE_OAUTH_ACCESS_TOKEN (a service
+account in CI). With FIRESTORE_EMULATOR_HOST set they go to the emulator.
 """
 
 import json
 import os
 import re
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -22,6 +23,43 @@ def default_project():
     return match.group(1) if match else None
 
 
+def access_token():
+    """(token, from_ci): GOOGLE_OAUTH_ACCESS_TOKEN (a service account in CI) or your gcloud login."""
+    token = os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN")
+    if token:
+        return token, True
+    try:
+        return subprocess.run(["gcloud", "auth", "print-access-token"], check=True, capture_output=True, text=True).stdout.strip(), False
+    except (OSError, subprocess.CalledProcessError) as err:
+        raise SystemExit(f"Couldn't get a gcloud access token ({err}); run `gcloud auth login` first")
+
+
+def call(method, url, token, body=None, project=None, retries=3):
+    """JSON over HTTPS, retrying server errors. None for a 404 on GET."""
+    data = json.dumps(body).encode() if body is not None else None
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    # A user login needs a quota project; a service account uses its own.
+    if project:
+        headers["X-Goog-User-Project"] = project
+    for attempt in range(retries):
+        req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as res:
+                return json.load(res)
+        except urllib.error.HTTPError as err:
+            if err.code == 404 and method == "GET":
+                return None
+            if err.code >= 500 and attempt < retries - 1:
+                time.sleep(2 ** attempt * 5)
+                continue
+            raise SystemExit(f"{method} {url}: HTTP {err.code} {err.read().decode(errors='replace')}")
+        except urllib.error.URLError as err:
+            if attempt < retries - 1:
+                time.sleep(2 ** attempt * 5)
+                continue
+            raise SystemExit(f"{method} {url}: {err}")
+
+
 class Firestore:
     def __init__(self, project=None):
         self.project = project or default_project()
@@ -29,31 +67,12 @@ class Firestore:
             raise SystemExit("No Firebase project: pass --project or fill in js/sync-config.js")
         emulator = os.environ.get("FIRESTORE_EMULATOR_HOST")
         self.endpoint = f"http://{emulator}" if emulator else "https://firestore.googleapis.com"
-        self.token = "owner" if emulator else os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or self.gcloud_token()
+        self.token, from_ci = ("owner", True) if emulator else access_token()
+        self.quota_project = None if from_ci else self.project
         self.root = f"projects/{self.project}/databases/(default)/documents"
 
-    @staticmethod
-    def gcloud_token():
-        try:
-            return subprocess.run(["gcloud", "auth", "print-access-token"], check=True, capture_output=True, text=True).stdout.strip()
-        except (OSError, subprocess.CalledProcessError) as err:
-            raise SystemExit(f"Couldn't get a gcloud access token ({err}); run `gcloud auth login` first")
-
     def request(self, method, path, body=None, params=""):
-        url = f"{self.endpoint}/v1/{self.root}{path}{params}"
-        data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(url, data=data, method=method, headers={
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json",
-            "X-Goog-User-Project": self.project,
-        })
-        try:
-            with urllib.request.urlopen(req) as res:
-                return json.load(res)
-        except urllib.error.HTTPError as err:
-            if err.code == 404 and method == "GET":
-                return None
-            raise SystemExit(f"{method} {path}: HTTP {err.code} {err.read().decode(errors='replace')}")
+        return call(method, f"{self.endpoint}/v1/{self.root}{path}{params}", self.token, body, self.quota_project)
 
     def get(self, collection, doc_id):
         return self.request("GET", f"/{collection}/{doc_id}")

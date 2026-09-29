@@ -102,8 +102,17 @@ jobs:
         with:
           path: _site
 
-  deploy:
+  # Firestore rules go live after the build and its tests passed, and the site
+  # only after the rules did (see deploy-firebase.yaml).
+  firebase:
     needs: build
+    uses: ./.github/workflows/deploy-firebase.yaml
+    permissions:
+      contents: read
+      id-token: write
+
+  deploy:
+    needs: [build, firebase]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -1,7 +1,7 @@
 // Runs the real firestore.rules in the Firestore emulator against TagService
 // and hand-made attacks. Needs Java 11+; from the repo root:
-//   npx firebase-tools emulators:exec \
-//     --only firestore --project demo-shallowsid "node tests/rules/rules-check.mjs"
+//   npx firebase-tools@15.31.0 emulators:exec \
+//     --only firestore --project demo-shallowsid "node tests/rules/rules-check.mjs && node tests/rules/sync-check.mjs"
 import assert from "node:assert/strict";
 const REPO = new URL("../..", import.meta.url).href.replace(/\/$/, "");
 const storage = new Map();
@@ -22,8 +22,6 @@ const expect = async (label, promise, ok) => {
   catch (e) { results.push([label, ok ? "FAIL: " + e.message : "PASS (denied)"]); }
 };
 const rawCommit = (writes) => fetch(DOCS + ":commit?key=x", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ writes }) }).then(async (r) => { if (!r.ok) throw new Error(await r.text()); });
-const ids = vocabJSON.groups.flatMap((g) => g.tags.map((t) => t.id));
-await owner("config/vocab", { ids: { arrayValue: { values: ids.map((s) => ({ stringValue: s })) } } });
 const invite = async (role, secret, ms) => owner("invites/" + await core.inviteHash(secret), { role: { stringValue: role }, by: { stringValue: "cli" }, exp: { timestampValue: new Date(Date.now() + ms).toISOString() }, used: { nullValue: null } });
 const TUNE = "MUSICIANS/H/Hubbard_Rob/Commando.sid";
 const DAY = 86_400_000;

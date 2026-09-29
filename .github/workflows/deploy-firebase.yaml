@@ -1,0 +1,127 @@
+name: Deploy Firebase rules
+
+# Deploys firestore.rules, with the tag ids from js/tags-vocab.json, to the
+# Firebase project. pages.yml calls this between building and deploying the
+# site, so the site is only deployed if this succeeds, and new app code never
+# goes live before the rules it needs. On its own it runs the checks on pull
+# requests, and can be started by hand (a dry run by default).
+#
+# Deploying rules never touches data. The service account may deploy rules and
+# read the database (for the tag export), but not write to it. The release is
+# one atomic switch, skipped when nothing changed; see tools/deploy_rules.py
+# for what it checks first.
+
+on:
+  workflow_call:
+    inputs:
+      dry_run:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Check and show the diff, but don't release
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - firestore.rules
+      - firebase.json
+      - js/**
+      - tests/**
+      - tools/build_rules.py
+      - tools/deploy_rules.py
+      - tools/firestore_admin.py
+      - .github/workflows/deploy-firebase.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      # The Firestore emulator runs on Java.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Rules match the tag vocabulary
+        run: python3 tools/build_rules.py --check
+
+      - name: Unit tests
+        run: node --test "tests/*.test.mjs"
+
+      # Tags, curators and invites, then sync and live links, against the real rules.
+      - name: Rules in the Firestore emulator
+        run: >-
+          npx --yes firebase-tools@15.31.0 emulators:exec --only firestore --project demo-shallowsid
+          "node tests/rules/rules-check.mjs && node tests/rules/sync-check.mjs"
+
+  deploy:
+    needs: check
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    # One release at a time, never cancelled halfway.
+    concurrency:
+      group: firebase-rules
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      # FIREBASE_RULES_DEPLOY=off (a repo variable) skips the release, so the
+      # site still deploys while Google Cloud isn't set up.
+      - name: Check configuration
+        id: config
+        env:
+          PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          MODE: ${{ vars.FIREBASE_RULES_DEPLOY }}
+        run: |
+          if [ "$MODE" = "off" ]; then
+            echo "::warning::FIREBASE_RULES_DEPLOY is off: firestore.rules were not deployed"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$PROVIDER" ] || [ -z "$ACCOUNT" ]; then
+            echo "::error::Set the repo variables GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT (see README), or FIREBASE_RULES_DEPLOY=off"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        id: gcp
+        if: steps.config.outputs.skip != 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Deploy rules
+        id: rules
+        if: steps.config.outputs.skip != 'true'
+        run: python3 tools/deploy_rules.py ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+
+      # New rules reach every server within about a minute: let them before
+      # the site that relies on them goes live.
+      - name: Wait for the rules to take effect
+        if: steps.rules.outputs.changed == 'true'
+        run: sleep 60

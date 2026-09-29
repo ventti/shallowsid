@@ -30,6 +30,14 @@ test("the vocabulary's ids are well formed and unique, and every tag has a label
   assert.equal(vocab.byId.size, ids.length);
 });
 
+test("firestore.rules accepts exactly the vocabulary's tags and retired ids (tools/build_rules.py)", () => {
+  const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+  const block = rules.match(/BEGIN TAG IDS([\s\S]*?)END TAG IDS/)[1];
+  const ids = [...block.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
+  assert.deepEqual(ids, [...vocab.byId.keys(), ...(vocabJSON.retired ?? [])]);
+  for (const id of vocabJSON.retired ?? []) assert.ok(!vocab.byId.has(id), `${id} is retired and a tag`);
+});
+
 test("parseVocab drops malformed and repeated tags; cleanTags keeps known ids once, in order, capped", () => {
   const v = parseVocab({ groups: [{ name: "A", tags: [{ id: "ok", label: "OK" }, { id: "Bad Id", label: "x" }, { id: "ok", label: "again" }, { id: "nolabel" }] }, { name: "B", tags: [] }] });
   assert.deepEqual([...v.byId.keys()], ["ok"]);

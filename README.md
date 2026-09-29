@@ -112,7 +112,7 @@ In the devtools console, `shallowsid.player` and `shallowsid.store` are exposed 
 Sync talks to Firestore's REST API directly, with no secrets in the repo. The only Firebase SDK in use is App Check, loaded from gstatic on the first Firestore request. To enable it:
 
 1. Create a Firebase project and a Firestore database in an EU location (production mode).
-2. Paste [`firestore.rules`](firestore.rules) into **Firestore → Rules** and publish.
+2. Publish [`firestore.rules`](firestore.rules): the deploy workflow does it (see below), or paste it into **Firestore → Rules** once.
 3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults2`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
 4. Register a **Web app** and copy its `apiKey`, `projectId` and `appId` into [`js/sync-config.js`](js/sync-config.js). All are public.
 5. In Google Cloud **Credentials**, restrict that API key:
@@ -144,35 +144,69 @@ Records from before this are in `vaults/`, which is read-only. A device reads it
 
 Curators have no accounts either. Each has a random seed that syncs with their data; `curators/<id>` holds a proof chain like the vaults, and every tag edit is one batch that also moves the curator's chain on. Invites live at `invites/<sha256(secret)>` and work once. See the comments in `firestore.rules`.
 
-The tools below use your gcloud login (`gcloud auth login`), which isn't bound by the rules. They read the project from `js/sync-config.js`.
+The accepted tag ids are written into `firestore.rules`, so the rules and the app always ship the same list:
 
-1. Put the tag list in Firestore, and again after each change to `js/tags-vocab.json`:
+- Add, rename the label of, or regroup a tag in `js/tags-vocab.json`, then run `tools/build_rules.py`. CI fails if you forget.
+- To take a tag out, move its id to `"retired"`. The app hides it, but the rules still accept it, so devices on the previous version can still save those tunes. Deleting an id outright makes the deploy refuse.
 
-   ```sh
-   tools/push_vocab.py
-   ```
+`tools/curators.py` uses your gcloud login (`gcloud auth login`), which isn't bound by the rules. It reads the project from `js/sync-config.js`.
 
-2. Make yourself an admin. Open the printed link in ShallowSID, on a device with Sync on:
+1. Make yourself an admin. Open the printed link in ShallowSID, on a device with Sync on:
 
    ```sh
    tools/curators.py invite --role admin
    ```
 
-3. Invite curators from **Curation → Invite a Curator…** in the app (or `tools/curators.py invite`).
-4. `tools/curators.py list` lists everyone; `tools/curators.py revoke <id>` takes rights back, also an admin's.
+2. Invite curators from **Curation → Invite a Curator…** in the app (or `tools/curators.py invite`).
+3. `tools/curators.py list` lists everyone; `tools/curators.py revoke <id>` takes rights back, also an admin's.
 
-The deploy exports all tags into `data/tags-index.json` (`tools/export_tags.py`) with a service account through Workload Identity Federation:
+## Deploying the Firebase rules
 
-1. Create a service account with the **Cloud Datastore Viewer** role.
-2. Create a Workload Identity pool and GitHub provider for this repo, and let it impersonate the account (**Workload Identity User**).
-3. Set the repo variables `GCP_WORKLOAD_IDENTITY_PROVIDER` (`projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>`) and `GCP_SERVICE_ACCOUNT`.
+`.github/workflows/deploy-firebase.yaml` deploys `firestore.rules`. The Pages workflow runs it after the build and deploys the site only if it succeeded. On pull requests it only runs the checks.
 
-Without them, the export step is skipped and only curators see tags, on the tunes they open.
+Before releasing, it:
 
-The rules have their own check, which runs them in the Firestore emulator (needs Java 11+):
+- checks the rules are built from the current tag list,
+- runs the unit tests, then the rules in the Firestore emulator: tags, curators and invites (`tests/rules/rules-check.mjs`), and sync and live links (`tests/rules/sync-check.mjs`),
+- refuses rules that would stop accepting a tag id the live rules accept,
+- has Firebase compile the rules, and skips the release if they're unchanged.
+
+The release is one atomic switch, and the site waits a minute for it to take effect. Rules never change data. The service account can deploy rules and read the database, but not write to it. Firebase keeps earlier rulesets under **Firestore → Rules**, so rolling back is picking one there.
+
+Setup (once), with Workload Identity Federation, so no key is stored in GitHub:
 
 ```sh
-npx firebase-tools emulators:exec --only firestore --project demo-shallowsid "node tests/rules/rules-check.mjs"
+PROJECT=shallowsid
+NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+SA=shallowsid-ci@$PROJECT.iam.gserviceaccount.com
+
+gcloud services enable firebaserules.googleapis.com iamcredentials.googleapis.com sts.googleapis.com --project $PROJECT
+gcloud iam service-accounts create shallowsid-ci --project $PROJECT --display-name "ShallowSID GitHub Actions"
+gcloud projects add-iam-policy-binding $PROJECT --member serviceAccount:$SA --role roles/firebaserules.admin
+gcloud projects add-iam-policy-binding $PROJECT --member serviceAccount:$SA --role roles/datastore.viewer
+
+gcloud iam workload-identity-pools create github --project $PROJECT --location global --display-name GitHub
+gcloud iam workload-identity-pools providers create-oidc shallowsid --project $PROJECT --location global \
+  --workload-identity-pool github --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref \
+  --attribute-condition "assertion.repository == 'ventti/shallowsid' && assertion.ref == 'refs/heads/main'"
+gcloud iam service-accounts add-iam-policy-binding $SA --project $PROJECT --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/ventti/shallowsid"
+
+gh variable set GCP_WORKLOAD_IDENTITY_PROVIDER --body "projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/shallowsid"
+gh variable set GCP_SERVICE_ACCOUNT --body "$SA"
+```
+
+- Only runs on `main` of this repo can get a token, so a branch or a fork can't deploy rules.
+- The same account exports the tags into `data/tags-index.json` on each deploy.
+- Until the variables are set, the site doesn't deploy. Set the repo variable `FIREBASE_RULES_DEPLOY` to `off` to deploy the site without the rules.
+- To try it without releasing: **Actions → Deploy Firebase rules → Run workflow** (a dry run by default), or locally `tools/deploy_rules.py --dry-run` with your gcloud login.
+
+Run the emulator checks locally (needs Java 11+):
+
+```sh
+npx firebase-tools@15.31.0 emulators:exec --only firestore --project demo-shallowsid \
+  "node tests/rules/rules-check.mjs && node tests/rules/sync-check.mjs"
 ```
 
 ## Deployment

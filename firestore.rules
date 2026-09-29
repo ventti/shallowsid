@@ -90,15 +90,70 @@ service cloud.firestore {
     }
 
     // ---- tune tags (see js/tags-core.js) ----------------------------------
-    // Anyone can read tags. Only active curators can set them, and only
-    // ids from config/vocab (written by tools/push_vocab.py) are accepted, so
-    // there is no free text. Curators have no accounts: curators/<cid> holds a
+    // Anyone can read tags. Only active curators can set them, and only the
+    // ids in tagIds() below are accepted, so there is no free text. Curators have no accounts: curators/<cid> holds a
     // proof chain like lists/ above, and each curator write is one batch that
     // also moves the writer's chain on, which stepped() checks with
     // get() (before the batch) and getAfter() (after it).
     // Roles: "curator" tags; "admin" also invites curators and revokes them.
     // Admins come only from invites made with tools/curators.py, which uses
     // IAM credentials and isn't bound by these rules.
+    // Generated from js/tags-vocab.json (tags and retired ids) by
+    // tools/build_rules.py; edit the JSON and run it, don't edit here.
+    // BEGIN TAG IDS
+    function tagIds() {
+      return [
+        'ballad',
+        'pop',
+        'rock',
+        'metal',
+        'funk',
+        'jazz',
+        'blues',
+        'disco',
+        'electro',
+        'synthpop',
+        'techno',
+        'house',
+        'trance',
+        'drum-and-bass',
+        'hip-hop',
+        'reggae',
+        'latin',
+        'folk',
+        'classical',
+        'orchestral',
+        'ambient',
+        'experimental',
+        'happy',
+        'melancholic',
+        'dark',
+        'epic',
+        'calm',
+        'dreamy',
+        'energetic',
+        'aggressive',
+        'spooky',
+        'funny',
+        'title-tune',
+        'in-game',
+        'game-over',
+        'high-score',
+        'loader',
+        'intro',
+        'demo',
+        'jingle',
+        'digi',
+        'speech',
+        'multispeed',
+        'filter-work',
+        'arpeggios',
+        'cover',
+        'remix-classic'
+      ];
+    }
+    // END TAG IDS
+
     function curatorDoc(cid) {
       return /databases/$(database)/documents/curators/$(cid);
     }
@@ -115,11 +170,6 @@ service cloud.firestore {
 
     function inviteDoc(h) {
       return /databases/$(database)/documents/invites/$(h);
-    }
-
-    match /config/{id} {
-      allow get: if true;
-      allow list, write: if false;
     }
 
     match /curators/{cid} {
@@ -184,7 +234,7 @@ service cloud.firestore {
           && d.s is int && d.s >= 0 && d.s <= 256
           && hashing.sha256(d.p + '#' + string(d.s)).toHexString().lower() == id
           && d.t is list && d.t.size() <= 12
-          && d.t.hasOnly(get(/databases/$(database)/documents/config/vocab).data.ids)
+          && d.t.hasOnly(tagIds())
           && d.at == request.time
           && stepped(d.by);
       }
