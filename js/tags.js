@@ -14,7 +14,7 @@ import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import {
   WHOLE_TUNE, chainStep, claimWrites, cleanTags, curatorId, decodeCurator, decodeInvite, decodeTagDoc, decodeTagIndex,
-  inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, str, tagDocId, tagKey, tagWrite,
+  inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, expireInviteWrite, str, tagDocId, tagKey, tagWrite,
 } from "./tags-core.js";
 
 const STORAGE_KEY = "shallowsid.curation";
@@ -142,6 +142,7 @@ export class TagService extends EventTarget {
     if (!doc) return { status: "missing" };
     const invite = decodeInvite(doc);
     if (invite.used) return { status: "used", role: invite.role };
+    if (invite.cancelled) return { status: "cancelled", role: invite.role };
     if (!invite.exp || invite.exp <= Date.now()) return { status: "expired", role: invite.role };
     return { status: "ok", role: invite.role };
   }
@@ -153,6 +154,7 @@ export class TagService extends EventTarget {
     if (!doc) throw new Error("This invite doesn't exist");
     const invite = decodeInvite(doc);
     if (invite.used) throw new Error("This invite has already been used");
+    if (invite.cancelled) throw new Error("This invite was cancelled");
     if (!invite.exp || invite.exp <= Date.now()) throw new Error("This invite has expired");
     const seed = newCuratorSeed();
     const identity = { seed, cid: await curatorId(seed) };
@@ -197,7 +199,7 @@ export class TagService extends EventTarget {
       const doc = await this.get("invites", hash);
       const invite = doc ? decodeInvite(doc) : null;
       const curatorDoc = invite?.used ? await this.get("curators", invite.used) : null;
-      return { hash, note, created, exp: invite?.exp ?? null, used: invite?.used ?? null, curator: curatorDoc ? decodeCurator(curatorDoc) : null, missing: !doc };
+      return { hash, note, created, exp: invite?.exp ?? null, used: invite?.used ?? null, cancelled: !!invite?.cancelled, curator: curatorDoc ? decodeCurator(curatorDoc) : null, missing: !doc };
     }));
     return rows.sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
   }
@@ -207,6 +209,12 @@ export class TagService extends EventTarget {
     if (!cid) return null;
     if (cid === this.cid) return "you";
     return invites.find((i) => i.used === cid)?.note || null;
+  }
+
+  // Expire a waiting invite now, so its link stops working.
+  async expireInvite(hash) {
+    if (!this.isAdmin) throw new Error("Only admins can expire invites");
+    await this.step(async () => [expireInviteWrite(this.name, this.cid, hash)]);
   }
 
   // Turn a curator off (can't tag any more; their tags stay) or back on.

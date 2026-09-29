@@ -229,6 +229,14 @@ service cloud.firestore {
         && hashing.sha256(request.resource.data.secret).toHexString().lower() == h
         && request.resource.data.used is string && validVaultId(request.resource.data.used)
         && getAfter(curatorDoc(request.resource.data.used)).data.invite == h;
+      // Expired early by an admin while still waiting: exp becomes now, so
+      // it can't be used any more. Admin invites are left to tools/curators.py.
+      allow update: if resource.data.used == null
+        && resource.data.exp > request.time
+        && resource.data.role == 'curator'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['exp', 'cancelledBy'])
+        && request.resource.data.exp == request.time
+        && adminStepped(request.resource.data.cancelledBy);
     }
 
     // tags/<sha256("path#s")>: s = 0 is the whole tune, s >= 1 a subtune.

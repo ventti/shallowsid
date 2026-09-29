@@ -136,7 +136,7 @@ export function decodeCurator(doc) {
 export function decodeInvite(doc) {
   const f = doc?.fields ?? {};
   const role = fieldString(f.role);
-  return { role: ROLES.includes(role) ? role : null, by: fieldString(f.by), exp: fieldTime(f.exp), used: fieldString(f.used) };
+  return { role: ROLES.includes(role) ? role : null, by: fieldString(f.by), exp: fieldTime(f.exp), used: fieldString(f.used), cancelled: !!fieldString(f.cancelledBy) };
 }
 
 // ---- batched writes (documents:commit) ----------------------------------------------
@@ -190,6 +190,16 @@ export async function inviteWrite(name, cid, secret, now = Date.now(), days = IN
       fields: { role: str("curator"), by: str(cid), exp: time(now + days * 86_400_000), used: NULL },
     },
     currentDocument: { exists: false },
+  };
+}
+
+// An admin expiring a waiting invite now (the server's time, as the rules require).
+export function expireInviteWrite(name, adminCid, hash) {
+  return {
+    update: { name: name("invites", hash), fields: { cancelledBy: str(adminCid) } },
+    updateMask: { fieldPaths: ["cancelledBy"] },
+    updateTransforms: [{ fieldPath: "exp", setToServerValue: "REQUEST_TIME" }],
+    currentDocument: { exists: true },
   };
 }
 

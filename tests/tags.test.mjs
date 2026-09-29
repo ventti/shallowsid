@@ -119,6 +119,7 @@ async function check(key, before, after, all) {
     if (!before) {
       const h = sget(f.invite), inv = docs.get(`invites/${h}`), invAfter = afterOf(`invites/${h}`);
       if (!inv || inv.fields.used.nullValue !== null || sget(invAfter.fields.used) !== id) return "invite";
+      if (Date.parse(inv.fields.exp.timestampValue) <= Date.now()) return "expired";
       if (sget(f.role) !== sget(inv.fields.role) || nget(f.n) !== 0) return "claim";
       return null;
     }
@@ -134,6 +135,12 @@ async function check(key, before, after, all) {
     if (!before) {
       const by = sget(f.by);
       return sget(f.role) === "curator" && stepped(by) && sget(docs.get(`curators/${by}`).fields.role) === "admin" ? null : "invite create";
+    }
+    if (f.cancelledBy && !before.fields.cancelledBy) {
+      const admin = sget(f.cancelledBy);
+      const ok = before.fields.used.nullValue === null && sget(before.fields.role) === "curator" && Date.parse(before.fields.exp.timestampValue) > Date.now()
+        && stepped(admin) && sget(docs.get(`curators/${admin}`).fields.role) === "admin";
+      return ok ? null : "invite expire";
     }
     if (before.fields.used.nullValue !== null || await sha256Hex(sget(f.secret)) !== id) return "invite use";
     return null;
@@ -163,6 +170,7 @@ globalThis.fetch = async (url, { method = "GET", body } = {}) => {
     if (w.currentDocument?.exists === true && !before) return json(404, { error: { status: "NOT_FOUND", message: key } });
     if (w.currentDocument?.updateTime && before?.updateTime !== w.currentDocument.updateTime) return json(400, { error: { status: "FAILED_PRECONDITION", message: key } });
     const fields = w.updateMask ? { ...before?.fields, ...w.update.fields } : { ...w.update.fields };
+    for (const t of w.updateTransforms ?? []) fields[t.fieldPath] = { timestampValue: new Date().toISOString() };
     staged.set(key, { fields, updateTime: `t${++clock}` });
   }
   for (const [key, after] of staged) {
@@ -252,6 +260,26 @@ test("curators can't invite; a curator turned off can't tag until turned back on
   await curator.refreshCurator();
   assert.equal(curator.canTag, true);
   await curator.save(TUNE, [{ song: 0, tags: ["funk"] }]);
+});
+
+test("an admin expires a waiting invite: its link stops working; used ones can't be expired", async () => {
+  const admin = service("admin");
+  await admin.init();
+  await cliInvite("admin", "d".repeat(32));
+  await admin.claim("d".repeat(32));
+  const waiting = secretOf(await admin.createInvite("Waiting"));
+  const used = secretOf(await admin.createInvite("Used"));
+  const curator = service("curator");
+  await curator.init();
+  await curator.claim(used);
+
+  const rows = await admin.invites();
+  await admin.expireInvite(rows.find((r) => r.note === "Waiting").hash);
+  assert.deepEqual(await curator.checkInvite(waiting), { status: "cancelled", role: "curator" });
+  await assert.rejects(service("late").claim(waiting), /cancelled/);
+  assert.equal((await admin.invites()).find((r) => r.note === "Waiting").cancelled, true);
+  await assert.rejects(admin.expireInvite(rows.find((r) => r.note === "Used").hash), /Not allowed/);
+  await assert.rejects(curator.expireInvite(rows.find((r) => r.note === "Waiting").hash), /Only admins/);
 });
 
 test("someone without rights can't tag, even with a made-up curator id", async () => {

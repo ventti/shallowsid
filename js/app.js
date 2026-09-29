@@ -1023,6 +1023,7 @@ async function inviteCard(secret) {
   if (status.status === "missing") return card("Unknown invite", "This invite doesn't exist. Ask for a new one.");
   if (status.status === "used") return card("Invite already used", "Each invite works once. Ask for a new one if it wasn't you.");
   if (status.status === "expired") return card("Invite expired", "Invites last two weeks. Ask for a new one.");
+  if (status.status === "cancelled") return card("Invite cancelled", "An admin expired this invite. Ask for a new one if you need it.");
   if (tags.role === "admin" || (tags.role && status.role === "curator")) return card("You're already " + (tags.role === "admin" ? "an admin" : "a curator"), "Keep this invite for someone else.");
   return card(`You're invited to tag tunes`, status.role === "admin"
     ? "As an admin you can tag tunes, invite curators and take their rights back."
@@ -1053,9 +1054,13 @@ async function newInvite() {
   render();
 }
 
+// An invite nobody has used yet, still in time: it can be expired now.
+const waiting = (row) => !row.curator && !row.used && !row.missing && !row.cancelled && row.exp > Date.now();
+
 function inviteStatus(row) {
   if (row.curator) return row.curator.active ? ROLE_NAMES[row.curator.role] ?? "Curator" : "Off";
   if (row.missing) return "Not found";
+  if (row.cancelled) return "Expired by an admin, unused";
   if (!row.exp || row.exp <= Date.now()) return "Expired, unused";
   return `Waiting · expires ${new Date(row.exp).toLocaleDateString()}`;
 }
@@ -1078,8 +1083,22 @@ async function fillCurators(stale) {
       <ion-icon slot="start" name="${row.curator?.active ? "person-outline" : row.curator ? "person-remove-outline" : "hourglass-outline"}" color="${row.curator?.active ? "primary" : "medium"}"></ion-icon>
       <ion-label><h3>${esc(row.note || "No name")}</h3><p>${esc(inviteStatus(row))} · invited ${esc(new Date(row.created).toLocaleDateString())}</p></ion-label>
       ${row.curator ? `<ion-button slot="end" fill="clear" size="small" href="#/curation/${esc(row.curator.cid)}">Edits</ion-button>${toggle(row.curator)}` : ""}
+      ${waiting(row) ? `<ion-button slot="end" fill="clear" size="small" color="danger" data-expire-invite="${esc(row.hash)}" data-note="${esc(row.note)}">Expire</ion-button>` : ""}
     </ion-item>`).join("")
     : `<div class="empty"><p>No invites yet. Invites you make show here.</p></div>`;
+  list.addEventListener("click", async (e) => {
+    const button = e.target.closest("[data-expire-invite]");
+    if (!button) return;
+    const note = button.dataset.note || "this person";
+    if (!(await confirmDialog("Expire invite?", `The link for ${note} stops working now. You can send a new one later.`, "Expire"))) return;
+    try {
+      await tags.expireInvite(button.dataset.expireInvite);
+      toast("Invite expired");
+    } catch (err) {
+      toast(`Couldn't expire the invite: ${err.message}`, { color: "danger" });
+    }
+    render();
+  });
   list.addEventListener("ionChange", async (e) => {
     const cid = e.target.dataset?.curatorActive;
     if (!cid) return;

@@ -61,6 +61,17 @@ await expect("admin can't turn itself off in the app", (async () => rawCommit([a
 await expect("admin turns curator back on", admin.setActive(cur.cid, true), true);
 await expect("curator tags again", (async () => { await cur.refreshCurator(); return cur.save(TUNE, [{ song: 0, tags: ["funk"] }]); })(), true);
 await expect("admin turns curator off again", admin.setActive(cur.cid, false), true);
+// Expiring invites early.
+let waitingLink; await expect("admin creates a second invite", admin.createInvite("Later").then((l) => (waitingLink = l)), true);
+const waitingHash = await core.inviteHash(core.parseInviteLink(waitingLink));
+await expect("curator can't expire an invite", (async () => rawCommit([core.expireInviteWrite(name, cur.cid, waitingHash)]))(), false);
+await expect("expire without a chain step refused", (async () => rawCommit([core.expireInviteWrite(name, admin.cid, waitingHash)]))(), false);
+await expect("expire must set exp to now", (async () => { const w = core.expireInviteWrite(name, admin.cid, waitingHash); delete w.updateTransforms; w.update.fields.exp = { timestampValue: new Date(Date.now() + 7 * DAY).toISOString() }; w.updateMask.fieldPaths.push("exp"); return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]); })(), false);
+await expect("admin expires a waiting invite", admin.expireInvite(waitingHash), true);
+await expect("expired invite can't be claimed", svc("late").claim(core.parseInviteLink(waitingLink)), false);
+await expect("expired invite can't be claimed (raw)", (async () => { const s2 = svc("late2"); const seed = "ef".repeat(32); const id = { seed, cid: await core.curatorId(seed) }; const doc = await s2.get("invites", waitingHash); const inv = core.decodeInvite(doc); return rawCommit(await core.claimWrites(name, id, core.parseInviteLink(waitingLink), { ...inv, role: "curator" }, doc)); })(), false);
+await expect("used invite can't be expired", (async () => { const h = await core.inviteHash(core.parseInviteLink(link)); return admin.expireInvite(h); })(), false);
+await expect("admin invite can't be expired in the app", (async () => { await invite("admin", "8".repeat(32), DAY); return admin.expireInvite(await core.inviteHash("8".repeat(32))); })(), false);
 await expect("anyone reads tags", svc("r").refresh({ path: TUNE, song: 1, songs: 3 }), true);
 await expect("admin lists a curator's edits", admin.editsBy(cur.cid).then((e) => assert.equal(e.length, 2)), true);
 await expect("an admin can't be turned off in the app", (async () => { await invite("admin", "9".repeat(32), DAY); const admin2 = svc("a2"); await admin2.init(); await admin2.claim("9".repeat(32)); return rawCommit([await core.chainStep(name, admin2.state, await curDoc(admin2)), core.activeWrite(name, admin2.cid, admin.cid, false)]); })(), false);
