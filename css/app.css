@@ -842,13 +842,6 @@ ion-tab-button[hidden] {
   display: none;
 }
 
-.tag-chip {
-  --background: rgba(var(--ion-color-primary-rgb), 0.14);
-  --color: var(--ion-color-primary-tint);
-  font-size: 13px;
-  height: 28px;
-}
-
 .tag-song,
 .tag-count {
   margin-left: 6px;
