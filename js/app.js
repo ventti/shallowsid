@@ -1006,8 +1006,7 @@ async function renderCuration(arg) {
   if (tags.isAdmin) {
     sections.push(`<h2 class="section-title">Curators</h2>
       <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
-      <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>
-      <p class="result-count">A curator that's off can't tag. Their tags stay, and you can turn them back on.</p>`);
+      <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
   }
   if (!sections.length) sections.push(`<div class="empty"><p>Curators tag tunes. You need an invite link from an admin to become one.</p></div>`);
   dom.view.innerHTML = sections.join("");
