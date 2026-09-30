@@ -51,7 +51,7 @@ Tags:
 - Tunes can carry tags such as **Ballad**, **Title Tune** or **Digi Samples**, from a fixed list in [`js/tags-vocab.json`](js/tags-vocab.json). They show under the composer in Now Playing. Tap one for every tune with it. Home shows the most used tags, and typing `#` in search lists them.
 - A tag is on a whole tune or on one subtune. A subtune also shows the whole tune's tags.
 - Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
-- Curators join with a one-time invite link from an admin, valid for two weeks. They then get a **Curation** tab right of **Playlists**, with their edits. With Sync on, all your devices curate as one.
+- Curators join with a one-time invite link from an admin, valid for two weeks. Accepting turns on Sync if it's off, since the rights live in your synced data. They then get a **Curation** tab right of **Playlists**, with their edits. Use the same sync key on your other devices to curate there too.
 - Admins get an **Admin** tab there instead. It also invites curators, shows their edits and has an on/off switch per curator. An invite nobody has used yet can be expired early with **Expire**. A curator that's off can't tag; their tags stay. Who tagged what is shown only to that curator and to admins.
 - Others see new tags after the next deploy, which runs daily. Curators see them at once.
 

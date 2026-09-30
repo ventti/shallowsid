@@ -1026,18 +1026,35 @@ async function inviteCard(secret) {
   if (status.status === "cancelled") return card("Invite cancelled", "An admin expired this invite. Ask for a new one if you need it.");
   if (tags.role === "admin" || (tags.role && status.role === "curator")) return card("You're already " + (tags.role === "admin" ? "an admin" : "a curator"), "Keep this invite for someone else.");
   return card(`You're invited to tag tunes`, status.role === "admin"
-    ? "As an admin you can tag tunes, invite curators and take their rights back."
-    : "As a curator you pick tags for tunes and subtunes from a fixed list. Everyone sees them.",
+    ? `As an admin you can tag tunes, invite curators and turn them off.${syncNote()}`
+    : `As a curator you pick tags for tunes and subtunes from a fixed list. Everyone sees them.${syncNote()}`,
     `<ion-button id="accept-invite">Become ${status.role === "admin" ? "an Admin" : "a Curator"}</ion-button>`);
 }
 
+// Curating turns Sync on (or back on): the curator identity lives in this
+// browser and in the synced data, so this keeps it safe and lets the user's
+// other devices curate too.
+const syncNote = () => (sync.configured && !sync.enabled ? " Accepting also turns on Sync, which keeps your rights on all your devices." : "");
+
 async function acceptInvite() {
+  let role;
   try {
-    const role = await tags.claim(pendingInvite);
+    role = await tags.claim(pendingInvite);
     pendingInvite = null;
-    toast(`You're ${role === "admin" ? "an admin" : "a curator"} now`);
   } catch (err) {
     toast(`Couldn't join: ${err.message}`, { color: "danger" });
+    return render();
+  }
+  const you = `You're ${role === "admin" ? "an admin" : "a curator"} now.`;
+  if (!sync.configured || sync.enabled) {
+    toast(you);
+    return render();
+  }
+  await (sync.hasKey ? sync.resume() : sync.turnOn());
+  if (sync.status === "error") {
+    toast(`${you} Sync couldn't start: ${sync.error} Turn it on from the cloud on Playlists.`, { color: "warning", duration: 8000 });
+  } else {
+    toast(`${you} Sync is on, so your rights are kept. To curate on another device, use this sync key there (the cloud on Playlists).`, { duration: 8000 });
   }
   render();
 }
