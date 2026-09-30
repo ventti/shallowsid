@@ -17,3 +17,5 @@ magick icon-source.png -resize 180x180 -alpha off apple-touch-icon.png
 magick "$tmp/rounded.png" -define icon:auto-resize=48,32,16 ../favicon.ico
 # Link preview card; its text uses Helvetica Neue (macOS), falling back to Arial
 rsvg-convert -w 1200 -h 630 og-image.svg -o og-image.png
+# Mock-ups of the icon on macOS, iOS, Android, Ubuntu and Linux Mint, into docs/mockups
+python3 ../tools/build_mockups.py
