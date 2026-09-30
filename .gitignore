@@ -4,3 +4,4 @@ hvsc/
 __pycache__/
 .DS_Store
 firestore-debug.log
+docs/mockups/
