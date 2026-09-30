@@ -865,15 +865,24 @@ const HOME_TAGS = 12;
 
 // Tunes with a tag: those tagged as a whole (playing from their start song),
 // then subtunes tagged on their own.
-function tagItems(id) {
+// The tunes and subtunes carrying any of the tag ids.
+function tagItems(wanted) {
   const tunes = [], subtunes = [];
   for (const { path, song, tags: ids } of tags.entries()) {
-    const tune = ids.includes(id) && index.get(path);
+    const tune = ids.some((id) => wanted.includes(id)) && index.get(path);
     if (!tune) continue;
     if (song === WHOLE_TUNE) tunes.push(asItem(tune));
     else if (song <= tune.songs) subtunes.push(asItem(tune, song));
   }
   return { tunes: sortResults(tunes, listSort()), subtunes: sortResults(subtunes, listSort()) };
+}
+
+// A tag's tunes, with Tunes and Subtunes headings when there are both.
+function showTagItems(container, { tunes, subtunes }) {
+  const parts = [["Tunes", tunes], ["Subtunes", subtunes]].filter(([, items]) => items.length);
+  let start = 0;
+  const sections = parts.length > 1 ? parts.map(([title, items]) => ({ title, start: (start += items.length) - items.length, count: items.length })) : undefined;
+  showList(container, [...tunes, ...subtunes], { all: true, sections });
 }
 
 const tagChip = (id, count) => `<ion-chip data-open-tag="${esc(id)}" class="tag-chip">${esc(tags.label(id))}${count != null ? `<span class="tag-count">${count}</span>` : ""}</ion-chip>`;
@@ -886,7 +895,8 @@ function tagChips() {
     <div class="chips">${top.map(([id, count]) => tagChip(id, count)).join("")}<ion-chip data-all-tags outline>All tags</ion-chip></div>`;
 }
 
-// "#fu" in the search bar: tags whose name matches, those in use first.
+// "#fu" in the search bar: tags whose name matches, those in use first, and
+// below them the tunes carrying any of those tags.
 function renderTagSearch(text) {
   const q = text.trim().toLowerCase();
   const counts = tags.counts();
@@ -894,9 +904,15 @@ function renderTagSearch(text) {
     .filter((t) => !q || t.label.toLowerCase().includes(q) || t.id.includes(q))
     .sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.label.localeCompare(b.label));
   dom.infinite.disabled = true;
-  dom.view.innerHTML = found.length
-    ? `<p class="result-count">Tags</p><div class="chips">${found.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`
-    : `<div class="empty"><p>No tag matches “${esc(text)}”.</p></div>`;
+  if (!found.length) {
+    dom.view.innerHTML = `<div class="empty"><p>No tag matches “${esc(text)}”.</p></div>`;
+    return;
+  }
+  const items = q ? tagItems(found.map((t) => t.id)) : { tunes: [], subtunes: [] };
+  const total = items.tunes.length + items.subtunes.length;
+  dom.view.innerHTML = `<p class="result-count">Tags</p><div class="chips">${found.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`
+    + (total ? `<p class="result-count">${tuneCount(total)}</p><div id="tag-tunes"></div>` : "");
+  if (total) showTagItems($("tag-tunes"), items);
 }
 
 function renderAllTags() {
@@ -905,8 +921,7 @@ function renderAllTags() {
   const counts = tags.counts();
   dom.view.innerHTML = tags.vocab.groups.map((g) => `
     <h2 class="section-title">${esc(g.name)}</h2>
-    <div class="chips">${g.tags.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`).join("")
-    + `<p class="result-count">Tags are picked by curators from this fixed list.</p>`;
+    <div class="chips">${g.tags.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`).join("");
 }
 
 function renderTag(id) {
@@ -917,8 +932,8 @@ function renderTag(id) {
     dom.view.innerHTML = `<div class="empty"><p>There's no tag “${esc(id)}”.</p></div>`;
     return;
   }
-  const { tunes, subtunes } = tagItems(id);
-  const all = [...tunes, ...subtunes];
+  const items = tagItems([id]);
+  const all = [...items.tunes, ...items.subtunes];
   const meta = [tag.group, tuneCount(all.length)].filter(Boolean);
   dom.view.innerHTML = `
     <section class="composer-head">
@@ -933,10 +948,7 @@ function renderTag(id) {
     </section>
     ${all.length ? (all.length > 1 ? sortBar("list") : "") : `<div class="empty"><p>No tunes have this tag yet.</p></div>`}
     <div id="tag-tunes"></div>`;
-  const parts = [["Tunes", tunes], ["Subtunes", subtunes]].filter(([, items]) => items.length);
-  let start = 0;
-  const sections = parts.length > 1 ? parts.map(([title, items]) => ({ title, start: (start += items.length) - items.length, count: items.length })) : undefined;
-  showList($("tag-tunes"), all, { all: true, sections });
+  showTagItems($("tag-tunes"), items);
   $("top-play").addEventListener("click", () => player.setQueue(all, 0));
   $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(all), 0));
 }
