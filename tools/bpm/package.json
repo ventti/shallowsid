@@ -1,0 +1,8 @@
+{
+  "name": "shallowsid-bpm",
+  "private": true,
+  "description": "Renders SID subtunes for tools/bpm/bpm.py",
+  "dependencies": {
+    "libsidplayfp-wasm": "1.0.1"
+  }
+}

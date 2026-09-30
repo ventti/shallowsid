@@ -225,6 +225,22 @@ tools/fetch_hvsc.py --dest ~/.cache/shallowsid/_site/hvsc
 
 When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it instead of downloading. For GitHub Pages, run `tools/fetch_hvsc.py --dest _site/hvsc` before the build step. It fits under the 1 GB limit.
 
+## BPM estimates (experimental)
+
+`tools/bpm/bpm.py` guesses the tempo of every subtune. It renders a minute of each with SIDLite (~65x realtime) and runs essentia's beat tracker on it, one worker per core. The whole HVSC takes about 6 hours on a 16-core Mac.
+
+1. Set up once, in `tools/bpm`:
+   ```sh
+   npm install
+   uv venv -p 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
+   ```
+2. Run it on a folder, or on a list of `path[:song]` lines:
+   ```sh
+   tools/bpm/.venv/bin/python tools/bpm/bpm.py bpm.jsonl hvsc
+   ```
+
+Each subtune gets a JSONL row with `bpm`, essentia's `confidence` and a second opinion (`percival`). Stop it any time; a rerun skips what's done. Half or double tempo is the usual mistake, and `reliable` is false when the confidence is low or the tempo is implausible (sound effects, silence).
+
 ## How it works
 
 - `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).

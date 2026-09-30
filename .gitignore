@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 firestore-debug.log
 docs/mockups/
+tools/bpm/.venv/
+tools/bpm/node_modules/
