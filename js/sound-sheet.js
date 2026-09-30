@@ -1,25 +1,30 @@
-// The "Sound" sheet: pick a chip preset, adjust reSIDfp's knobs, and save,
-// export or import your own variants. Laid out like iOS Settings.
+// The "Sound" sheet: pick the chip and machine, a 6581 and an 8580 preset,
+// adjust reSIDfp's knobs, and save, export or import your own variants. Laid
+// out like iOS Settings.
 
 import { safeFileName } from "./playlist-format.js";
-import { BUILTIN_PRESETS } from "./sound-profile.js";
+import { PRESET_CHIPS } from "./sound-profile.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast } from "./ui.js";
 
-const RANGES = [
-  { key: "filter6581Curve", label: "6581 filter curve", chip: "6581" },
-  { key: "filter6581Range", label: "6581 filter range", chip: "6581" },
-  { key: "filter8580Curve", label: "8580 filter curve", chip: "8580" },
-];
+const RANGES = {
+  6581: [{ key: "filter6581Curve", label: "Filter curve" }, { key: "filter6581Range", label: "Filter range" }],
+  8580: [{ key: "filter8580Curve", label: "Filter curve" }],
+};
+const TOGGLES = {
+  6581: [{ key: "old6581Caps", label: "Old capacitors" }],
+  8580: [{ key: "digiBoost", label: "Digi boost" }],
+};
 
-const segment = (key, value, options) => `
-  <ion-segment data-setting="${key}" value="${esc(value)}">
+// `chip` marks a per-chip knob; without it the setting is global.
+const segment = (key, value, options, chip = "") => `
+  <ion-segment data-setting="${key}"${chip ? ` data-chip="${chip}"` : ""} value="${esc(value)}">
     ${options.map(([v, text]) => `<ion-segment-button value="${esc(v)}"><ion-label>${esc(text)}</ion-label></ion-segment-button>`).join("")}
   </ion-segment>`;
 
 const PREVIEW_INTERVAL_MS = 80;   // live slider updates while dragging
 
 // Events: "adjusting" {detail: bool} when the sheet opens/closes,
-//         "preview" {detail: partial settings} while a slider is dragged.
+//         "preview" {detail: {chip, knobs}} while a slider is dragged.
 export class SoundSheet extends EventTarget {
   constructor(settings) {
     super();
@@ -45,53 +50,56 @@ export class SoundSheet extends EventTarget {
   }
 
   presetRow(p) {
-    const active = p.id === this.settings.activeId;
+    const active = p.id === this.settings.selected[p.chip];
     const menu = p.builtin ? "" : `<ion-button slot="end" fill="clear" data-preset-menu="${p.id}" aria-label="More"><ion-icon slot="icon-only" name="ellipsis-horizontal"></ion-icon></ion-button>`;
     return `<ion-item button detail="false" data-preset="${p.id}">
       <ion-label>
-        <h3>${esc(p.name)}${active && this.settings.isEdited ? ` <span class="edited-mark">Edited</span>` : ""}</h3>
-        ${p.description ? `<p>${esc(p.description)}</p>` : ""}
+        <h3>${esc(p.name)}${active && this.settings.isEdited(p.chip) ? ` <span class="edited-mark">Edited</span>` : ""}</h3>
       </ion-label>
       ${active ? `<ion-icon slot="end" name="checkmark" color="primary" aria-label="Selected"></ion-icon>` : ""}
       ${menu}
     </ion-item>`;
   }
 
-  render() {
-    this.revertButton.hidden = !this.settings.isEdited;
-    const s = this.settings.current;
-    // Gray out the other chip's knobs when one chip is forced; with Auto both may apply.
-    const off = (chip) => (s.chip !== "auto" && s.chip !== chip ? " disabled" : "");
-    const mine = this.settings.presets;
-    this.root.innerHTML = `
-      <h3 class="sound-section">Measured chips</h3>
+  // One chip's presets and knobs. Grayed out while the other chip is forced.
+  chipSection(chip) {
+    const { builtin, mine } = this.settings.presetsFor(chip);
+    const k = this.settings.knobs(chip);
+    const off = this.settings.chip !== "auto" && this.settings.chip !== chip ? " disabled" : "";
+    return `
+      <h3 class="sound-section">${chip} presets</h3>
       <ion-list inset>
-        ${BUILTIN_PRESETS.map((p) => this.presetRow(p)).join("")}
-      </ion-list>
-      <h3 class="sound-section">My presets</h3>
-      <ion-list inset>
-        ${mine.map((p) => this.presetRow(p)).join("")}
-        <ion-item button detail="false" id="sound-save-new" lines="none">
+        ${[...builtin, ...mine].map((p) => this.presetRow(p)).join("")}
+        <ion-item button detail="false" data-save-new="${chip}" lines="none">
           <ion-icon slot="start" name="add-circle-outline" color="primary"></ion-icon>
-          <ion-label color="primary">Save as Preset…</ion-label>
+          <ion-label color="primary">Save as ${chip} Preset…</ion-label>
         </ion-item>
       </ion-list>
-
-      <h3 class="sound-section">Adjust</h3>
       <ion-list inset>
-        <ion-item><ion-label>Chip</ion-label>${segment("chip", s.chip, [["auto", "Auto"], ["6581", "6581"], ["8580", "8580"]])}</ion-item>
-        <ion-item><ion-label>Machine</ion-label>${segment("machine", s.machine, [["auto", "Auto"], ["PAL", "PAL"], ["NTSC", "NTSC"]])}</ion-item>
-        ${RANGES.map(({ key, label, chip }) => `
+        ${RANGES[chip].map(({ key, label }) => `
           <ion-item>
-            <ion-range data-setting="${key}" min="0" max="1" step="0.01" value="${s[key]}" aria-label="${label}"${off(chip)}>
-              <div slot="label">${label} <span class="range-value" data-value-for="${key}">${s[key].toFixed(2)}</span></div>
+            <ion-range data-setting="${key}" data-chip="${chip}" min="0" max="1" step="0.01" value="${k[key]}" aria-label="${chip} ${label}"${off}>
+              <div slot="label">${label} <span class="range-value" data-value-for="${key}">${k[key].toFixed(2)}</span></div>
             </ion-range>
           </ion-item>`).join("")}
-        <ion-item><ion-toggle data-setting="old6581Caps" ${s.old6581Caps ? "checked" : ""}${off("6581")}>Old 6581 capacitors</ion-toggle></ion-item>
-        <ion-item><ion-label>Combined waveforms</ion-label>${segment("combinedWaveforms", s.combinedWaveforms, [["WEAK", "Weak"], ["AVERAGE", "Avg"], ["STRONG", "Strong"]])}</ion-item>
-        <ion-item lines="none"><ion-toggle data-setting="digiBoost" ${s.digiBoost ? "checked" : ""}${off("8580")}>8580 digi boost</ion-toggle></ion-item>
+        ${TOGGLES[chip].map(({ key, label }) => `
+          <ion-item><ion-toggle data-setting="${key}" data-chip="${chip}" ${k[key] ? "checked" : ""}${off}>${label}</ion-toggle></ion-item>`).join("")}
+        <ion-item lines="none"><ion-label>Combined waveforms</ion-label>${segment("combinedWaveforms", k.combinedWaveforms, [["WEAK", "Weak"], ["AVERAGE", "Avg"], ["STRONG", "Strong"]], chip)}</ion-item>
+      </ion-list>`;
+  }
+
+  render() {
+    this.revertButton.hidden = !this.settings.anyEdited;
+    const mine = this.settings.presets;
+    this.root.innerHTML = `
+      <h3 class="sound-section">Emulation</h3>
+      <ion-list inset>
+        <ion-item><ion-label>Chip</ion-label>${segment("chip", this.settings.chip, [["auto", "Auto"], ["6581", "6581"], ["8580", "8580"]])}</ion-item>
+        <ion-item lines="none"><ion-label>Machine</ion-label>${segment("machine", this.settings.machine, [["auto", "Auto"], ["PAL", "PAL"], ["NTSC", "NTSC"]])}</ion-item>
       </ion-list>
-      <p class="sound-note">Changes play at once. Editing a measured chip makes an edited copy; your own presets save automatically.</p>
+      <p class="sound-note">Auto plays each tune on the chip and machine it was written for, using the preset selected for that chip.</p>
+
+      ${PRESET_CHIPS.map((chip) => this.chipSection(chip)).join("")}
 
       <h3 class="sound-section">Playback</h3>
       <ion-list inset>
@@ -119,29 +127,32 @@ export class SoundSheet extends EventTarget {
       }
       const row = e.target.closest("[data-preset]");
       if (row) return this.settings.select(row.dataset.preset);
-      if (e.target.closest("#sound-save-new")) return this.saveAsNew();
+      const saveNew = e.target.closest("[data-save-new]");
+      if (saveNew) return this.saveAsNew(saveNew.dataset.saveNew);
       if (e.target.closest("#sound-export")) return this.exportPresets(this.settings.presets.map((p) => p.id));
       if (e.target.closest("#sound-import")) return this.importInput.click();
     });
     // Segments, toggles and sliders (on release) change the sound.
     root.addEventListener("ionChange", (e) => {
       if (e.target.id === "sound-prerender") return this.settings.setPrerender(e.detail.checked);
-      const key = e.target.dataset?.setting;
+      const { setting: key, chip } = e.target.dataset ?? {};
       if (!key) return;
       const value = e.target.tagName === "ION-TOGGLE" ? e.detail.checked : e.detail.value;
-      this.settings.update({ [key]: typeof value === "number" ? Math.round(value * 100) / 100 : value });
+      const partial = { [key]: typeof value === "number" ? Math.round(value * 100) / 100 : value };
+      if (chip) this.settings.update(chip, partial);
+      else this.settings.setGlobal(partial);
     });
     // While dragging: update the value label and let the sound follow (not saved until release).
     root.addEventListener("ionInput", (e) => {
-      const key = e.target.dataset?.setting;
-      const label = key && root.querySelector(`[data-value-for="${key}"]`);
+      const { setting: key, chip } = e.target.dataset ?? {};
+      const label = key && e.target.querySelector(`[data-value-for="${key}"]`);
       if (!label) return;
       const value = Math.round(Number(e.detail.value) * 100) / 100;
       label.textContent = value.toFixed(2);
       const now = performance.now();
       if (now - this.lastPreview < PREVIEW_INTERVAL_MS) return;
       this.lastPreview = now;
-      this.dispatchEvent(new CustomEvent("preview", { detail: { [key]: value } }));
+      this.dispatchEvent(new CustomEvent("preview", { detail: { chip, knobs: { [key]: value } } }));
     });
     this.importInput.addEventListener("change", async (e) => {
       const file = e.target.files[0];
@@ -156,10 +167,10 @@ export class SoundSheet extends EventTarget {
     });
   }
 
-  async saveAsNew() {
-    const base = this.settings.preset.name;
-    const name = await prompt("Save as Preset", { value: this.settings.isEdited ? `${base} (edited)` : `${base} copy`, confirm: "Save" });
-    if (name !== null) toast(`Saved “${this.settings.saveAsNew(name).name}”`);
+  async saveAsNew(chip) {
+    const base = this.settings.preset(chip).name;
+    const name = await prompt(`Save as ${chip} Preset`, { value: this.settings.isEdited(chip) ? `${base} (edited)` : `${base} copy`, confirm: "Save" });
+    if (name !== null) toast(`Saved “${this.settings.saveAsNew(chip, name).name}”`);
   }
 
   presetMenu(id) {

@@ -28,10 +28,12 @@ Written for my own use, so beware of peculiarities.
 
 Sound (the **Sound** button in Now Playing):
 
-- **Auto-select** plays each tune on the chip it was written for. This is the default.
-- **MOS 6581R4AR 0687 14** and **CSG 8580R5 1690 25** force one chip for every tune. They are the two chips reSIDfp's filter model was measured on, and the only chip presets with real measurements behind them.
-- **Adjust**: chip (Auto/6581/8580), machine (Auto/PAL/NTSC; Auto follows each tune), 6581 filter curve and range, 8580 filter curve, old 6581 capacitors, combined waveforms and 8580 digi boost. Changes play from where the tune is.
-  - Adjusting a measured chip creates an edited copy. **Save as new preset…** keeps it. Your own presets save automatically.
+- **Chip** (Auto/6581/8580) and **Machine** (Auto/PAL/NTSC) are set once, apart from the presets. Auto follows each tune.
+- One **6581 preset** and one **8580 preset** are selected at a time. The one for the chip that plays is used.
+  - 6581 presets hold the filter curve and range, old capacitors and combined waveforms. 8580 presets hold the filter curve, digi boost and combined waveforms.
+  - **MOS 6581R4AR 0687 14** and **CSG 8580R5 1690 25** are the defaults. They are the two chips reSIDfp's filter model was measured on, and the only presets with real measurements behind them.
+  - The built-in presets everyone gets, and the defaults, are in `js/sid-presets.json`.
+  - Changes play from where the tune is. Adjusting a built-in preset creates an edited copy. **Save as 6581/8580 Preset…** keeps it. Your own presets save automatically.
   - Presets export and import as `ShallowSID - Sound - <name>.json`.
   - CheeseCutter/VICE-style chip profiles (6581R3 4885, …) use the older reSID-fp filter model, so they don't carry over.
 - While the sheet is open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you close the sheet, the tune pre-renders again with the new sound.

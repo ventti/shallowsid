@@ -1,12 +1,18 @@
-// The selected sound profile and the user's own presets, kept in localStorage.
+// The sound setup and the user's own presets, kept in localStorage.
 //
-// Built-in presets are read-only: adjusting one creates an unsaved "edited"
-// draft that can be saved as a new preset. The user's presets are edited in
-// place and saved automatically, like iOS settings.
+// Chip and machine are global. One 6581 and one 8580 preset are selected at a
+// time; the engine uses whichever matches the chip that plays. Built-in presets
+// are read-only: adjusting one creates an unsaved "edited" draft for its chip
+// that can be saved as a new preset. The user's presets are edited in place and
+// saved automatically, like iOS settings.
 
-import { BUILTIN_PRESETS, normalizeSettings, parseProfiles, serializeProfiles, settingsOf } from "./sound-profile.js";
+import {
+  BUILTIN_PRESETS, DEFAULT_PRESET, PRESET_CHIPS, normalizeGlobal, normalizeKnobs, normalizePreset, parseProfiles,
+  serializeProfiles, splitLegacy,
+} from "./sound-profile.js";
 
 const STORAGE_KEY = "shallowsid.sound";
+const STATE_VERSION = 2;
 
 function load() {
   try {
@@ -16,13 +22,33 @@ function load() {
   }
 }
 
+const perChip = (fn) => Object.fromEntries(PRESET_CHIPS.map((chip) => [chip, fn(chip)]));
+const knobsOf = (preset) => normalizeKnobs(preset.chip, preset);
+const stripUndefined = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
+
+function userPresets(list = []) {
+  return list.flatMap(splitLegacy).map((p) => ({ id: String(p.id), name: String(p.name), updated: p.updated, ...normalizePreset(p) }));
+}
+
+// Before the chip split one preset was active and carried the chip and machine.
+function legacySelection(activeId, legacyPresets = []) {
+  const builtin = { "follow-tune": "auto", [DEFAULT_PRESET[6581]]: "6581", [DEFAULT_PRESET[8580]]: "8580" };
+  if (activeId in builtin) return { chip: builtin[activeId], selected: {} };
+  const p = legacyPresets.find((x) => String(x.id) === String(activeId));
+  if (!p) return { selected: {} };
+  const split = splitLegacy(p);
+  return { ...normalizeGlobal(p), selected: Object.fromEntries(split.map((s) => [s.chip, String(s.id)])) };
+}
+
 export class SoundSettings extends EventTarget {
   constructor() {
     super();
     const saved = load();
-    this.presets = (saved.presets ?? []).map((p) => ({ id: String(p.id), name: String(p.name), updated: p.updated, ...normalizeSettings(p) }));
-    this.activeId = this.find(saved.activeId) ? saved.activeId : BUILTIN_PRESETS[0].id;
-    this.draft = saved.draft ? normalizeSettings(saved.draft) : null;   // unsaved edit of a built-in
+    const legacy = saved.v === STATE_VERSION ? null : legacySelection(saved.activeId, saved.presets);
+    this.presets = userPresets(saved.presets);
+    ({ chip: this.chip, machine: this.machine } = normalizeGlobal(legacy ?? saved));
+    this.selected = perChip((chip) => this.validId(chip, (legacy ?? saved).selected?.[chip]));
+    this.drafts = perChip((chip) => (legacy || !saved.drafts?.[chip] ? null : normalizeKnobs(chip, saved.drafts[chip])));
     this.prerender = saved.prerender !== false;   // playback preference, not part of a profile
   }
 
@@ -30,30 +56,54 @@ export class SoundSettings extends EventTarget {
     return BUILTIN_PRESETS.find((p) => p.id === id) ?? this.presets.find((p) => p.id === id) ?? null;
   }
 
-  get preset() {
-    return this.find(this.activeId) ?? BUILTIN_PRESETS[0];
+  validId(chip, id) {
+    return this.find(id)?.chip === chip ? id : DEFAULT_PRESET[chip];
   }
 
-  // The settings in effect right now.
+  presetsFor(chip) {
+    return { builtin: BUILTIN_PRESETS.filter((p) => p.chip === chip), mine: this.presets.filter((p) => p.chip === chip) };
+  }
+
+  // The selected preset of a chip.
+  preset(chip) {
+    return this.find(this.selected[chip]);
+  }
+
+  knobs(chip) {
+    return this.drafts[chip] ?? knobsOf(this.preset(chip));
+  }
+
+  // The settings in effect right now: {chip, machine, 6581: knobs, 8580: knobs}.
   get current() {
-    return this.draft ?? settingsOf(this.preset);
+    return { chip: this.chip, machine: this.machine, ...perChip((chip) => this.knobs(chip)) };
   }
 
-  get isEdited() {
-    return !!this.draft;
+  isEdited(chip) {
+    return !!this.drafts[chip];
   }
 
-  select(id) {
-    if (!this.find(id)) return;
-    this.activeId = id;
-    this.draft = null;
+  get anyEdited() {
+    return PRESET_CHIPS.some((chip) => this.isEdited(chip));
+  }
+
+  // Chip and/or machine.
+  setGlobal(partial) {
+    ({ chip: this.chip, machine: this.machine } = normalizeGlobal({ chip: this.chip, machine: this.machine, ...partial }));
     this.save();
   }
 
-  update(partial) {
-    const next = normalizeSettings({ ...this.current, ...partial });
-    const preset = this.preset;
-    if (preset.builtin) this.draft = next;
+  select(id) {
+    const p = this.find(id);
+    if (!p) return;
+    this.selected[p.chip] = id;
+    this.drafts[p.chip] = null;
+    this.save();
+  }
+
+  update(chip, partial) {
+    const next = normalizeKnobs(chip, { ...this.knobs(chip), ...partial });
+    const preset = this.preset(chip);
+    if (preset.builtin) this.drafts[chip] = next;
     else Object.assign(preset, next, { updated: Date.now() });
     this.save();
   }
@@ -63,17 +113,17 @@ export class SoundSettings extends EventTarget {
     this.save();
   }
 
-  // Drop unsaved edits (built-in) or restore defaults of the chip preset it was based on.
-  revert() {
-    this.draft = null;
+  // Drop unsaved edits of built-in presets (one chip's, or both).
+  revert(chip) {
+    for (const c of chip ? [chip] : PRESET_CHIPS) this.drafts[c] = null;
     this.save();
   }
 
-  saveAsNew(name) {
-    const preset = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || "My sound", ...this.current, updated: Date.now() };
+  saveAsNew(chip, name) {
+    const preset = { id: crypto.randomUUID().slice(0, 8), name: name.trim() || `My ${chip}`, chip, ...this.knobs(chip), updated: Date.now() };
     this.presets.push(preset);
-    this.activeId = preset.id;
-    this.draft = null;
+    this.selected[chip] = preset.id;
+    this.drafts[chip] = null;
     this.save();
     return preset;
   }
@@ -88,10 +138,12 @@ export class SoundSettings extends EventTarget {
   }
 
   remove(id) {
-    this.presets = this.presets.filter((p) => p.id !== id);
-    if (this.activeId === id) {
-      this.activeId = BUILTIN_PRESETS[0].id;
-      this.draft = null;
+    const p = this.presets.find((x) => x.id === id);
+    if (!p) return;
+    this.presets = this.presets.filter((x) => x !== p);
+    if (this.selected[p.chip] === id) {
+      this.selected[p.chip] = DEFAULT_PRESET[p.chip];
+      this.drafts[p.chip] = null;
     }
     this.save();
   }
@@ -100,7 +152,7 @@ export class SoundSettings extends EventTarget {
     return serializeProfiles(this.presets.filter((p) => ids.includes(p.id)));
   }
 
-  // Adds the file's profiles as new presets; returns how many were added.
+  // Adds the file's profiles as new presets; returns the ones added.
   importText(text, fallbackName) {
     const added = parseProfiles(text, fallbackName).map((p) => ({ ...p, id: crypto.randomUUID().slice(0, 8), updated: Date.now() }));
     this.presets.push(...added);
@@ -108,23 +160,33 @@ export class SoundSettings extends EventTarget {
     return added;
   }
 
+  // What sync.js keeps in the synced prefs.
+  get syncPrefs() {
+    return { soundChip: this.chip, soundMachine: this.machine, sound6581: this.selected[6581], sound8580: this.selected[8580], prerender: this.prerender };
+  }
+
   // Replace presets and preferences with synced data (see sync.js).
-  applySynced({ presets, activeId, prerender }) {
-    this.presets = presets.map((p) => ({ id: String(p.id), name: String(p.name), updated: p.updated, ...normalizeSettings(p) }));
-    if (activeId && this.find(activeId) && activeId !== this.activeId) {
-      this.activeId = activeId;
-      this.draft = null;
-    } else if (!this.find(this.activeId)) {
-      this.activeId = BUILTIN_PRESETS[0].id;
-      this.draft = null;
+  applySynced({ presets, prefs = {} }) {
+    this.presets = userPresets(presets);
+    const legacy = prefs.soundChip === undefined && prefs.soundActiveId ? legacySelection(prefs.soundActiveId, presets) : null;
+    const synced = legacy ?? { chip: prefs.soundChip, machine: prefs.soundMachine, selected: { 6581: prefs.sound6581, 8580: prefs.sound8580 } };
+    if (synced.chip !== undefined || synced.machine !== undefined) {
+      ({ chip: this.chip, machine: this.machine } = normalizeGlobal({ chip: this.chip, machine: this.machine, ...stripUndefined(synced) }));
     }
-    if (typeof prerender === "boolean") this.prerender = prerender;
+    for (const chip of PRESET_CHIPS) {
+      const id = synced.selected[chip] && this.find(synced.selected[chip])?.chip === chip ? synced.selected[chip] : this.selected[chip];
+      if (id !== this.selected[chip]) this.drafts[chip] = null;
+      this.selected[chip] = this.validId(chip, id);
+    }
+    if (typeof prefs.prerender === "boolean") this.prerender = prefs.prerender;
     this.save();
   }
 
   save() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ activeId: this.activeId, draft: this.draft, presets: this.presets, prerender: this.prerender }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        v: STATE_VERSION, chip: this.chip, machine: this.machine, selected: this.selected, drafts: this.drafts, presets: this.presets, prerender: this.prerender,
+      }));
     } catch {
       // storage blocked: settings last for this session only
     }

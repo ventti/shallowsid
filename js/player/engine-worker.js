@@ -19,6 +19,7 @@
 // park {token, parkable, freshCacheGen}, peaks {token, peaks}, stop.
 
 import loadLibsidplayfp, { SidAudioEngine } from "https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/index.js";
+import { filterFor } from "../sound-profile.js";
 
 const ROLES = {
   live: { chunkFrames: 2048, aheadSeconds: 0.25, idleMs: 10 },
@@ -80,7 +81,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function applySound(engine, sound) {
   await engine.setEmulationConfig(sound.emulation);   // reloads the tune from its start
-  if (engine.supportsFilterConfig()) engine.setFilterConfig(sound.filter);
+  applyFilter(engine, sound);
+}
+
+// Combined waveforms follow the chip that plays, which in Auto the tune declares.
+function applyFilter(engine, sound) {
+  if (engine.supportsFilterConfig()) engine.setFilterConfig(filterFor(sound, engine.getTuneInfo()?.sidModels?.[0]));
 }
 
 async function render(j) {
@@ -148,7 +154,7 @@ async function changeSound(j, engine, frame) {
   const emulationChanged = JSON.stringify(next.emulation) !== JSON.stringify(j.sound?.emulation);
   j.sound = next;
   if (!emulationChanged) {
-    if (engine.supportsFilterConfig()) engine.setFilterConfig(next.filter);
+    applyFilter(engine, next);
     return frame;
   }
   await applySound(engine, next);

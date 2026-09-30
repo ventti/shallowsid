@@ -63,7 +63,10 @@ sound.addEventListener("change", () => {
   applySound();
   player.setPrerender(sound.prerender);
 });
-soundSheet.addEventListener("preview", (e) => applySound({ ...sound.current, ...e.detail }));
+soundSheet.addEventListener("preview", ({ detail: { chip, knobs } }) => {
+  const current = sound.current;
+  applySound({ ...current, [chip]: { ...current[chip], ...knobs } });
+});
 soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
 applySound();
 const tags = new TagService();

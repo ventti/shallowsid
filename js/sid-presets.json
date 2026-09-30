@@ -1,0 +1,48 @@
+{
+  "kind": "shallowsid-sound-profile",
+  "version": 2,
+  "defaults": {
+    "chip": "auto",
+    "machine": "auto",
+    "preset6581": "mos-6581r4ar-0687",
+    "preset8580": "csg-8580r5-1690",
+    "filter6581Curve": 0.5,
+    "filter6581Range": 0.48717948717948717,
+    "filter8580Curve": 0.5,
+    "old6581Caps": false,
+    "combinedWaveforms": "AVERAGE",
+    "digiBoost": true
+  },
+  "profiles": [
+    {
+      "id": "mos-6581r4ar-0687",
+      "name": "MOS 6581R4AR 0687 14",
+      "chip": "6581"
+    },
+    {
+      "id": "csg-8580r5-1690",
+      "name": "CSG 8580R5 1690 25",
+      "chip": "8580"
+    },
+    {
+      "id": "connoisseur-8580r5",
+      "name": "Connoisseur 8580R5",
+      "chip": "8580",
+      "digiBoost": false
+    },
+    {
+      "id": "connoisseur-6581-for-hubbard",
+      "name": "Connoisseur 6581 for Hubbard",
+      "chip": "6581",
+      "filter6581Curve": 0.14,
+      "filter6581Range": 0.7
+    },
+    {
+      "id": "connoisseur-6581-r4ar",
+      "name": "Connoisseur 6581 R4AR",
+      "chip": "6581",
+      "filter6581Curve": 0.14,
+      "filter6581Range": 0.7
+    }
+  ]
+}

@@ -124,14 +124,17 @@ test("deletions and edits propagate; concurrent writes don't clobber", async () 
 
 test("sound presets and prefs sync; deleting the synced data works", async () => {
   const a = device("a"), b = device("b");
-  a.sound.select("mos-6581r4ar-0687");
-  a.sound.update({ filter6581Curve: 0.3 });
-  const preset = a.sound.saveAsNew("Warm");
+  a.sound.update("6581", { filter6581Curve: 0.3 });
+  const preset = a.sound.saveAsNew("6581", "Warm");
+  a.sound.setGlobal({ chip: "8580", machine: "NTSC" });
+  a.sound.select("connoisseur-8580r5");
   a.sound.setPrerender(false);
   await a.sync.turnOn();
   await b.sync.useKey(a.sync.key);
   assert.equal(b.sound.presets[0].name, "Warm");
-  assert.equal(b.sound.activeId, preset.id);
+  assert.deepEqual(b.sound.selected, { 6581: preset.id, 8580: "connoisseur-8580r5" });
+  assert.equal(b.sound.chip, "8580");
+  assert.equal(b.sound.machine, "NTSC");
   assert.equal(b.sound.prerender, false);
   await b.sync.deleteRemote();
   assert.equal(docs.size, 0);

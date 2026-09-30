@@ -325,7 +325,7 @@ export class SyncService extends EventTarget {
       devices: this.devicesWithSelf(),
       playlists: this.store.playlists,
       soundPresets: this.sound.presets,
-      prefs: { soundActiveId: this.sound.activeId, prerender: this.sound.prerender },
+      prefs: this.sound.syncPrefs,
       plays: { ...this.store.plays },   // a copy: plays are counted in place
       recent: this.store.recent,
       playedLists: this.store.playedLists,
@@ -348,7 +348,7 @@ export class SyncService extends EventTarget {
     this.applying = true;
     try {
       this.store.replaceAll(structuredClone(merged.playlists));
-      this.sound.applySynced({ presets: structuredClone(merged.soundPresets), activeId: merged.prefs.soundActiveId, prerender: merged.prefs.prerender });
+      this.sound.applySynced({ presets: structuredClone(merged.soundPresets), prefs: merged.prefs });
       this.curation?.applySynced(structuredClone(merged.curation));
     } finally {
       this.applying = false;
