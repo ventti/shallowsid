@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Mock-ups of the app icon on macOS, iOS, Android, Ubuntu and Linux Mint.
+"""Mock-ups of the app icon on macOS, iOS, Android, Ubuntu, Linux Mint and Windows 11.
 
 Each platform shows the file it actually gets and the mask it applies to it:
 
-  macOS (Safari "Add to Dock")    apple-touch-icon.png in the squircle, on the 824/1024 grid
-  iOS (Add to Home Screen)        apple-touch-icon.png in the squircle, full bleed
-  Android (Chrome install)        icon-maskable-512.png in a circle
-  Ubuntu, Linux Mint (Chrome)     icon-512.png as is, rounded corners and all
+  macOS (Safari "Add to Dock")     apple-touch-icon.png in the squircle, on the 824/1024 grid
+  iOS (Add to Home Screen)         apple-touch-icon.png in the squircle, full bleed
+  Android (Chrome install)         icon-maskable-512.png in a circle
+  Ubuntu, Linux Mint (Chrome)      icon-512.png as is, rounded corners and all
+  Windows 11 (Chrome/Edge install) icon-512.png as is, on the desktop, in Start and the taskbar
 
 The other icons, the wallpapers and the system chrome are generic stand-ins,
 not any real app's or vendor's artwork. Scenes are drawn as SVG in points
@@ -386,7 +387,135 @@ def mint():
     return s
 
 
-SCENES = {"macos": macos, "ios": ios, "android": android, "ubuntu": ubuntu, "linux-mint": mint}
+def windows():
+    """Windows 11 in the light theme, laid out after a real 25H2 screenshot: Chrome puts the
+    installed app on the desktop (with the shortcut arrow) and under Recommended, not Pinned."""
+    s = Scene(1280, 925)
+    s.wallpaper("#0b2a4a", [(.15, .2, .35, "#1d5c8c"), (.85, .25, .3, "#2f8fb8"), (.6, .8, .4, "#0f3d63"), (.35, .6, .2, "#3fa6c9")])
+    ink, muted = "#1b1b1b", "#5f5f5f"
+
+    def shortcut_arrow(x, y):
+        return (f'<rect x="{x}" y="{y}" width="14" height="14" fill="#fff"/>'
+                f'<path d="M{x + 4} {y + 10} L{x + 10} {y + 4} M{x + 5.5} {y + 4} H{x + 10} V{y + 8.5}" stroke="#2b88d8" stroke-width="1.8" fill="none" stroke-linecap="round"/>')
+
+    # Desktop shortcuts down the left edge; ours last, with the shortcut arrow
+    for i, (o, label) in enumerate(((9, "Recycle Bin"), (0, "Browser"), (8, "Chat"), ("app", APP))):
+        x, y = 12, 14 + i * 96
+        if o == "app":
+            s.app("icon-512.png", x, y, 48, "square", shadow=False)
+        else:
+            s.icon(o, x, y, 48, "rounded" if o == 9 else "circle", shadow=False)
+        if i:
+            s.add(shortcut_arrow(x, y + 34))
+        s.text(x + 24, y + 66, label, 12, anchor="middle", shadow=True)
+
+    # Start menu: search, Pinned, Recommended (ours, recently added), All by category, account bar
+    ph, mw, mh = 48, 812, 845
+    mx, my = (s.width - mw) / 2, s.height - ph - 12 - mh
+    clip = s.uid("start")
+    s.defs.append(f'<clipPath id="{clip}"><rect x="{mx}" y="{my}" width="{mw}" height="{mh}" rx="8"/></clipPath>')
+    s.add(f'<g clip-path="url(#{clip})"><rect x="{mx}" y="{my}" width="{mw}" height="{mh}" fill="#eef1f5" fill-opacity=".97"/>'
+          f'<rect x="{mx}" y="{my + mh - 63}" width="{mw}" height="63" fill="#e6e9ee"/></g>'
+          f'<rect x="{mx}" y="{my}" width="{mw}" height="{mh}" rx="8" fill="none" stroke="#000" stroke-opacity=".1"/>')
+    s.add(pill(mx + 32, my + 16, mw - 64, 30, "#fff", 1, stroke="#00000022", rx=15),
+          f'<circle cx="{mx + 52}" cy="{my + 30}" r="5.5" fill="none" stroke="#005fb8" stroke-width="1.5"/>'
+          f'<path d="M{mx + 56} {my + 34} l4 4" stroke="#005fb8" stroke-width="1.5" stroke-linecap="round"/>')
+    s.text(mx + 74, my + 35.5, "Search for apps, settings, and documents", 13.5, muted)
+
+    s.text(mx + 62, my + 107, "Pinned", 14, ink, 600)
+    labels = ["Browser", "Mail", "Store", "Settings", "Photos", "Games", "Cards", "Paint", "Contacts", "Calculator", "Clock", "Notepad", "Snipping", "Files"]
+    k = 0
+    for r in range(2):
+        for c in range(8 if r == 0 else 6):
+            cx, cy = mx + 78 + c * 94, my + 152 + r * 83
+            s.icon(k, cx - 16, cy - 16, 32, "circle" if k % 3 == 0 else "rounded", shadow=False)
+            s.text(cx, cy + 32, labels[k], 12, ink, anchor="middle")
+            k += 1
+
+    s.text(mx + 62, my + 342, "Recommended", 14, ink, 600)
+    s.text(mx + mw - 66, my + 341, "Show all", 13, ink, anchor="end")
+    s.add(f'<path d="M{mx + mw - 58} {my + 333} l4 4 l-4 4" stroke="{ink}" stroke-width="1.2" fill="none"/>')
+
+    def folder(x, y):
+        return (f'<path d="M{x} {y + 5} h11 l3 3 h18 v19 h-32z" fill="#e8b33a"/>'
+                f'<rect x="{x}" y="{y + 10}" width="32" height="18" rx="1.5" fill="#f6cf5b"/>')
+
+    recent = [("app", APP, "Recently added"), ("folder", "Downloads", "17 Sep"), ("folder", "Projects", "16 Sep"),
+              ("file", "Playlist.m3u8", "15 Sep"), ("folder", "Music", "8 Sep"), ("folder", "Archive", "8 Sep")]
+    for i, (kind, name, when) in enumerate(recent):
+        x, y = mx + 62 + (i % 3) * 250, my + 368 + (i // 3) * 55
+        if kind == "app":
+            s.app("icon-512.png", x, y, 32, "square", shadow=False)
+        elif kind == "folder":
+            s.add(folder(x, y))
+        else:
+            s.add(f'<path d="M{x + 5} {y} h15 l7 7 v25 h-22z" fill="#fff" stroke="#0000003a"/>'
+                  f'<path d="M{x + 16} {y + 11} v10 m-4 -4 l4 4 l4 -4" stroke="#2b88d8" stroke-width="1.6" fill="none"/>')
+        s.text(x + 43, y + 14, name, 12.5, ink)
+        s.text(x + 43, y + 30, when, 12, muted)
+
+    s.text(mx + 62, my + 522, "All", 14, ink, 600)
+    s.text(mx + mw - 80, my + 521, "View: Category", 13, ink, anchor="end")
+    s.add(f'<path d="M{mx + mw - 70} {my + 514} l4 4 l4 -4" stroke="{ink}" stroke-width="1.2" fill="none"/>')
+    for i, name in enumerate(("Other", "Productivity", "Utilities & Tools", "Creativity")):
+        tx, ty = mx + 62 + i * 179, my + 540
+        s.add(f'<rect x="{tx}" y="{ty}" width="152" height="152" rx="8" fill="#fff" fill-opacity=".75" stroke="#000" stroke-opacity=".06"/>')
+        for q in range(4):
+            s.icon(i * 4 + q, tx + 28 + (q % 2) * 64, ty + 28 + (q // 2) * 64, 32, "rounded" if q % 2 else "circle", shadow=False)
+        s.text(tx + 76, ty + 175, name, 12.5, ink, anchor="middle")
+    for i in range(3):
+        s.add(f'<rect x="{mx + 62 + i * 179}" y="{my + 740}" width="152" height="152" rx="8" fill="#fff" fill-opacity=".75" clip-path="url(#{clip})"/>')
+    s.add(f'<rect x="{mx}" y="{my + mh - 63}" width="{mw}" height="63" fill="#e6e9ee" clip-path="url(#{clip})"/>'
+          f'<rect x="{mx}" y="{my + mh - 63}" width="{mw}" height="1" fill="#000" fill-opacity=".07"/>'
+          f'<circle cx="{mx + 77}" cy="{my + mh - 32}" r="14" fill="#d5d8de"/><circle cx="{mx + 77}" cy="{my + mh - 36}" r="4.5" fill="#6b6f76"/>'
+          f'<path d="M{mx + 69} {my + mh - 25} a8 6 0 0 1 16 0" fill="#6b6f76"/>')
+    s.text(mx + 105, my + mh - 27.5, "user", 12.5, ink)
+    px, py0 = mx + mw - 71, my + mh - 32
+    s.add(f'<circle cx="{px}" cy="{py0}" r="6.5" fill="none" stroke="{ink}" stroke-width="1.3" stroke-dasharray="30 11" transform="rotate(-70 {px} {py0})"/>'
+          f'<path d="M{px} {py0 - 8} v7" stroke="{ink}" stroke-width="1.3" stroke-linecap="round"/>')
+
+    # Taskbar: weather on the left; Start, Search box, Task View and apps centred (ours running); tray and clock
+    py = s.height - ph
+    s.add(f'<rect x="0" y="{py}" width="{s.width}" height="{ph}" fill="#eef1f5" fill-opacity=".96"/>'
+          f'<rect x="0" y="{py}" width="{s.width}" height="1" fill="#000" fill-opacity=".08"/>')
+    s.add(f'<circle cx="28" cy="{py + 22}" r="7" fill="#ffb900"/><path d="M22 {py + 33} a6 6 0 0 1 4 -10 a7 7 0 0 1 13 2 a4.5 4.5 0 0 1 0 8z" fill="#c9d3df"/>')
+    s.text(48, py + 21, "9°C", 12, ink)
+    s.text(48, py + 37, "Partly cloudy", 12, muted)
+    x = s.width / 2 - 190
+    s.add(pill(x, py + 4, 40, 40, "#fff", .7, rx=4),
+          "".join(f'<rect x="{x + 9 + c * 11.5}" y="{py + 13 + r * 11.5}" width="10.5" height="10.5" rx="1" fill="#1a8cff"/>' for r in range(2) for c in range(2)))
+    x += 46
+    s.add(pill(x, py + 8, 210, 32, "#fff", 1, stroke="#00000020", rx=16),
+          f'<circle cx="{x + 21}" cy="{py + 23}" r="5.5" fill="none" stroke="{ink}" stroke-width="1.5"/>'
+          f'<path d="M{x + 25} {py + 27} l4 4" stroke="{ink}" stroke-width="1.5" stroke-linecap="round"/>')
+    s.text(x + 40, py + 28.5, "Search", 14, muted)
+    x += 220
+    s.add(f'<rect x="{x + 10}" y="{py + 15}" width="13" height="13" rx="2" fill="#1b1b1b"/><rect x="{x + 16}" y="{py + 20}" width="13" height="13" rx="2" fill="#fff" stroke="#1b1b1b" stroke-width="1.2"/>')
+    x += 44
+    for o in ("folder", 0, "app"):
+        if o == "folder":
+            s.add(f'<g transform="translate({x + 8} {py + 10}) scale(.75)">{folder(0, 0)}</g>')
+        elif o == "app":
+            s.add(pill(x, py + 4, 40, 40, "#fff", .7, rx=4))
+            s.app("icon-512.png", x + 8, py + 12, 24, "square", shadow=False)
+            s.add(pill(x + 13, py + ph - 6, 14, 3, "#005fb8"))
+        else:
+            s.icon(o, x + 8, py + 12, 24, "circle", shadow=False)
+            s.add(pill(x + 17, py + ph - 6, 6, 3, "#8a8a8a"))
+        x += 44
+    rx0 = s.width - 250
+    s.add(f'<path d="M{rx0} {py + 27} l5 -5 l5 5" stroke="{ink}" stroke-width="1.3" fill="none"/>')
+    s.text(rx0 + 44, py + 21, "ENG", 11.5, ink, anchor="middle")
+    s.text(rx0 + 44, py + 37, "FI", 11.5, ink, anchor="middle")
+    s.add(wifi(rx0 + 82, py + 30, 8, ink),
+          f'<path d="M{rx0 + 98} {py + 21} h3 l5 -4 v14 l-5 -4 h-3z" fill="{ink}"/><path d="M{rx0 + 109} {py + 20} a5 5 0 0 1 0 8" stroke="{ink}" stroke-width="1.2" fill="none"/>',
+          battery(rx0 + 120, py + 19, 9, ink))
+    s.text(s.width - 16, py + 21, "9:06", 12, ink, anchor="end")
+    s.text(s.width - 16, py + 37, "01/10/2026", 12, ink, anchor="end")
+    return s
+
+
+SCENES = {"macos": macos, "ios": ios, "android": android, "ubuntu": ubuntu, "linux-mint": mint, "windows-11": windows}
 
 
 def main():
