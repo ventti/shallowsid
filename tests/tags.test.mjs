@@ -30,6 +30,13 @@ test("the vocabulary's ids are well formed and unique, and every tag has a label
   assert.equal(vocab.byId.size, ids.length);
 });
 
+test("each group's tags are in alphabetical order, as the app lists them", () => {
+  for (const g of vocabJSON.groups) {
+    const labels = g.tags.map((t) => t.label);
+    assert.deepEqual(labels, [...labels].sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })), g.name);
+  }
+});
+
 test("firestore.rules accepts exactly the vocabulary's tags and retired ids (tools/build_rules.py)", () => {
   const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
   const block = rules.match(/BEGIN TAG IDS([\s\S]*?)END TAG IDS/)[1];
