@@ -9,7 +9,7 @@ globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k,
 globalThis.location = { origin: "https://example.test", pathname: "/shallowsid/" };
 
 const {
-  MAX_TAGS, TAG_ID, chainStep, cleanTags, curatorId, decodeTagIndex, inviteHash, parseInviteLink, parseVocab, sha256Hex, tagDocId,
+  MAX_BPM, MAX_TAGS, MIN_BPM, TAG_ID, chainStep, cleanBpm, cleanTags, curatorId, decodeBpmIndex, decodeTagIndex, inviteHash, parseInviteLink, parseVocab, sha256Hex, tagDocId,
 } = await import("../js/tags-core.js");
 const { ownerHash, tokenFor } = await import("../js/live-share-core.js");
 const { mergeCuration, EMPTY_CURATION } = await import("../js/sync-merge.js");
@@ -62,6 +62,24 @@ test("decodeTagIndex keeps valid paths, songs and known tags only", () => {
   assert.deepEqual([...index.get("MUSICIANS/H/Hubbard_Rob/Commando.sid")], [[0, ["funk"]], [2, ["dark"]]]);
 });
 
+test("BPMs are whole numbers in range; the index's bpm part keeps valid paths and songs only", () => {
+  assert.equal(cleanBpm(125), 125);
+  assert.equal(cleanBpm("94"), 94);
+  for (const bad of [MIN_BPM - 1, MAX_BPM + 1, 12.5, "12.5", "", "fast", null, undefined]) assert.equal(cleanBpm(bad), null, String(bad));
+  const index = decodeBpmIndex({ bpm: {
+    "MUSICIANS/H/Hubbard_Rob/Commando.sid": { 0: 124, 2: 185, 3: 9999, 999: 120 },
+    "../etc/passwd.sid": { 0: 120 },
+  } });
+  assert.deepEqual([...index.keys()], ["MUSICIANS/H/Hubbard_Rob/Commando.sid"]);
+  assert.deepEqual([...index.get("MUSICIANS/H/Hubbard_Rob/Commando.sid")], [[0, 124], [2, 185]]);
+  assert.equal(decodeBpmIndex({}).size, 0);
+});
+
+test("firestore.rules takes the same BPM range as the app", () => {
+  const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+  assert.match(rules, new RegExp(`d\\.b >= ${MIN_BPM} && d\\.b <= ${MAX_BPM}`));
+});
+
 test("a chain step's proof opens the current owner and commits to the next token", async () => {
   const seed = "ab".repeat(32);
   const identity = { seed, cid: await curatorId(seed) };
@@ -112,6 +130,8 @@ async function check(key, before, after, all) {
     const s = nget(f.s), t = (f.t.arrayValue.values ?? []).map(sget);
     if (id !== await sha256Hex(`${sget(f.p)}#${s}`)) return "id";
     if (t.length > 12 || !t.every((x) => vocab.byId.has(x))) return "vocab";
+    if (Object.keys(f).some((k) => !["p", "s", "t", "b", "by", "at"].includes(k))) return "fields";
+    if (f.b && cleanBpm(nget(f.b)) === null) return "bpm";
     if (!stepped(sget(f.by))) return "not a stepping curator";
     return null;
   }
@@ -232,6 +252,45 @@ test("an admin from the CLI invites a curator, who tags a tune and a subtune", a
   assert.deepEqual(reader.tagsFor(item).whole, ["funk"]);
   assert.equal(admin.whoIs(reader.tagsFor(item).edited.whole.by, await admin.invites()), "Rob");
   assert.equal((await admin.editsBy(curator.cid)).length, 2);
+});
+
+test("curators set, change and remove a BPM, for the whole tune or a subtune, without touching the tags", async () => {
+  const admin = service("admin");
+  await admin.init();
+  await cliInvite("admin", "c".repeat(32));
+  await admin.claim("c".repeat(32));
+  const item = { path: TUNE, song: 2, songs: 5 };
+
+  await admin.save(TUNE, [{ song: 0, tags: ["funk"], bpm: 124 }]);
+  assert.deepEqual(admin.bpmFor(item), { whole: 124, sub: null, bpm: 124 });
+  await admin.save(TUNE, [{ song: 2, bpm: 185 }]);
+  assert.deepEqual(admin.bpmFor(item), { whole: 124, sub: 185, bpm: 185 });
+  assert.deepEqual(admin.bpmFor({ ...item, song: 3 }).bpm, 124);
+
+  // Tags alone keep the BPM, and BPM alone keeps the tags.
+  await admin.save(TUNE, [{ song: 0, tags: ["funk", "dark"] }]);
+  assert.equal(admin.songBpm(TUNE, 0), 124);
+  await admin.save(TUNE, [{ song: 0, bpm: 125 }]);
+  assert.deepEqual(admin.tagsFor(item).whole, ["funk", "dark"]);
+
+  const reader = service("reader");
+  await reader.init();
+  await reader.refresh(item);
+  assert.deepEqual(reader.bpmFor(item), { whole: 125, sub: 185, bpm: 185 });
+
+  // Removing it: the subtune falls back to the whole tune's.
+  await admin.save(TUNE, [{ song: 2, bpm: null }]);
+  await reader.refresh(item);
+  assert.deepEqual(reader.bpmFor(item), { whole: 125, sub: null, bpm: 125 });
+  assert.equal(nget(docs.get(`tags/${await tagDocId(TUNE, 2)}`).fields.b), null);
+
+  // Out of range is refused by the rules too, not just dropped by the app.
+  const doc = await admin.get("curators", admin.cid);
+  const { decodeCurator, tagWrite } = await import("../js/tags-core.js");
+  const res = await fetch(admin.url(":commit"), { method: "POST", body: JSON.stringify({ writes: [
+    await chainStep(admin.name, admin.state, decodeCurator(doc)), await tagWrite(admin.name, admin.cid, TUNE, 0, [], 999),
+  ] }) });
+  assert.equal(res.status, 403);
 });
 
 test("curators can't invite; a curator turned off can't tag until turned back on", async () => {

@@ -924,3 +924,14 @@ ion-tab-button[hidden] {
   font-size: 16px;
   color: inherit;
 }
+
+.bpm-chip {
+  cursor: default;
+  font-variant-numeric: tabular-nums;
+}
+
+.tag-bpm {
+  margin: 8px 16px 0;
+  --padding-start: 0;
+  --background: transparent;
+}

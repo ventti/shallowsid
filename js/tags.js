@@ -1,5 +1,5 @@
-// Tune tags: what everyone reads (a static index built at deploy, plus the
-// current tune's documents read live) and what curators and admins write.
+// Tune tags and BPM: what everyone reads (a static index built at deploy, plus
+// the current tune's documents read live) and what curators and admins write.
 // See tags-core.js for the scheme and firestore.rules for what's enforced.
 //
 // This device's curator identity ({seed, cid, role}) and an admin's notes on
@@ -13,7 +13,7 @@
 import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import {
-  WHOLE_TUNE, chainStep, claimWrites, cleanTags, curatorId, decodeCurator, decodeInvite, decodeTagDoc, decodeTagIndex,
+  WHOLE_TUNE, chainStep, claimWrites, cleanBpm, cleanTags, curatorId, decodeCurator, decodeInvite, decodeBpmIndex, decodeTagDoc, decodeTagIndex,
   inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, expireInviteWrite, str, tagDocId, tagKey, tagWrite,
 } from "./tags-core.js";
 
@@ -32,7 +32,8 @@ export class TagService extends EventTarget {
     this.configured = !!(config.apiKey && config.projectId);
     this.vocab = parseVocab({});
     this.index = new Map();      // path -> Map(song -> [ids]) from the deploy
-    this.live = new Map();       // "path#song" -> {tags, by, at} read or written this session
+    this.bpmIndex = new Map();   // path -> Map(song -> bpm) from the deploy
+    this.live = new Map();       // "path#song" -> {tags, bpm, by, at} read or written this session
     this.state = this.load();
     this.curator = null;         // this device's curators/<cid>, once checked
   }
@@ -45,9 +46,12 @@ export class TagService extends EventTarget {
       console.error("tags vocabulary:", err);
     }
     try {
-      this.index = decodeTagIndex(await this.fetchJSON(INDEX_URL), this.vocab);
+      const data = await this.fetchJSON(INDEX_URL);
+      this.index = decodeTagIndex(data, this.vocab);
+      this.bpmIndex = decodeBpmIndex(data);
     } catch {
       this.index = new Map();
+      this.bpmIndex = new Map();
     }
     this.dispatchEvent(new Event("change"));
     if (this.state.cid) this.refreshCurator().catch((err) => console.error("curator:", err));
@@ -62,6 +66,20 @@ export class TagService extends EventTarget {
   songTags(path, song) {
     const live = this.live.get(tagKey(path, song));
     return live ? live.tags : this.index.get(path)?.get(song) ?? [];
+  }
+
+  songBpm(path, song) {
+    const live = this.live.get(tagKey(path, song));
+    return live ? live.bpm : this.bpmIndex.get(path)?.get(song) ?? null;
+  }
+
+  // {whole, sub, bpm} for a subtune: the whole tune's BPM, the subtune's own
+  // (null if it has none, or there's only one), and the one that applies.
+  bpmFor(item) {
+    if (!item?.path) return { whole: null, sub: null, bpm: null };
+    const whole = this.songBpm(item.path, WHOLE_TUNE);
+    const sub = item.songs > 1 ? this.songBpm(item.path, item.song) : null;
+    return { whole, sub, bpm: sub ?? whole };
   }
 
   // {whole, sub, edited: {whole, sub}} for a subtune: its own tags and the whole tune's.
@@ -92,14 +110,15 @@ export class TagService extends EventTarget {
   async refresh(item) {
     if (!this.configured || !item?.path) return;
     const songs = item.songs > 1 ? [WHOLE_TUNE, item.song] : [WHOLE_TUNE];
-    const before = songs.map((s) => this.songTags(item.path, s).join());
+    const seen = (s) => `${this.songTags(item.path, s).join()}|${this.songBpm(item.path, s)}`;
+    const before = songs.map(seen);
     await Promise.all(songs.map(async (song) => {
       const doc = await this.get("tags", await tagIdFor(item.path, song));
       const tag = doc ? decodeTagDoc(doc, this.vocab) : null;
       if (tag) this.live.set(tagKey(item.path, song), tag);
       else if (!doc) this.live.delete(tagKey(item.path, song));
     }));
-    if (songs.some((s, i) => this.songTags(item.path, s).join() !== before[i])) this.dispatchEvent(new Event("change"));
+    if (songs.some((s, i) => seen(s) !== before[i])) this.dispatchEvent(new Event("change"));
   }
 
   // ---- identity ----------------------------------------------------------------
@@ -224,7 +243,7 @@ export class TagService extends EventTarget {
     await this.step(async () => [activeWrite(this.name, this.cid, cid, active)]);
   }
 
-  // A curator's latest edits, newest first: [{path, song, tags, at}].
+  // A curator's latest edits, newest first: [{path, song, tags, bpm, at}].
   async editsBy(cid) {
     const res = await firestoreFetch(this.config, this.url(":runQuery"), {
       method: "POST",
@@ -241,12 +260,17 @@ export class TagService extends EventTarget {
 
   // ---- writing tags ------------------------------------------------------------------
 
-  // `changes` is [{song, tags}] (song 0 = whole tune), written in one batch.
+  // `changes` is [{song, tags?, bpm?}] (song 0 = whole tune), written in one
+  // batch. What a change leaves out stays as it is; bpm null removes the BPM.
   async save(path, changes) {
     if (!this.canTag) throw new Error("Only curators can tag tunes");
-    const clean = changes.map(({ song, tags }) => ({ song, tags: cleanTags(tags, this.vocab) }));
-    await this.step(async () => Promise.all(clean.map(({ song, tags }) => tagWrite(this.name, this.cid, path, song, tags))));
-    for (const { song, tags } of clean) this.live.set(tagKey(path, song), { path, song, tags, by: this.cid, at: Date.now() });
+    const clean = changes.map(({ song, tags, bpm }) => ({
+      song,
+      tags: cleanTags(tags ?? this.songTags(path, song), this.vocab),
+      bpm: bpm === undefined ? this.songBpm(path, song) : cleanBpm(bpm),
+    }));
+    await this.step(async () => Promise.all(clean.map(({ song, tags, bpm }) => tagWrite(this.name, this.cid, path, song, tags, bpm))));
+    for (const { song, tags, bpm } of clean) this.live.set(tagKey(path, song), { path, song, tags, bpm, by: this.cid, at: Date.now() });
     this.dispatchEvent(new Event("change"));
   }
 

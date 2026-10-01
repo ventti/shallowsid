@@ -4,7 +4,9 @@
 //
 // Tags are picked from js/tags-vocab.json only, so there's no free text to
 // filter. A tune's tags live at tags/<sha256("path#s")>, where s = 0 is the
-// whole tune and s >= 1 one subtune; a subtune shows both.
+// whole tune and s >= 1 one subtune; a subtune shows both. The same document
+// holds the tempo curators set (b, whole BPM); a subtune's own overrides the
+// whole tune's.
 //
 // Curators have no accounts. Each has a random seed; its curator id is
 // HMAC(seed, "curator-id") and, as for shared lists (live-share-core.js),
@@ -17,6 +19,8 @@ import { isValidPath, newSeed, ownerHash, tokenFor } from "./live-share-core.js"
 export const TAG_ID = /^[a-z0-9-]{1,24}$/;
 export const MAX_TAGS = 12;            // per tune or subtune, as firestore.rules allow
 export const MAX_SONG = 256;
+export const MIN_BPM = 20;             // as firestore.rules allow
+export const MAX_BPM = 300;
 export const WHOLE_TUNE = 0;
 export const INVITE_DAYS = 14;
 export const ROLES = ["curator", "admin"];
@@ -49,6 +53,12 @@ export function cleanTags(ids, vocab) {
   return [...vocab.byId.keys()].filter((id) => wanted.has(id)).slice(0, MAX_TAGS);
 }
 
+// A whole BPM in range, or null.
+export function cleanBpm(value) {
+  const n = typeof value === "string" && value.trim() ? Number(value) : value;
+  return Number.isInteger(n) && n >= MIN_BPM && n <= MAX_BPM ? n : null;
+}
+
 // ---- ids -----------------------------------------------------------------------
 
 const enc = new TextEncoder();
@@ -79,15 +89,27 @@ export const isCuratorId = (text) => HEX64.test(String(text ?? ""));
 
 // {path: {song: [ids]}} with only valid paths, songs and known tags.
 export function decodeTagIndex(data, vocab) {
+  return decodeSongs(data?.tunes, (ids) => {
+    const tags = cleanTags(ids, vocab);
+    return tags.length ? tags : null;
+  });
+}
+
+// {path: {song: bpm}} from the index's "bpm" part.
+export function decodeBpmIndex(data) {
+  return decodeSongs(data?.bpm, cleanBpm);
+}
+
+// path -> Map(song -> clean(value)), keeping valid paths and songs whose value cleans to non-null.
+function decodeSongs(tunes, clean) {
   const out = new Map();
-  const tunes = data?.tunes && typeof data.tunes === "object" ? data.tunes : {};
-  for (const [path, songs] of Object.entries(tunes)) {
+  for (const [path, songs] of Object.entries(tunes && typeof tunes === "object" ? tunes : {})) {
     if (!isValidPath(path) || !songs || typeof songs !== "object") continue;
     const bySong = new Map();
-    for (const [song, ids] of Object.entries(songs)) {
+    for (const [song, raw] of Object.entries(songs)) {
       const s = Number(song);
-      const tags = cleanTags(ids, vocab);
-      if (Number.isInteger(s) && s >= 0 && s <= MAX_SONG && tags.length) bySong.set(s, tags);
+      const value = clean(raw);
+      if (Number.isInteger(s) && s >= 0 && s <= MAX_SONG && value !== null) bySong.set(s, value);
     }
     if (bySong.size) out.set(path, bySong);
   }
@@ -108,14 +130,14 @@ export const fieldInt = (f) => (f?.integerValue != null ? Number(f.integerValue)
 export const fieldStrings = (f) => (f?.arrayValue?.values ?? []).map(fieldString).filter((s) => s !== null);
 export const fieldTime = (f) => (f?.timestampValue ? Date.parse(f.timestampValue) : null);
 
-// A tags/ document as read back: {path, song, tags, by, at}, or null if it's not one.
+// A tags/ document as read back: {path, song, tags, bpm, by, at}, or null if it's not one.
 export function decodeTagDoc(doc, vocab) {
   const f = doc?.fields ?? {};
   const path = fieldString(f.p);
   const song = fieldInt(f.s);
   if (!isValidPath(path ?? "") || !Number.isInteger(song) || song < 0 || song > MAX_SONG) return null;
   const by = fieldString(f.by);
-  return { path, song, tags: cleanTags(fieldStrings(f.t), vocab), by: isCuratorId(by) ? by : null, at: fieldTime(f.at) };
+  return { path, song, tags: cleanTags(fieldStrings(f.t), vocab), bpm: cleanBpm(fieldInt(f.b)), by: isCuratorId(by) ? by : null, at: fieldTime(f.at) };
 }
 
 // A curators/ document: {cid, n, role, active, invite, updateTime}.
@@ -156,10 +178,13 @@ export async function chainStep(name, identity, curator) {
   };
 }
 
-// Sets the tags of a tune (song 0) or subtune; an empty list clears them.
-export async function tagWrite(name, cid, path, song, tags) {
+// Sets the tags and BPM of a tune (song 0) or subtune, replacing what was
+// there: an empty list clears the tags, a null bpm the BPM.
+export async function tagWrite(name, cid, path, song, tags, bpm = null) {
+  const fields = { p: str(path), s: int(song), t: strings(tags), by: str(cid) };
+  if (bpm !== null) fields.b = int(bpm);
   return {
-    update: { name: name("tags", await tagDocId(path, song)), fields: { p: str(path), s: int(song), t: strings(tags), by: str(cid) } },
+    update: { name: name("tags", await tagDocId(path, song)), fields },
     updateTransforms: [{ fieldPath: "at", setToServerValue: "REQUEST_TIME" }],
   };
 }

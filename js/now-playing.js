@@ -208,17 +208,21 @@ export class NowPlaying {
     this.el.fav.setAttribute("aria-label", on ? "Remove from Favorites" : "Add to Favorites");
   }
 
-  // The tune's tags, then the subtune's own (marked with its number).
+  // The tempo, the tune's tags, then the subtune's own (each marked with its number).
   // Curators also get a chip that opens the Tags sheet.
   refreshTags() {
     const item = this.player.current;
     if (!item) return;
     const { whole, sub } = this.tags.tagsFor(item);
-    const chip = (id, song) => `<ion-chip data-tag="${esc(id)}" class="tag-chip">${esc(this.tags.label(id))}${song ? `<span class="tag-song">#${song}</span>` : ""}</ion-chip>`;
+    const bpm = this.tags.bpmFor(item);
+    const song = (s) => (s ? `<span class="tag-song">#${s}</span>` : "");
+    const chip = (id, s) => `<ion-chip data-tag="${esc(id)}" class="tag-chip">${esc(this.tags.label(id))}${song(s)}</ion-chip>`;
+    const tempo = bpm.bpm ? `<ion-chip class="tag-chip bpm-chip" title="Tempo">${bpm.bpm} BPM${song(bpm.sub ? item.song : 0)}</ion-chip>` : "";
+    const any = whole.length || sub.length || bpm.bpm;
     const edit = this.tags.canTag
-      ? `<ion-chip data-tag-edit class="tag-chip tag-edit" outline><ion-icon name="${whole.length || sub.length ? "pricetags-outline" : "add"}"></ion-icon><ion-label>${whole.length || sub.length ? "Edit Tags" : "Tag"}</ion-label></ion-chip>`
+      ? `<ion-chip data-tag-edit class="tag-chip tag-edit" outline><ion-icon name="${any ? "pricetags-outline" : "add"}"></ion-icon><ion-label>${any ? "Edit Tags" : "Tag"}</ion-label></ion-chip>`
       : "";
-    this.el.tagList.innerHTML = [...whole.map((id) => chip(id)), ...sub.map((id) => chip(id, item.song)), edit].join("");
+    this.el.tagList.innerHTML = [tempo, ...whole.map((id) => chip(id)), ...sub.map((id) => chip(id, item.song)), edit].join("");
   }
 
   showState(state) {
