@@ -603,9 +603,13 @@ ion-app > .np {
   pointer-events: none;
 }
 
+/* Height follows width, so a narrow row shrinks the button but keeps it round. */
 .np-play {
   width: 72px;
-  height: 72px;
+  min-width: 48px;
+  min-height: 0;
+  height: auto;
+  aspect-ratio: 1;
   --border-radius: 50%;
   --padding-start: 0;
   --padding-end: 0;
