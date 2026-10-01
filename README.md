@@ -261,6 +261,8 @@ Every now and then:
    ```
    The next deploy builds `estimates.tsv` into `data/index.json`, and the app shows the estimates.
 
+To do steps 1 and 4 for all of HVSC in one go, run `tools/bpm/run_hvsc.sh`. It continues where it stopped, publishes even when stopped with **Ctrl-C**, and with `--commit` also commits `estimates.tsv` (never pushes). Other options go to `bpm.py`, e.g. `--workers 12 -v`.
+
 ### Notes
 
 - Each subtune's status in `results.jsonl`:

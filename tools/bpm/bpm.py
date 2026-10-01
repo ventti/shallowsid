@@ -152,6 +152,15 @@ def hvsc_path(path):
     m = re.search(r"(?:^|/)((?:MUSICIANS|GAMES|DEMOS)/.+)$", path)
     return m.group(1) if m else path
 
+def cores():
+    """The cores this process may use: all of them on macOS, and on Linux only
+    those it's pinned to (taskset, cpusets), where os.cpu_count() counts every one."""
+    if hasattr(os, "process_cpu_count"):          # Python 3.13+
+        return os.process_cpu_count() or 1
+    if hasattr(os, "sched_getaffinity"):          # Linux
+        return len(os.sched_getaffinity(0)) or 1
+    return os.cpu_count() or 1
+
 def use_venv():
     """Run again with tools/bpm/.venv's Python if this one hasn't got essentia."""
     try:
@@ -178,7 +187,7 @@ def main():
     ap.add_argument("paths", nargs="*", help="folders (searched with their subfolders) or .sid files")
     ap.add_argument("-o", "--out", default=str(RESULTS), help="results, added to on every run (default: tools/bpm/results.jsonl)")
     ap.add_argument("--list", help='a file of "path[:song] [bpm]" lines instead of paths')
-    ap.add_argument("--workers", type=int, default=os.cpu_count(), help="processes (default: one per core)")
+    ap.add_argument("--workers", type=int, default=cores(), help=f"processes (default: one per core, {cores()} here)")
     ap.add_argument("--seconds", type=float, default=70, help="how much of each subtune to render (default: 70)")
     ap.add_argument("--skip", type=float, default=10, help="seconds of intro left out of the estimate (default: 10)")
     ap.add_argument("--limit", type=int, help="stop after this many subtunes")
@@ -223,7 +232,7 @@ def main():
     done = {(r["path"], r["song"]) for r in rows if "error" not in r}
     lengths = load_lengths(a.index)
     jobs = [(p, s, lengths.get((hvsc_path(p), s))) for p, s in jobs if a.force or (hvsc_path(p), s) not in done]
-    if a.limit:
+    if a.limit is not None:
         jobs = jobs[:a.limit]
     print(f"{len(jobs)} subtunes to do, {len(done)} already done, {a.workers} workers -> {a.out}", file=sys.stderr)
 
