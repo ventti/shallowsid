@@ -239,7 +239,19 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
    tools/bpm/.venv/bin/python tools/bpm/bpm.py bpm.jsonl hvsc
    ```
 
-Each subtune gets a JSONL row with `bpm`, essentia's `confidence` and a second opinion (`percival`). Stop it any time; a rerun skips what's done. Half or double tempo is the usual mistake, and `reliable` is false when the confidence is low or the tempo is implausible (sound effects, silence).
+Each subtune gets a JSONL row with two independent guesses, `bpm` (essentia's beat tracker, with its `confidence`) and `percival`, and a `status`:
+
+- `ok`: both agree and the confidence is fine.
+- `double`: one is double the other. Half or double tempo is the usual mistake, and the right one is usually among the two.
+- `check`: anything else, often a 3:2 or 4:3 disagreement.
+- `short`: under 30 s by `Songlengths.md5` (effects, jingles and other snippets), not rendered. Needs `data/index.json` from `tools/build_index.py`.
+- `silent`: nothing to measure.
+
+Stop it any time with **Ctrl-C**: rows so far are kept, and the same command continues where it left off. Subtunes already done are skipped (failed ones are retried) unless you add `--force`. Then have a human check the rest:
+
+1. `tools/bpm/review.py todo bpm.jsonl -o review` writes `review.m3u8`, a playlist to import in the app with both guesses in each title, and `review.txt`, a worksheet of `path:song bpm` lines.
+2. Listen, and fix the numbers in `review.txt`.
+3. `tools/bpm/review.py compare bpm.jsonl review.txt` scores the estimates against a worksheet like that.
 
 ## How it works
 

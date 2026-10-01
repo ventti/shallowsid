@@ -7,6 +7,7 @@ import readline from "node:readline";
 import loadLibsidplayfp, { SidAudioEngine } from "libsidplayfp-wasm";
 
 const module = loadLibsidplayfp({ engine: "sidlite" });
+process.stdout.on("error", () => process.exit(0));   // bpm.py stopped mid-frame: nobody left to answer
 
 function send(header, pcm) {
   const h = Buffer.from(JSON.stringify(header));
