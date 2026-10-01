@@ -7,3 +7,6 @@ firestore-debug.log
 docs/mockups/
 tools/bpm/.venv/
 tools/bpm/node_modules/
+tools/bpm/results.jsonl
+tools/bpm/review.txt
+tools/bpm/review.m3u8

@@ -42,6 +42,8 @@ const name = cur.name;
 const curDoc = async (s) => core.decodeCurator(await s.get("curators", s.cid));
 await expect("curator sets whole + subtune BPM", cur.save(TUNE, [{ song: 0, bpm: 124 }, { song: 2, bpm: 185 }]), true);
 await expect("curator removes a BPM", cur.save(TUNE, [{ song: 2, bpm: null }]), true);
+await expect("curator says a subtune has no BPM (0)", cur.save(TUNE, [{ song: 3, bpm: 0 }]), true);
+await expect("negative BPM refused", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), await core.tagWrite(name, cur.cid, TUNE, 0, [], -1)]))(), false);
 await expect("BPM out of range refused", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), await core.tagWrite(name, cur.cid, TUNE, 0, [], 999)]))(), false);
 await expect("BPM as text refused", (async () => { const w = await core.tagWrite(name, cur.cid, TUNE, 0, [], 120); w.update.fields.b = { stringValue: "120" }; return rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), w]); })(), false);
 await expect("unknown tag field refused", (async () => { const w = await core.tagWrite(name, cur.cid, TUNE, 0, []); w.update.fields.x = { stringValue: "hi" }; return rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), w]); })(), false);
@@ -78,7 +80,8 @@ await expect("expired invite can't be claimed (raw)", (async () => { const s2 = 
 await expect("used invite can't be expired", (async () => { const h = await core.inviteHash(core.parseInviteLink(link)); return admin.expireInvite(h); })(), false);
 await expect("admin invite can't be expired in the app", (async () => { await invite("admin", "8".repeat(32), DAY); return admin.expireInvite(await core.inviteHash("8".repeat(32))); })(), false);
 await expect("anyone reads tags", svc("r").refresh({ path: TUNE, song: 1, songs: 3 }), true);
-await expect("admin lists a curator's edits", admin.editsBy(cur.cid).then((e) => assert.equal(e.length, 2)), true);
+// The whole tune, subtune 2 and subtune 3 (its BPM of 0).
+await expect("admin lists a curator's edits", admin.editsBy(cur.cid).then((e) => assert.equal(e.length, 3)), true);
 await expect("an admin can't be turned off in the app", (async () => { await invite("admin", "9".repeat(32), DAY); const admin2 = svc("a2"); await admin2.init(); await admin2.claim("9".repeat(32)); return rawCommit([await core.chainStep(name, admin2.state, await curDoc(admin2)), core.activeWrite(name, admin2.cid, admin.cid, false)]); })(), false);
 for (const [l, r] of results) console.log((r.startsWith("PASS") ? "ok   " : "FAIL ") + l + " -> " + r);
 process.exit(results.some(([, r]) => !r.startsWith("PASS")) ? 1 : 0);

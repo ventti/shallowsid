@@ -288,7 +288,8 @@ service cloud.firestore {
     }
 
     // tags/<sha256("path#s")>: s = 0 is the whole tune, s >= 1 a subtune.
-    // b, if there, is the tempo in whole BPM (js/tags-core.js MIN_BPM..MAX_BPM).
+    // b, if there, is the tempo in whole BPM (js/tags-core.js MIN_BPM..MAX_BPM),
+    // or 0 for "no tempo", which hides the estimate.
     match /tags/{id} {
       function validTags() {
         let d = request.resource.data;
@@ -300,7 +301,7 @@ service cloud.firestore {
           && hashing.sha256(d.p + '#' + string(d.s)).toHexString().lower() == id
           && d.t is list && d.t.size() <= 12
           && d.t.hasOnly(tagIds())
-          && (!('b' in d) || (d.b is int && d.b >= 20 && d.b <= 300))
+          && (!('b' in d) || (d.b is int && (d.b == 0 || (d.b >= 20 && d.b <= 300))))
           && d.at == request.time
           && stepped(d.by);
       }

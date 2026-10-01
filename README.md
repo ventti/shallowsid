@@ -53,7 +53,8 @@ Tags:
 - Tunes can carry tags such as **Ballad**, **Title Tune** or **Digi Samples**, from a fixed list in [`js/tags-vocab.json`](js/tags-vocab.json). They show under the composer in Now Playing. Tap one for every tune with it. Home shows the most used tags, and typing `#` in search lists them.
 - A tag is on a whole tune or on one subtune. A subtune also shows the whole tune's tags.
 - Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
-- Curators can also set a tune's tempo in the same sheet, as a whole BPM from 20 to 300. A subtune can have its own; otherwise it shows the whole tune's. Empty the field to remove it. The BPM shows first in Now Playing, e.g. **125 BPM**. `tools/bpm/` can estimate one, but only a curator puts it in the app.
+- Tunes can show a tempo first in Now Playing. **~124 BPM** is an estimate from the sound (see [BPM estimates](#bpm-estimates-experimental)); **124 BPM** was set by a curator.
+- Curators set it in the same sheet, as a whole BPM from 20 to 300, for the whole tune or one subtune. A subtune's own wins, then the whole tune's, then the estimate. Empty the field to fall back to the one underneath, shown greyed out. **0** means no BPM, which also hides a wrong estimate.
 - Curators join with a one-time invite link from an admin, valid for two weeks. Accepting turns on Sync if it's off, since the rights live in your synced data. They then get a **Curation** tab right of **Playlists**, with their edits. Use the same sync key on your other devices to curate there too.
 - Admins get an **Admin** tab there instead. It also invites curators, shows their edits and has an on/off switch per curator. An invite nobody has used yet can be expired early with **Expire**. A curator that's off can't tag; their tags stay. Who tagged what is shown only to that curator and to admins.
 - Others see new tags after the next deploy, which runs daily. Curators see them at once.
@@ -228,31 +229,50 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
 
 ## BPM estimates (experimental)
 
-`tools/bpm/bpm.py` guesses the tempo of every subtune. It renders a minute of each with SIDLite (~65x realtime) and runs essentia's beat tracker on it, one worker per core. The whole HVSC takes about 6 hours on a 16-core Mac.
+`tools/bpm/` estimates the tempo of every subtune, a folder at a time, and ships the results with the site. It renders a minute of each with SIDLite (~65x realtime) and runs two of essentia's tempo estimators on it, one worker per core. All of HVSC takes about 6 hours on a 16-core Mac. Written for my own use, so beware of peculiarities.
 
-1. Set up once, in `tools/bpm`:
+Set up once, in `tools/bpm`:
+
+```sh
+npm install
+uv venv -p 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
+```
+
+### Usage
+
+Every now and then:
+
+1. Analyse a folder (subfolders included; paths not found are tried under `hvsc/`):
    ```sh
-   npm install
-   uv venv -p 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
+   tools/bpm/bpm.py MUSICIANS/H/Hubbard_Rob
    ```
-2. Run it on a folder, or on a list of `path[:song]` lines:
+   It shows done/total with the time elapsed and left; `-v` adds a line per subtune (time, tune, status, BPM). Results add up in `tools/bpm/results.jsonl` (not committed), so nothing is done twice. **Ctrl-C** stops it; the same command continues.
+2. Make a list of what needs an ear:
    ```sh
-   tools/bpm/.venv/bin/python tools/bpm/bpm.py bpm.jsonl hvsc
+   tools/bpm/review.py todo
    ```
+   It writes `tools/bpm/review.txt` and `review.m3u8`, a playlist to import in the app. Subtunes curators have set are left out, read from the site's `tags-index.json`.
+3. Listen, and in `review.txt` replace each `?` with the BPM you hear, or `-` for no clear tempo. Leave `?` to skip one.
+4. Publish and commit:
+   ```sh
+   tools/bpm/review.py publish
+   git add tools/bpm/estimates.tsv && git commit -m "chore(bpm): estimates for Rob Hubbard"
+   ```
+   The next deploy builds `estimates.tsv` into `data/index.json`, and the app shows the estimates.
 
-Each subtune gets a JSONL row with two independent guesses, `bpm` (essentia's beat tracker, with its `confidence`) and `percival`, and a `status`:
+### Notes
 
-- `ok`: both agree and the confidence is fine.
-- `double`: one is double the other. Half or double tempo is the usual mistake, and the right one is usually among the two.
-- `check`: anything else, often a 3:2 or 4:3 disagreement.
-- `short`: under 30 s by `Songlengths.md5` (effects, jingles and other snippets), not rendered. Needs `data/index.json` from `tools/build_index.py`.
-- `silent`: nothing to measure.
-
-Stop it any time with **Ctrl-C**: rows so far are kept, and the same command continues where it left off. Subtunes already done are skipped (failed ones are retried) unless you add `--force`. Then have a human check the rest:
-
-1. `tools/bpm/review.py todo bpm.jsonl -o review` writes `review.m3u8`, a playlist to import in the app with both guesses in each title, and `review.txt`, a worksheet of `path:song bpm` lines.
-2. Listen, and fix the numbers in `review.txt`.
-3. `tools/bpm/review.py compare bpm.jsonl review.txt` scores the estimates against a worksheet like that.
+- Each subtune's status in `results.jsonl`:
+  - `ok`: both estimators agree, confidently. Published as is.
+  - `double`: one is double the other. The usual mistake; the right one is usually one of the two.
+  - `check`: anything else, often 3:2 or 4:3.
+  - `short`: under 30 s by `Songlengths.md5`, so not rendered. Needs `data/index.json`.
+  - `silent`: nothing to measure.
+- `estimates.tsv` is one sorted `path, song, bpm, source` line per subtune. `auto` lines follow the latest results; `checked` ones (your answers) are never overwritten.
+- Curators always win in the app: their BPM, or their 0, hides the estimate.
+- `todo` won't overwrite answers you haven't published yet.
+- `bpm.py --force` redoes subtunes; `--list` takes a file of `path[:song]` lines.
+- `review.py compare human.txt` scores the estimates against `path:song bpm` lines, and `review.py compare curators` against what curators have set.
 
 ## How it works
 

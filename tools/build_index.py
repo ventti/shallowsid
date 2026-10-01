@@ -2,7 +2,8 @@
 """Build ShallowSID's song catalogue (data/index.json) from HVSC.
 
 Parses every PSID/RSID header, joins song lengths from
-DOCUMENTS/Songlengths.md5 and writes a compact columnar index. Songs are not
+DOCUMENTS/Songlengths.md5 and the tempo estimates from tools/bpm/estimates.tsv,
+and writes a compact columnar index. Songs are not
 copied: the app streams them from hvsc.c64.org.
 
 Uses <out>/hvsc (see fetch_hvsc.py) when it exists; otherwise downloads the
@@ -37,6 +38,7 @@ FLAG_MODEL_SHIFT = 3          # 2 bits: 0 unknown, 1 6581, 2 8580, 3 both
 FLAG_MULTI_SID = 1 << 5
 
 TIME_RE = re.compile(r"(\d+):(\d+)(?:\.(\d+))?")
+ESTIMATES = Path(__file__).resolve().parent / "bpm" / "estimates.tsv"
 
 
 def log(*args):
@@ -101,6 +103,27 @@ def parse_header(data):
     }
 
 
+def read_estimates(path=ESTIMATES):
+    """{path: {song: bpm}} from tools/bpm/estimates.tsv (path, song, bpm, source; 0 = no tempo)."""
+    out = {}
+    if not path.exists():
+        return out
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        rel, song, bpm, _source = line.split("\t")
+        out.setdefault(rel, {})[int(song)] = int(bpm)
+    return out
+
+
+def bpm_column(estimates, songs):
+    """Per subtune, 0 where there's none; trailing zeros dropped."""
+    column = [estimates.get(s, 0) for s in range(1, songs + 1)]
+    while column and not column[-1]:
+        column.pop()
+    return column
+
+
 class Interner:
     """Deduplicates repeated strings (dirs, authors) into an index table."""
 
@@ -118,6 +141,8 @@ def build_index(music_root, subset, version):
     lengths_file = music_root / "DOCUMENTS" / "Songlengths.md5"
     by_path, by_md5 = parse_songlengths(lengths_file) if lengths_file.exists() else ({}, {})
     log(f"song lengths for {len(by_md5)} tunes")
+    estimates = read_estimates()
+    log(f"bpm estimates for {len(estimates)} tunes")
 
     scan_root = music_root / subset if subset else music_root
     dirs, authors, files = Interner(), Interner(), []
@@ -130,13 +155,17 @@ def build_index(music_root, subset, version):
         rel = sid_path.relative_to(music_root).as_posix()
         lengths = by_path.get(rel) or by_md5.get(hashlib.md5(data).hexdigest()) or []
         rel_dir, name = rel.rsplit("/", 1) if "/" in rel else ("", rel)
-        files.append([
+        row = [
             dirs(rel_dir), name, header["title"], authors(header["author"]), header["released"],
             header["songs"], header["start"], header["flags"], lengths,
-        ])
+        ]
+        bpm = bpm_column(estimates.get(rel, {}), header["songs"])
+        if bpm:
+            row.append(bpm)   # most tunes have none; the app reads a missing column as []
+        files.append(row)
     index = {
         "v": version,
-        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths"],
+        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths", "bpm"],
         "dirs": dirs.values,
         "authors": authors.values,
         "files": files,

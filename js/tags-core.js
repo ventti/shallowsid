@@ -5,8 +5,9 @@
 // Tags are picked from js/tags-vocab.json only, so there's no free text to
 // filter. A tune's tags live at tags/<sha256("path#s")>, where s = 0 is the
 // whole tune and s >= 1 one subtune; a subtune shows both. The same document
-// holds the tempo curators set (b, whole BPM); a subtune's own overrides the
-// whole tune's.
+// holds the tempo curators set (b, whole BPM, or NO_BPM to say there is none).
+// For a subtune the subtune's own wins, then the whole tune's, then the
+// estimate shipped in the catalogue (tools/bpm).
 //
 // Curators have no accounts. Each has a random seed; its curator id is
 // HMAC(seed, "curator-id") and, as for shared lists (live-share-core.js),
@@ -21,6 +22,7 @@ export const MAX_TAGS = 12;            // per tune or subtune, as firestore.rule
 export const MAX_SONG = 256;
 export const MIN_BPM = 20;             // as firestore.rules allow
 export const MAX_BPM = 300;
+export const NO_BPM = 0;               // a curator saying there's no tempo, hiding any estimate
 export const WHOLE_TUNE = 0;
 export const INVITE_DAYS = 14;
 export const ROLES = ["curator", "admin"];
@@ -53,10 +55,10 @@ export function cleanTags(ids, vocab) {
   return [...vocab.byId.keys()].filter((id) => wanted.has(id)).slice(0, MAX_TAGS);
 }
 
-// A whole BPM in range, or null.
+// A whole BPM in range, NO_BPM, or null for anything else.
 export function cleanBpm(value) {
   const n = typeof value === "string" && value.trim() ? Number(value) : value;
-  return Number.isInteger(n) && n >= MIN_BPM && n <= MAX_BPM ? n : null;
+  return n === NO_BPM || (Number.isInteger(n) && n >= MIN_BPM && n <= MAX_BPM) ? n : null;
 }
 
 // ---- ids -----------------------------------------------------------------------

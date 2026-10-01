@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Estimate the BPM of every subtune of SID files, one process per core.
 
 Work is split per subtune. Each worker keeps a render-server.mjs (SIDLite)
@@ -9,10 +10,17 @@ Setup (once, in tools/bpm):
   npm install
   uv venv -p 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt
 
-Usage:
-  .venv/bin/python bpm.py OUT.jsonl ROOT_DIR          # every .sid under ROOT_DIR
-  .venv/bin/python bpm.py OUT.jsonl --list tunes.txt  # lines of "path[:song] [bpm]"
-Options: --workers N  --seconds 70  --skip 10  --limit N  --force  --index data/index.json
+Usage (it runs itself with tools/bpm/.venv when that's set up):
+  tools/bpm/bpm.py FOLDER...               # every .sid under each folder, subfolders too
+  tools/bpm/bpm.py hvsc/MUSICIANS/H/Hubbard_Rob Commando.sid
+  tools/bpm/bpm.py MUSICIANS/H/Hubbard_Rob # paths not found here are tried under hvsc/
+  tools/bpm/bpm.py --list tunes.txt        # lines of "path[:song] [bpm]"
+Results go to tools/bpm/results.jsonl (-o to change it), so runs on different
+folders, from anywhere, add up and none is done twice. review.py then turns
+them into tools/bpm/estimates.tsv, which ships with the site.
+Progress shows as done/total, time elapsed and left; --verbose adds a line
+per subtune.
+Options: -v  -o OUT.jsonl  --workers N  --seconds 70  --skip 10  --limit N  --force  --index data/index.json
 
 Subtunes under 30 s by the catalogue's song lengths are marked "short" and
 not rendered. Each row's status: ok (both estimators agree, confidently),
@@ -24,13 +32,16 @@ from multiprocessing import Pool
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent
+VENV_PYTHON = HERE / ".venv" / "bin" / "python"
+RESULTS = HERE / "results.jsonl"
 RATE = 44100            # essentia's rhythm extractors assume 44.1 kHz
 SILENT_RMS = 0.002      # a window quieter than this has no tune to measure
 MIN_CONFIDENCE = 1.0    # essentia: below 1 its beat tracking is poor (the scale tops out at 5.32)
 BPM_RANGE = (40, 250)   # outside this it has locked onto effects or noise, not a beat
 AGREE = 0.04            # the two estimators agree when within 4 % of each other
 MIN_SECONDS = 30        # shorter subtunes are effects, jingles and snippets, not worth a tempo
-INDEX = HERE.parent.parent / "data" / "index.json"   # song lengths, from tools/build_index.py
+INDEX = REPO / "data" / "index.json"   # song lengths, from tools/build_index.py
 
 _server = None
 _opts = None
@@ -91,7 +102,7 @@ def work(job):
     t0 = time.perf_counter()
     row = {"path": path, "song": song, "length": length}
     if length is not None and length < MIN_SECONDS:
-        row["status"] = "short"
+        row.update(status="short", secs=0.0)
         return row
     try:
         # Songlengths lists the length to the end or the first loop; past that there is nothing new.
@@ -140,31 +151,61 @@ def hvsc_path(path):
     m = re.search(r"(?:^|/)((?:MUSICIANS|GAMES|DEMOS)/.+)$", path)
     return m.group(1) if m else path
 
+def use_venv():
+    """Run again with tools/bpm/.venv's Python if this one hasn't got essentia."""
+    try:
+        import essentia  # noqa: F401
+        return
+    except ImportError:
+        pass
+    if VENV_PYTHON.exists() and Path(sys.executable).resolve() != VENV_PYTHON.resolve():
+        os.execv(str(VENV_PYTHON), [str(VENV_PYTHON), __file__, *sys.argv[1:]])
+    sys.exit(f"essentia isn't installed. Set up once, in {HERE}:\n"
+             "  uv venv -p 3.12 .venv && VIRTUAL_ENV=.venv uv pip install -r requirements.txt")
+
+def find(arg):
+    """A path as given, or else under the repo's hvsc/ (so MUSICIANS/... works from anywhere)."""
+    p = Path(arg)
+    if not p.exists() and (REPO / "hvsc" / arg).exists():
+        p = REPO / "hvsc" / arg
+    if not p.exists():
+        sys.exit(f"{arg}: no such file or folder")
+    return p.resolve()
+
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("out")
-    ap.add_argument("root", nargs="?")
-    ap.add_argument("--list")
-    ap.add_argument("--workers", type=int, default=os.cpu_count())
-    ap.add_argument("--seconds", type=float, default=70)
-    ap.add_argument("--skip", type=float, default=10)
-    ap.add_argument("--limit", type=int)
-    ap.add_argument("--force", action="store_true", help="redo subtunes already in OUT.jsonl")
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("paths", nargs="*", help="folders (searched with their subfolders) or .sid files")
+    ap.add_argument("-o", "--out", default=str(RESULTS), help="results, added to on every run (default: tools/bpm/results.jsonl)")
+    ap.add_argument("--list", help='a file of "path[:song] [bpm]" lines instead of paths')
+    ap.add_argument("--workers", type=int, default=os.cpu_count(), help="processes (default: one per core)")
+    ap.add_argument("--seconds", type=float, default=70, help="how much of each subtune to render (default: 70)")
+    ap.add_argument("--skip", type=float, default=10, help="seconds of intro left out of the estimate (default: 10)")
+    ap.add_argument("--limit", type=int, help="stop after this many subtunes")
+    ap.add_argument("--force", action="store_true", help="redo subtunes already in the results")
+    ap.add_argument("-v", "--verbose", action="store_true", help="a line per subtune: time, tune, status and BPM")
     ap.add_argument("--index", type=Path, default=INDEX, help="catalogue with the song lengths")
     a = ap.parse_args()
+    if not a.paths and not a.list:
+        ap.error("give a folder, a .sid file or --list")
+    if not (HERE / "node_modules" / "libsidplayfp-wasm").exists():
+        sys.exit(f"The renderer isn't installed: run npm install in {HERE}")
+    use_venv()
 
+    jobs = []
     if a.list:
-        jobs = []
         for line in Path(a.list).read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
             # Anything after the path, such as a known BPM to compare with, is ignored.
             p, s = re.match(r"(.*?\.sid)(?::(\d+))?(?:\s.*)?$", line, re.I).groups()
-            p = str(Path(p).resolve())
+            p = str(find(p))
             jobs += [(p, int(s))] if s else subtunes(p)
-    else:
-        jobs = [j for p in sorted(Path(a.root).resolve().rglob("*.sid")) for j in subtunes(str(p))]
+    for arg in a.paths:
+        p = find(arg)
+        files = sorted(p.rglob("*.sid")) if p.is_dir() else [p]
+        jobs += [j for f in files for j in subtunes(str(f))]
+    jobs = list(dict.fromkeys(jobs))    # a file given twice, or inside a folder also given
 
     # A subtune counts as done once it has a row without an error; errors are retried.
     rows = []
@@ -179,7 +220,7 @@ def main():
     jobs = [(p, s, lengths.get((hvsc_path(p), s))) for p, s in jobs if a.force or (p, s) not in done]
     if a.limit:
         jobs = jobs[:a.limit]
-    print(f"{len(jobs)} subtunes to do, {len(done)} already done, {a.workers} workers", file=sys.stderr)
+    print(f"{len(jobs)} subtunes to do, {len(done)} already done, {a.workers} workers -> {a.out}", file=sys.stderr)
 
     # Drop the old rows of what's about to be redone, so each subtune keeps one row.
     redo = {(p, s) for p, s, _ in jobs}
@@ -191,6 +232,7 @@ def main():
 
     opts = {"seconds": a.seconds, "skip": a.skip}
     t0, n = time.perf_counter(), 0
+    progress = Progress(len(jobs), t0)
     signal.signal(signal.SIGTERM, _stop)
     pool = Pool(a.workers, initializer=_init, initargs=(opts,))
     try:
@@ -199,15 +241,73 @@ def main():
                 n += 1
                 f.write(json.dumps(r) + "\n")
                 f.flush()
-                if n % 200 == 0:
-                    rate = n / (time.perf_counter() - t0)
-                    print(f"{n} subtunes, {rate:.1f}/s", file=sys.stderr)
+                if a.verbose:
+                    progress.clear()
+                    print(describe(r, n, len(jobs)), file=sys.stderr, flush=True)
+                progress.show(n)
     except KeyboardInterrupt:
         pool.terminate(); pool.join()
-        print(f"\nstopped: {n} subtunes saved to {a.out} this run. Run the same command to continue.", file=sys.stderr)
+        progress.clear()
+        print(f"stopped after {clock(time.perf_counter() - t0)}: {n} subtunes saved to {a.out} this run. "
+              "Run the same command to continue.", file=sys.stderr)
         sys.exit(130)
     pool.close(); pool.join()
-    print(f"done: {n} subtunes in {time.perf_counter() - t0:.0f}s", file=sys.stderr)
+    progress.clear()
+    print(f"done: {n} subtunes in {clock(time.perf_counter() - t0)}", file=sys.stderr)
+
+def clock(seconds):
+    m, s = divmod(int(seconds), 60)
+    h, m = divmod(m, 60)
+    return f"{h}:{m:02}:{s:02}" if h else f"{m}:{s:02}"
+
+def describe(r, n, total):
+    """One line for --verbose: when, which subtune, its status and BPM."""
+    when = time.strftime("%Y-%m-%d %H:%M:%S")
+    tune = f"{hvsc_path(r['path'])} #{r['song']}"
+    if "error" in r:
+        what = f"error   {r['error'][:80]}"
+    elif "bpm" in r:
+        what = f"{r['status']:7} {r['bpm']:3} BPM (percival {r['percival']}, confidence {r['confidence']:.2f})"
+    elif r.get("status") == "short":
+        what = f"short   {r.get('length')} s"
+    else:
+        what = r.get("status", "?")
+    return f"{when}  {n:>{len(str(total))}}/{total}  {tune}  {what}  {r['secs']:.1f}s"
+
+class Progress:
+    """done/total, elapsed and left: kept on one line in a terminal, a line every
+    30 s (and at 25/50/75 %) when the output goes to a file."""
+
+    def __init__(self, total, t0):
+        self.total, self.t0 = total, t0
+        self.tty = sys.stderr.isatty()
+        self.last = t0
+        self.quarter = 0
+        self.shown = False
+
+    def line(self, n):
+        elapsed = time.perf_counter() - self.t0
+        left = elapsed / n * (self.total - n) if n else 0
+        pct = 100 * n / self.total if self.total else 100
+        return f"{n}/{self.total} ({pct:.0f}%)  {clock(elapsed)} elapsed, ~{clock(left)} left"
+
+    def show(self, n):
+        now = time.perf_counter()
+        if self.tty:
+            if now - self.last >= 0.2 or n == self.total:
+                print("\r\033[K" + self.line(n), end="", file=sys.stderr, flush=True)
+                self.last, self.shown = now, True
+            return
+        quarter = 4 * n // self.total if self.total else 4
+        if now - self.last >= 30 or quarter > self.quarter:
+            print(self.line(n), file=sys.stderr, flush=True)
+            self.last, self.quarter = now, quarter
+
+    def clear(self):
+        """Wipe the terminal line before other output."""
+        if self.tty and self.shown:
+            print("\r\033[K", end="", file=sys.stderr, flush=True)
+            self.shown = False
 
 if __name__ == "__main__":
     main()

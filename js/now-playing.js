@@ -217,8 +217,10 @@ export class NowPlaying {
     const bpm = this.tags.bpmFor(item);
     const song = (s) => (s ? `<span class="tag-song">#${s}</span>` : "");
     const chip = (id, s) => `<ion-chip data-tag="${esc(id)}" class="tag-chip">${esc(this.tags.label(id))}${song(s)}</ion-chip>`;
-    const tempo = bpm.bpm ? `<ion-chip class="tag-chip bpm-chip" title="Tempo">${bpm.bpm} BPM${song(bpm.sub ? item.song : 0)}</ion-chip>` : "";
-    const any = whole.length || sub.length || bpm.bpm;
+    const tempo = bpm.bpm
+      ? `<ion-chip class="tag-chip bpm-chip" title="${bpm.estimated ? "Tempo, estimated from the sound" : "Tempo"}">${bpm.estimated ? "~" : ""}${bpm.bpm} BPM${song(bpm.sub ? item.song : 0)}</ion-chip>`
+      : "";
+    const any = whole.length || sub.length || (bpm.bpm && !bpm.estimated);
     const edit = this.tags.canTag
       ? `<ion-chip data-tag-edit class="tag-chip tag-edit" outline><ion-icon name="${any ? "pricetags-outline" : "add"}"></ion-icon><ion-label>${any ? "Edit Tags" : "Tag"}</ion-label></ion-chip>`
       : "";

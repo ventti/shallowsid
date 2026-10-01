@@ -1,7 +1,8 @@
 // Loads data/index.json (built by tools/build_index.py) into tune objects.
 //
-// Row layout: [dir, name, title, author, released, songs, start, flags, lengths]
-// with `dir` and `author` as indexes into the shared string tables.
+// Row layout: [dir, name, title, author, released, songs, start, flags, lengths, bpm]
+// with `dir` and `author` as indexes into the shared string tables, and bpm
+// the estimated tempo per subtune (0 = none; tools/bpm/estimates.tsv).
 
 const FLAG_RSID = 1 << 0;
 const FLAG_MULTI_SID = 1 << 5;
@@ -11,7 +12,7 @@ const MODELS = ["", "6581", "8580", "6581/8580"];
 export const INDEX_URL = new URL("../data/index.json", import.meta.url).href;
 
 export function decodeRow(row, id, dirs, authors) {
-  const [dirIdx, name, title, authorIdx, released, songs, start, flags, lengths] = row;
+  const [dirIdx, name, title, authorIdx, released, songs, start, flags, lengths, bpm] = row;
   const dir = dirs[dirIdx];
   return {
     id,
@@ -24,6 +25,7 @@ export function decodeRow(row, id, dirs, authors) {
     songs,
     start,
     lengths,
+    bpmEstimates: bpm ?? [],
     rsid: !!(flags & FLAG_RSID),
     multiSid: !!(flags & FLAG_MULTI_SID),
     clock: CLOCKS[(flags >> 1) & 3],

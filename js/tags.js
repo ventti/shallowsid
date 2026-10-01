@@ -73,13 +73,18 @@ export class TagService extends EventTarget {
     return live ? live.bpm : this.bpmIndex.get(path)?.get(song) ?? null;
   }
 
-  // {whole, sub, bpm} for a subtune: the whole tune's BPM, the subtune's own
-  // (null if it has none, or there's only one), and the one that applies.
+  // What a subtune's tempo is, and why: {whole, sub, estimate, bpm, estimated}.
+  // whole and sub are what curators set (null: nothing; NO_BPM: "none"),
+  // estimate the catalogue's (tools/bpm). The subtune's own wins, then the
+  // whole tune's, then the estimate; bpm is null when there's none to show.
   bpmFor(item) {
-    if (!item?.path) return { whole: null, sub: null, bpm: null };
+    if (!item?.path) return { whole: null, sub: null, estimate: null, bpm: null, estimated: false };
     const whole = this.songBpm(item.path, WHOLE_TUNE);
     const sub = item.songs > 1 ? this.songBpm(item.path, item.song) : null;
-    return { whole, sub, bpm: sub ?? whole };
+    const estimate = cleanBpm(item.bpmEstimates?.[(item.song ?? 1) - 1] ?? null) || null;
+    const curated = sub ?? whole;
+    const bpm = curated ?? estimate;
+    return { whole, sub, estimate, bpm: bpm || null, estimated: curated === null && !!estimate };
   }
 
   // {whole, sub, edited: {whole, sub}} for a subtune: its own tags and the whole tune's.

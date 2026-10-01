@@ -1,8 +1,8 @@
 // The "Tags" sheet, for curators: pick a tune's tags from the vocabulary and
-// set its BPM, for the whole tune or just the subtune playing. Chips toggle;
-// an empty BPM removes it. Done (or swiping the sheet away) saves, Cancel doesn't.
+// set its BPM, for the whole tune or just the subtune playing. Chips toggle.
+// An empty BPM falls back to the whole tune's or the estimate; 0 says none. Done (or swiping the sheet away) saves, Cancel doesn't.
 
-import { MAX_BPM, MAX_TAGS, MIN_BPM, WHOLE_TUNE, cleanBpm } from "./tags-core.js";
+import { MAX_BPM, MAX_TAGS, MIN_BPM, NO_BPM, WHOLE_TUNE, cleanBpm } from "./tags-core.js";
 import { esc, toast } from "./ui.js";
 
 const SCOPE_KEY = "shallowsid.tagScope";
@@ -115,19 +115,27 @@ export class TagSheet {
     }
   }
 
-  // The BPM field for the scope shown; a subtune without its own shows the whole tune's.
+  // The BPM field for the scope shown. Left empty, it shows what applies instead.
   renderBpm() {
     const box = this.root.querySelector("#tag-bpm-box");
     if (!box || !this.draft) return;
     const scope = this.activeScope;
     const whole = cleanBpm(this.draft.bpm.whole);
-    const placeholder = scope === "sub" && whole ? `${whole}, from the whole tune` : "None";
-    box.innerHTML = `
+    const { estimate } = this.tags.bpmFor(this.item);
+    const fallback = estimate ? `~${estimate}, estimated` : "None";
+    const placeholder = scope === "sub" && whole !== null
+      ? (whole === NO_BPM ? "None, from the whole tune" : `${whole}, from the whole tune`)
+      : fallback;
+    // Made once and then updated: Ionic trips over an input replaced while it starts up.
+    if (!box.querySelector("ion-input")) box.innerHTML = `
       <ion-item lines="none" class="tag-bpm">
-        <ion-input id="tag-bpm" type="number" inputmode="numeric" min="${MIN_BPM}" max="${MAX_BPM}" step="1"
-          label="BPM" label-placement="start" placeholder="${esc(placeholder)}" clear-input="true"></ion-input>
-      </ion-item>`;
-    box.querySelector("ion-input").value = this.draft.bpm[scope];
+        <ion-input id="tag-bpm" type="number" inputmode="numeric" min="${NO_BPM}" max="${MAX_BPM}" step="1"
+          label="BPM" label-placement="start" clear-input="true"></ion-input>
+      </ion-item>
+      <p class="sound-note tag-bpm-note">Empty uses what's shown greyed out; 0 means no BPM.</p>`;
+    const input = box.querySelector("ion-input");
+    input.placeholder = placeholder;
+    input.value = this.draft.bpm[scope];
   }
 
   renderChips() {
@@ -188,7 +196,7 @@ export class TagSheet {
   async finish() {
     const item = this.item, { changes, invalid } = this.cancelled ? { changes: [], invalid: [] } : this.changes();
     this.item = null;
-    if (invalid.length) toast(`BPM ${invalid.join(", ")} not saved: use a whole number from ${MIN_BPM} to ${MAX_BPM}`, { color: "warning" });
+    if (invalid.length) toast(`BPM ${invalid.join(", ")} not saved: use a whole number from ${MIN_BPM} to ${MAX_BPM}, or 0 for none`, { color: "warning" });
     if (!changes.length) return;
     try {
       await this.tags.save(item.path, changes);
