@@ -25,6 +25,7 @@
         { "id": "drum-and-bass", "label": "Drum & Bass" },
         { "id": "dub", "label": "Dub" },
         { "id": "electro", "label": "Electro" },
+        { "id": "eurodance", "label": "Eurodance" },
         { "id": "experimental", "label": "Experimental" },
         { "id": "fake-music", "label": "Fake Music" },
         { "id": "folk", "label": "Folk" },

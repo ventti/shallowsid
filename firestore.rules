@@ -124,6 +124,7 @@ service cloud.firestore {
         'drum-and-bass',
         'dub',
         'electro',
+        'eurodance',
         'experimental',
         'fake-music',
         'folk',
