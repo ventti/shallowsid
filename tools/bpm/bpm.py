@@ -15,7 +15,8 @@ Usage (it runs itself with tools/bpm/.venv when that's set up):
   tools/bpm/bpm.py hvsc/MUSICIANS/H/Hubbard_Rob Commando.sid
   tools/bpm/bpm.py MUSICIANS/H/Hubbard_Rob # paths not found here are tried under hvsc/
   tools/bpm/bpm.py --list tunes.txt        # lines of "path[:song] [bpm]"
-Results go to tools/bpm/results.jsonl (-o to change it), so runs on different
+Results go to tools/bpm/results.jsonl (-o to change it), with paths within
+HVSC (MUSICIANS/...), so runs on different
 folders, from anywhere, add up and none is done twice. review.py then turns
 them into tools/bpm/estimates.tsv, which ships with the site.
 Progress shows as done/total, time elapsed and left; --verbose adds a line
@@ -100,7 +101,7 @@ def work(job):
     path, song, length = job
     import numpy as np
     t0 = time.perf_counter()
-    row = {"path": path, "song": song, "length": length}
+    row = {"path": hvsc_path(path), "song": song, "length": length}
     if length is not None and length < MIN_SECONDS:
         row.update(status="short", secs=0.0)
         return row
@@ -208,6 +209,7 @@ def main():
     jobs = list(dict.fromkeys(jobs))    # a file given twice, or inside a folder also given
 
     # A subtune counts as done once it has a row without an error; errors are retried.
+    # Rows key on the path within HVSC, so results from any checkout add up.
     rows = []
     if os.path.exists(a.out):
         for line in open(a.out):
@@ -215,20 +217,20 @@ def main():
                 rows.append(json.loads(line))
             except ValueError:
                 continue    # a line cut short by a stopped run
+    if any(r["path"] != hvsc_path(r["path"]) for r in rows):
+        rows = [{**r, "path": hvsc_path(r["path"])} for r in rows]   # older runs saved absolute paths
+        rewrite(a.out, rows)
     done = {(r["path"], r["song"]) for r in rows if "error" not in r}
     lengths = load_lengths(a.index)
-    jobs = [(p, s, lengths.get((hvsc_path(p), s))) for p, s in jobs if a.force or (p, s) not in done]
+    jobs = [(p, s, lengths.get((hvsc_path(p), s))) for p, s in jobs if a.force or (hvsc_path(p), s) not in done]
     if a.limit:
         jobs = jobs[:a.limit]
     print(f"{len(jobs)} subtunes to do, {len(done)} already done, {a.workers} workers -> {a.out}", file=sys.stderr)
 
     # Drop the old rows of what's about to be redone, so each subtune keeps one row.
-    redo = {(p, s) for p, s, _ in jobs}
+    redo = {(hvsc_path(p), s) for p, s, _ in jobs}
     if any((r["path"], r["song"]) in redo for r in rows):
-        tmp = a.out + ".tmp"
-        with open(tmp, "w") as f:
-            f.writelines(json.dumps(r) + "\n" for r in rows if (r["path"], r["song"]) not in redo)
-        os.replace(tmp, a.out)
+        rewrite(a.out, [r for r in rows if (r["path"], r["song"]) not in redo])
 
     opts = {"seconds": a.seconds, "skip": a.skip}
     t0, n = time.perf_counter(), 0
@@ -255,6 +257,12 @@ def main():
     progress.clear()
     print(f"done: {n} subtunes in {clock(time.perf_counter() - t0)}", file=sys.stderr)
 
+def rewrite(out, rows):
+    tmp = out + ".tmp"
+    with open(tmp, "w") as f:
+        f.writelines(json.dumps(r) + "\n" for r in rows)
+    os.replace(tmp, out)
+
 def clock(seconds):
     m, s = divmod(int(seconds), 60)
     h, m = divmod(m, 60)
@@ -263,7 +271,7 @@ def clock(seconds):
 def describe(r, n, total):
     """One line for --verbose: when, which subtune, its status and BPM."""
     when = time.strftime("%Y-%m-%d %H:%M:%S")
-    tune = f"{hvsc_path(r['path'])} #{r['song']}"
+    tune = f"{r['path']} #{r['song']}"
     if "error" in r:
         what = f"error   {r['error'][:80]}"
     elif "bpm" in r:
