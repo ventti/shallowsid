@@ -12,6 +12,7 @@ import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
+import { describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
 import { mixDefinition, mixTunes, pickMixes, weekSeed } from "./mixes.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
@@ -146,6 +147,7 @@ const searchWorker = new Worker(new URL("./search-worker.js", import.meta.url), 
 let searchReady = false;
 let searchError = null;
 let lastIds = null;             // result ids; turned into tunes once the index is in
+let searchFilter = null;        // the query's {text, filter, error} (num-query.js)
 let lastTotal = 0;              // every match, including those past the worker's limit
 searchWorker.onmessage = (e) => {
   const msg = e.data;
@@ -264,8 +266,15 @@ function runSearch(query) {
   const route = currentRoute().name;
   if (searchQuery && route !== "search") history.replaceState(null, "", "#/search");
   else if (!searchQuery && route === "search") history.replaceState(null, "", "#/home");
-  lastResults = lastIds = null;
-  if (searchQuery && !searchQuery.startsWith("#")) searchWorker.postMessage({ type: "search", id: ++searchSeq, query: searchQuery });
+  lastResults = lastIds = searchFilter = null;
+  searchSeq++;   // results still on their way for an earlier query get dropped
+  if (searchQuery && !searchQuery.startsWith("#")) {
+    searchFilter = parseQuery(searchQuery);
+    // Comparisons alone need no word search: they go through the whole catalogue.
+    if (searchFilter.text && !searchFilter.error) {
+      searchWorker.postMessage({ type: "search", id: searchSeq, query: searchFilter.text, all: !!searchFilter.filter });
+    }
+  }
   renderSearch();
 }
 
@@ -494,22 +503,60 @@ function renderSearch() {
     dom.infinite.disabled = true;
     return;
   }
-  if (lastIds && !lastResults && index) lastResults = lastIds.map((id) => asItem(index.tunes[id]));
-  if (!searchReady || !lastResults) {
+  if (searchFilter?.error) {
+    dom.view.innerHTML = `<div class="empty"><p>${esc(searchFilter.error)}</p></div>`;
+    dom.infinite.disabled = true;
+    return;
+  }
+  const filter = searchFilter?.filter;
+  const wordSearch = !!searchFilter?.text;
+  if (!lastResults && index) {
+    if (filter && !wordSearch) lastResults = filterTunes(index.tunes, filter);
+    else if (lastIds) lastResults = filter ? filterTunes(lastIds.map((id) => index.tunes[id]), filter) : lastIds.map((id) => asItem(index.tunes[id]));
+  }
+  if ((wordSearch && !searchReady) || !lastResults) {
     dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner><p>${searchReady ? "Searching…" : "Indexing HVSC…"}</p></div>`;
     dom.infinite.disabled = true;
     return;
   }
   if (!lastResults.length) {
-    dom.view.innerHTML = `<div class="empty"><p>No tunes match “${esc(searchQuery)}”.</p></div>`;
+    const hint = fieldHint(searchFilter?.unknown);
+    dom.view.innerHTML = `<div class="empty"><p>No tunes match “${esc(searchQuery)}”.</p>${hint ? `<p>${esc(hint)}</p>` : ""}</div>`;
     dom.infinite.disabled = true;
     return;
   }
   const shown = lastResults.length;
-  const count = lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
+  const noun = filter && perSubtune(filter) ? "subtune" : "tune";
+  const count = filter ? `${shown.toLocaleString()} ${noun}${shown === 1 ? "" : "s"} with ${describeFilter(filter)}`
+    : lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
     : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
   dom.view.innerHTML = `${sortBar("search", count)}<div id="results"></div>`;
   showList($("results"), sortResults(lastResults, sorts.search));
+}
+
+// The tunes passing a numeric filter: one item per subtune when it compares
+// per-subtune values (BPM, length), else per tune, playing from its start song.
+function filterTunes(tunes, filter) {
+  const out = [];
+  const each = perSubtune(filter);
+  for (const tune of tunes) {
+    const songs = each ? Array.from({ length: tune.songs }, (_, i) => i + 1) : [tune.start];
+    for (const song of songs) {
+      if (matches(filter, (field) => numericValue(tune, song, field))) out.push(asItem(tune, song));
+    }
+  }
+  return out;
+}
+
+function numericValue(tune, song, field) {
+  switch (field) {
+    case "bpm": return tags.bpmFor({ path: tune.path, songs: tune.songs, song, bpmEstimates: tune.bpmEstimates }).bpm;
+    case "length": return tune.lengths?.[song - 1] || null;
+    case "year": return exactYear(tune.released);
+    case "subtunes": return tune.songs;
+    case "subtune": return song;
+    default: return null;
+  }
 }
 
 // ---- sorting (Spotify-style: a sort button with a direction arrow) ----------

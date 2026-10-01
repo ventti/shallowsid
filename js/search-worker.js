@@ -1,7 +1,8 @@
 // Full-text search over the HVSC index, off the main thread.
 // Receives {type:"load", text} once (the catalogue JSON the page downloaded),
-// then {type:"search", id, query}; replies {type:"results", id, ids, total}
-// (`ids` stops at MAX_RESULTS, `total` counts every match).
+// then {type:"search", id, query, all}; replies {type:"results", id, ids, total}
+// (`ids` stops at MAX_RESULTS unless `all`, which the page asks for when it
+// filters the matches further; `total` counts every match).
 //
 // MiniSearch finds the candidates (prefix + fuzzy). They are then ranked in
 // predictable tiers rather than by raw BM25 score, which reads as random:
@@ -69,7 +70,7 @@ function tier(r, query, queryWords) {
 
 self.onmessage = async (e) => {
   if (e.data.type === "load") return receiveCatalogue(e.data.text);
-  const { id, query } = e.data;
+  const { id, query, all } = e.data;
   const { search, tunes, ranked } = await ready;
   const q = normalize(query).trim();
   const qWords = words(query);
@@ -80,7 +81,7 @@ self.onmessage = async (e) => {
       a.tier - b.tier ||
       collator.compare(tunes[a.id].title, tunes[b.id].title) ||
       collator.compare(tunes[a.id].author, tunes[b.id].author))
-    .slice(0, MAX_RESULTS)
+    .slice(0, all ? undefined : MAX_RESULTS)
     .map((hit) => hit.id);
   self.postMessage({ type: "results", id, ids, total: hits.length });
 };
