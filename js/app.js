@@ -114,7 +114,12 @@ const nowPlaying = new NowPlaying(player, {
 function showCurationTab() {
   const tab = document.querySelector('ion-tab-button[tab="curation"]');   // Ionic replaces tab buttons' ids
   tab.hidden = !tags.cid;
-  tab.querySelector("ion-label").textContent = tags.isAdmin ? "Admin" : "Curation";
+  // A fresh label: setting a hydrated ion-label's textContent appends to it.
+  const text = tags.isAdmin ? "Admin" : "Curation";
+  if (tab.dataset.label !== text) {
+    tab.dataset.label = text;
+    tab.querySelector("ion-label").replaceWith(Object.assign(document.createElement("ion-label"), { textContent: text }));
+  }
   tab.querySelector("ion-icon").name = tags.isAdmin ? "shield-checkmark" : "pricetags";
 }
 // New tags (saved here, read live, synced identity): update what shows them.
