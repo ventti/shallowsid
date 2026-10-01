@@ -9,6 +9,10 @@ Each platform shows the file it actually gets and the mask it applies to it:
   Ubuntu, Linux Mint (Chrome)      icon-512.png as is, rounded corners and all
   Windows 11 (Chrome/Edge install) icon-512.png as is, on the desktop, in Start and the taskbar
 
+masks.png shows each of those large, as the screens above are too small to
+show cropping. The dashed circle is the maskable safe zone (the middle 80 %):
+other Android launchers may cut away anything outside it.
+
 The other icons, the wallpapers and the system chrome are generic stand-ins,
 not any real app's or vendor's artwork. Scenes are drawn as SVG in points
 and rendered at 2x with rsvg-convert. Text uses Helvetica Neue (macOS) and
@@ -515,7 +519,26 @@ def windows():
     return s
 
 
-SCENES = {"macos": macos, "ios": ios, "android": android, "ubuntu": ubuntu, "linux-mint": mint, "windows-11": windows}
+def masks():
+    """The icon files large, in each platform's mask, with Android's safe zone dashed."""
+    size, gap, top = 200, 44, 28
+    tiles = [("macOS, iOS", "apple-touch-icon.png", "squircle", False),
+             ("Android", "icon-maskable-512.png", "circle", True),
+             ("Android, other launchers", "icon-maskable-512.png", "rounded", True),
+             ("Linux, Windows", "icon-512.png", "square", False)]
+    s = Scene(len(tiles) * (size + gap) + gap, top + size + 52)
+    s.add(f'<rect width="{s.width}" height="{s.height}" fill="#ececf1"/>')
+    for i, (label, name, mask, safe) in enumerate(tiles):
+        x = gap + i * (size + gap)
+        s.app(name, x, top, size, mask)
+        if safe:
+            s.add(f'<circle cx="{x + size / 2}" cy="{top + size / 2}" r="{size * .4}" fill="none" '
+                  f'stroke="#fff" stroke-opacity=".8" stroke-width="1.5" stroke-dasharray="6 5"/>')
+        s.text(x + size / 2, top + size + 32, label, 15, "#1c1c1e", 500, anchor="middle")
+    return s
+
+
+SCENES = {"macos": macos, "ios": ios, "android": android, "ubuntu": ubuntu, "linux-mint": mint, "windows-11": windows, "masks": masks}
 
 
 def main():
