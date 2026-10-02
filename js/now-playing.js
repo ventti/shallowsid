@@ -3,6 +3,7 @@
 
 import { artworkImage } from "./artwork.js";
 import { swipeable } from "./gestures.js";
+import { sidFeatures } from "./index-store.js";
 import { REPEAT_MODES } from "./player/player.js";
 import { Waveform } from "./player/waveform.js";
 import { esc, formatTime, subtitle, thumb } from "./ui.js";
@@ -185,7 +186,7 @@ export class NowPlaying {
     el.author.textContent = item.author;
     el.author.classList.toggle("is-link", item.author !== "<?>");
     el.released.textContent = item.released;
-    const badges = [item.model, item.clock, item.rsid && "RSID", item.multiSid && "Multi-SID"].filter(Boolean);
+    const badges = [item.model, item.clock, item.rsid && "RSID", item.multiSid && "Multi-SID", ...featureBadges(item)].filter(Boolean);
     el.badges.innerHTML = badges.map((b) => `<ion-badge color="medium">${esc(b)}</ion-badge>`).join("");
     el.subtune.hidden = item.songs < 2;
     el.subtune.innerHTML = Array.from({ length: item.songs }, (_, i) => {
@@ -266,4 +267,15 @@ function saveSetting(key, value) {
   } catch {
     // storage blocked: the setting lasts the session
   }
+}
+
+// What tools/sidfeatures found for the subtune: its speed when it isn't the
+// usual 1x, how it's timed when not by the screen, and the SID tricks it uses.
+function featureBadges(item) {
+  const f = sidFeatures(item, item.song);
+  if (!f) return [];
+  return [
+    f.speed && f.speed !== 1 && `${f.speed}x speed`, f.cia && "CIA", f.custom && "Custom timing",
+    f.filter && "Filter", f.ring && "Ring mod", f.sync && "Sync", f.digi && "Digi", f.basic && "BASIC",
+  ];
 }

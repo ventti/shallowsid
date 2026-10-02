@@ -1,6 +1,6 @@
 // ShallowSID: hash router + views (Search, Browse, Playlists, Share).
 
-import { loadIndex } from "./index-store.js";
+import { loadIndex, sidFeatures } from "./index-store.js";
 import { NowPlaying } from "./now-playing.js";
 import { Player, shuffle } from "./player/player.js";
 import { connectMediaSession } from "./player/media-session.js";
@@ -12,7 +12,7 @@ import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
-import { describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
+import { FIELDS, describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
 import { mixDefinition, mixTunes, pickMixes, weekSeed } from "./mixes.js";
 import { SyncService } from "./sync.js";
 import { LiveShare } from "./live-share.js";
@@ -564,7 +564,12 @@ function numericValue(tune, song, field) {
     case "year": return exactYear(tune.released);
     case "subtunes": return tune.songs;
     case "subtune": return song;
-    default: return null;
+    case "speed": return sidFeatures(tune, song)?.speed ?? null;
+    default: {
+      // The 0/1 features; unknown (not analysed) never matches.
+      const f = FIELDS[field]?.flag ? sidFeatures(tune, song) : null;
+      return f ? Number(f[field]) : null;
+    }
   }
 }
 

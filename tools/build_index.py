@@ -2,8 +2,9 @@
 """Build ShallowSID's song catalogue (data/index.json) from HVSC.
 
 Parses every PSID/RSID header, joins song lengths from
-DOCUMENTS/Songlengths.md5 and the tempo estimates from tools/bpm/estimates.tsv,
-and writes a compact columnar index. Songs are not
+DOCUMENTS/Songlengths.md5, the tempo estimates from tools/bpm/estimates.tsv and
+the play speed and SID features from tools/sidfeatures/features.tsv, and writes
+a compact columnar index. Songs are not
 copied: the app streams them from hvsc.c64.org.
 
 Uses <out>/hvsc (see fetch_hvsc.py) when it exists; otherwise downloads the
@@ -39,6 +40,10 @@ FLAG_MULTI_SID = 1 << 5
 
 TIME_RE = re.compile(r"(\d+):(\d+)(?:\.(\d+))?")
 ESTIMATES = Path(__file__).resolve().parent / "bpm" / "estimates.tsv"
+FEATURES = Path(__file__).resolve().parent / "sidfeatures" / "features.tsv"
+# Bits of the per-subtune "sid" column (js/index-store.js reads them)
+SID_ANALYSED, SID_FILTER, SID_RING, SID_SYNC, SID_DIGI, SID_BASIC, SID_CIA, SID_CUSTOM = (
+    1 << 0, 1 << 1, 1 << 2, 1 << 3, 1 << 4, 1 << 5, 1 << 6, 1 << 7)
 
 
 def log(*args):
@@ -124,6 +129,34 @@ def bpm_column(estimates, songs):
     return column
 
 
+def read_features(path=FEATURES):
+    """{path: {song: (speed, sid bits)}} from tools/sidfeatures/features.tsv. speed is 0 when
+    none is shown (custom timing, an odd CIA rate); a blank feature (BASIC tunes) is off."""
+    out = {}
+    if not path.exists():
+        return out
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        rel, song, speed, timing, filt, ring, sync, digi, basic = line.split("\t")
+        bits = SID_ANALYSED
+        for flag, bit in ((filt, SID_FILTER), (ring, SID_RING), (sync, SID_SYNC), (digi, SID_DIGI), (basic, SID_BASIC)):
+            if flag == "1":
+                bits |= bit
+        bits |= {"cia": SID_CIA, "custom": SID_CUSTOM}.get(timing, 0)
+        value = float(speed) if speed else 0
+        out.setdefault(rel, {})[int(song)] = (int(value) if value == int(value) else value, bits)
+    return out
+
+
+def per_song(values, songs, pick):
+    """A column with one value per subtune (0 where there's none), trailing zeros dropped."""
+    column = [pick(values[s]) if s in values else 0 for s in range(1, songs + 1)]
+    while column and not column[-1]:
+        column.pop()
+    return column
+
+
 class Interner:
     """Deduplicates repeated strings (dirs, authors) into an index table."""
 
@@ -143,6 +176,8 @@ def build_index(music_root, subset, version):
     log(f"song lengths for {len(by_md5)} tunes")
     estimates = read_estimates()
     log(f"bpm estimates for {len(estimates)} tunes")
+    features = read_features()
+    log(f"sid features for {len(features)} tunes")
 
     scan_root = music_root / subset if subset else music_root
     dirs, authors, files = Interner(), Interner(), []
@@ -159,13 +194,20 @@ def build_index(music_root, subset, version):
             dirs(rel_dir), name, header["title"], authors(header["author"]), header["released"],
             header["songs"], header["start"], header["flags"], lengths,
         ]
-        bpm = bpm_column(estimates.get(rel, {}), header["songs"])
-        if bpm:
-            row.append(bpm)   # most tunes have none; the app reads a missing column as []
+        # Optional trailing columns: the app reads a missing one as []. Empty ones in
+        # between stay as [] to keep the later ones in place.
+        extra = [
+            bpm_column(estimates.get(rel, {}), header["songs"]),
+            per_song(features.get(rel, {}), header["songs"], lambda f: f[0]),
+            per_song(features.get(rel, {}), header["songs"], lambda f: f[1]),
+        ]
+        while extra and not extra[-1]:
+            extra.pop()
+        row += extra
         files.append(row)
     index = {
         "v": version,
-        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths", "bpm"],
+        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths", "bpm", "speed", "sid"],
         "dirs": dirs.values,
         "authors": authors.values,
         "files": files,

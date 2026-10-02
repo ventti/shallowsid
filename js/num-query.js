@@ -15,6 +15,16 @@ export const FIELDS = {
   year: { level: "tune", label: "year" },
   subtunes: { level: "tune", label: "subtunes", aliases: ["songs"] },
   subtune: { level: "sub", label: "subtune", aliases: ["song"] },
+  // From tools/sidfeatures: play calls a frame (only when steady: in step with
+  // the screen, or a CIA timer at a whole multiple), and 0/1 for each feature.
+  speed: { level: "sub", label: "speed" },
+  filter: { level: "sub", label: "filter", flag: true },
+  ring: { level: "sub", label: "ring mod", flag: true, aliases: ["ringmod"] },
+  sync: { level: "sub", label: "sync", flag: true },
+  digi: { level: "sub", label: "digi", flag: true, aliases: ["samples"] },
+  basic: { level: "sub", label: "BASIC", flag: true },
+  cia: { level: "sub", label: "CIA timer", flag: true },
+  custom: { level: "sub", label: "custom timing", flag: true },
 };
 
 const FIELD_BY_NAME = new Map(Object.entries(FIELDS).flatMap(([id, f]) => [[id, id], ...(f.aliases ?? []).map((a) => [a, id])]));
@@ -79,9 +89,16 @@ export const perSubtune = (filter) => filter.some((group) => group.some(({ field
 
 const shownValue = (field, value) => (FIELDS[field].time ? `${Math.floor(value / 60)}:${String(value % 60).padStart(2, "0")}` : String(value));
 
-// "BPM ≥ 120 and BPM < 130, or year = 1987", for the results' heading.
+// "BPM ≥ 120 and BPM < 130, or year = 1987", for the results' heading. A
+// feature reads as itself or "no ...": "filter and no ring mod".
 export function describe(filter) {
-  return filter.map((group) => group.map(({ field, op, value }) => `${FIELDS[field].label} ${SHOWN_OP[op]} ${shownValue(field, value)}`).join(" and ")).join(", or ");
+  const one = ({ field, op, value }) => {
+    const { label, flag } = FIELDS[field];
+    const on = op === "!=" ? value !== 1 : op === "=" || op === "==" ? value === 1 : null;
+    if (flag && on !== null && (value === 0 || value === 1)) return on ? label : `no ${label}`;
+    return `${label} ${SHOWN_OP[op]} ${shownValue(field, value)}`;
+  };
+  return filter.map((group) => group.map(one).join(" and ")).join(", or ");
 }
 
 // The year a tune came out, when HVSC's "released" gives it exactly ("1987 ...", not "198?").

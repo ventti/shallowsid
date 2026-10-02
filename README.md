@@ -15,7 +15,8 @@ Written for my own use, so beware of peculiarities.
 ## Usage
 
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
-- **Numbers**: compare `bpm`, `length`, `year`, `subtunes` or `subtune` with `=` `!=` `>` `<` `>=` `<=`, joined with `&` (or a space) and `|`; `&` goes first. Mix them with words: `hubbard bpm>=120 & bpm<130`, `year=1987 | year=1988`, `length>5:00`. BPM and length compare per subtune, so those results list subtunes. A tune without a BPM or an exact year never matches.
+- **Numbers**: compare `bpm`, `length`, `year`, `subtunes`, `subtune` or `speed` with `=` `!=` `>` `<` `>=` `<=`, joined with `&` (or a space) and `|`; `&` goes first. Mix them with words: `hubbard bpm>=120 & bpm<130`, `year=1987 | year=1988`, `length>5:00`, `speed>=2`. The SID features are 0 or 1: `filter`, `ring`, `sync`, `digi`, `basic`, `cia` (a CIA timer) and `custom` (custom timing), as in `filter=1 & ring=1`. All but year and subtunes compare per subtune, so those results list subtunes. A value that's unknown never matches.
+- **Now Playing** shows what [`tools/sidfeatures`](tools/sidfeatures/features.py) found for the subtune beside the SID model and clock: its speed when it isn't 1x (**2x speed**), **CIA** for a CIA timer, **Custom timing** when there's no steady play rate (delay loops, a timer it keeps changing), and **Filter**, **Ring mod**, **Sync**, **Digi** or **BASIC**.
 - **Tune links**: the share icon beside the star in Now Playing, or **Share…** in a tune's **⋯** menu, shares (or, without a share sheet, copies) a link such as `…/#/tune/3/MUSICIANS/H/Hubbard_Rob/Commando.sid` (subtune 3). It opens the tune ready to play; browsers only start audio after a tap, so it waits for **Play**.
 - **Composer pages**: tap a composer chip, or the composer's name in Now Playing. Shows an animated [DiceBear](https://www.dicebear.com/) critter (the same one every time), the tune count and years, **Your top tunes**, all their tunes, and those credited jointly **With others**. Playing from a section queues just that section.
 - **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites**, **Recently played** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most or recently played.
@@ -279,7 +280,7 @@ To do steps 1 and 4 for all of HVSC in one go, run `tools/bpm/run_hvsc.sh`. It c
 
 ## How it works
 
-- `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
+- `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, the BPM estimates and the SID features (`tools/sidfeatures/features.tsv`), and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
 - SID files are fetched one at a time from `https://www.hvsc.c64.org/download/C64Music/<path>`, which allows cross-origin requests. The plain HVSC mirrors don't, so a browser can't fetch from them.
 - `js/search-worker.js` indexes that with [MiniSearch](https://lucaong.github.io/minisearch/) off the main thread.
 - `js/player/engine-worker.js` renders with reSIDfp and runs as two workers:

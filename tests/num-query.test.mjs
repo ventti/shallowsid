@@ -60,8 +60,8 @@ test("comparing anything but a field is text, so C=64 and 2 Hours = NOT Enough a
   const mixed = parseQuery("c=64 remix bpm>100");
   assert.equal(mixed.text, "c=64 remix");
   assert.deepEqual(mixed.filter, [[{ field: "bpm", op: ">", value: 100 }]]);
-  assert.deepEqual(parseQuery("speed>3").unknown, ["speed"]);
-  assert.match(fieldHint(parseQuery("speed>3").unknown), /bpm, length, year/);
+  assert.deepEqual(parseQuery("volume>3").unknown, ["volume"]);
+  assert.match(fieldHint(parseQuery("volume>3").unknown), /bpm, length, year/);
   assert.equal(fieldHint(parseQuery("bpm>3").unknown), "");
 });
 
@@ -76,3 +76,15 @@ test("only exact years count", () => {
   assert.equal(exactYear("198? Unknown"), null);
   assert.equal(exactYear(""), null);
 });
+
+test("SID features compare as 0/1 and read naturally", () => {
+  const q = parseQuery("hubbard filter=1 & ringmod=1 & digi=0");
+  assert.equal(q.text, "hubbard");
+  assert.equal(describe(q.filter), "filter and ring mod and no digi");
+  assert.ok(pass("filter=1 & ring!=1", { filter: 1, ring: 0 }));
+  assert.ok(!pass("filter=1", { filter: 0 }));
+  assert.ok(!pass("filter=0", {}));   // not analysed: unknown, so no match
+  assert.equal(describe(parseQuery("speed>=2 | cia=1").filter), "speed ≥ 2, or CIA timer");
+  assert.ok(perSubtune(parseQuery("custom=1").filter));
+});
+
