@@ -436,6 +436,7 @@ function appendPage() {
     current: isCurrent(item),
     otherSubtune: isOtherSubtune(item),
     favorite: favorites.has(itemKey(item)),
+    tags: item.missing ? [] : rowTags(item),
   })).join(""));
   listShown += page.length;
   const more = listShown < listItems.length;
@@ -541,6 +542,12 @@ function renderSearch() {
     : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
   dom.view.innerHTML = `${sortBar("search", count)}<div id="results"></div>`;
   showList($("results"), sortResults(lastResults, sorts.search));
+}
+
+// A row's tag labels: the whole tune's, then the subtune's own.
+function rowTags(item) {
+  const { whole, sub } = tags.tagsFor(item);
+  return [...whole, ...sub].map((id) => tags.label(id));
 }
 
 // The tunes passing a numeric filter: one item per subtune when it compares
@@ -748,6 +755,7 @@ function renderPlaylist(id) {
       current: isCurrent(item),
       otherSubtune: isOtherSubtune(item),
       favorite: favorites.has(itemKey(item)),
+      tags: item.missing ? [] : rowTags(item),
     })).join("")}</ion-reorder-group>`;
     const group = $("pl-reorder");
     group.disabled = !editing;

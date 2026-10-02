@@ -22,8 +22,9 @@ export function subtitle(item) {
 }
 
 // A tune row. `item` is a queue item ({...tune, song}); `index` is its position
-// in the list the row belongs to.
-export function tuneRow(item, index, { current, otherSubtune, missing, reorder, favorite } = {}) {
+// in the list the row belongs to. `tags` (labels) go after the composer, as many
+// as fit whole on that line (see .row-tags); a row without any is as it always was.
+export function tuneRow(item, index, { current, otherSubtune, missing, reorder, favorite, tags = [] } = {}) {
   const menu = `<ion-button slot="end" fill="clear" data-menu="${index}" aria-label="More"><ion-icon slot="icon-only" name="ellipsis-horizontal"></ion-icon></ion-button>`;
   const handle = reorder ? `<ion-reorder slot="end"></ion-reorder>` : "";
   if (missing) {
@@ -41,7 +42,9 @@ export function tuneRow(item, index, { current, otherSubtune, missing, reorder, 
     <div slot="start">${thumb(item)}</div>
     <ion-label>
       <h2>${esc(item.title)} ${song}</h2>
-      <p>${esc(subtitle(item))}</p>
+      ${tags.length
+        ? `<p class="row-sub"><span class="row-subtitle">${esc(subtitle(item))}</span><span class="row-tags">${tags.map((t) => `<span class="row-tag">${esc(t)}</span>`).join("")}</span></p>`
+        : `<p>${esc(subtitle(item))}</p>`}
     </ion-label>
     <ion-icon slot="end" name="star" class="fav-mark" aria-label="Favorite"></ion-icon>
     <ion-note slot="end">${length ? formatTime(length) : ""}</ion-note>
