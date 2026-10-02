@@ -939,3 +939,77 @@ ion-tab-button[hidden] {
   --padding-start: 0;
   --background: transparent;
 }
+
+/* ---- One-time notices (notices.js) ---------------------------------------- */
+
+/* As tall as the text where the modal is a centered card (Ionic's tablet and
+   desktop size); a full-height card sheet on phones */
+@media (min-width: 768px) and (min-height: 600px) {
+  ion-modal.notice-modal {
+    --height: auto;
+  }
+
+  ion-modal.notice-modal .ion-page {
+    position: relative;
+    display: block;
+    contain: content;
+  }
+}
+
+.notice {
+  flex: 1;   /* fills the sheet, so the buttons sit at its bottom */
+  padding: 32px 24px 8px;
+  line-height: 1.5;
+  overflow-y: auto;
+}
+
+.notice-title {
+  margin: 0 0 16px;
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Stacked at the bottom: the choice to make, then the way out */
+.notice-actions {
+  padding: 8px 24px calc(16px + env(safe-area-inset-bottom));
+}
+
+.notice-actions ion-button {
+  margin: 0;
+  --border-radius: 14px;
+  min-height: 50px;
+  font-weight: 600;
+}
+
+.notice-actions ion-button[fill="clear"] {
+  min-height: 44px;
+  font-weight: 400;
+}
+
+.notice ol {
+  padding-inline-start: 1.4em;
+}
+
+.notice li + li {
+  margin-top: 8px;
+}
+
+.notice a {
+  color: var(--app-accent);
+}
+
+/* Inline in the text, as the app shows them: the accent marks what to tap */
+.notice ion-icon:not([slot]) {
+  color: var(--app-accent);
+  font-size: 1.15em;
+  vertical-align: -0.2em;
+}
+
+.notice-widget ion-list[inset] {
+  margin-inline: 0;
+}
+
+.notice-widget ion-item {
+  --background: var(--app-surface);
+}

@@ -344,6 +344,15 @@ export class SyncService extends EventTarget {
     return [...list.filter((d) => d.id !== this.deviceId), { ...now, updated: Date.now() }];
   }
 
+  // Data merged in from elsewhere (an imported file, see user-data.js), applied
+  // like a sync's and pushed when syncing. `local` is what it was merged from.
+  applyData(merged, local) {
+    this.applySettings(merged);
+    this.store.applySyncedHistory(merged, local);
+    this.dispatchEvent(new Event("applied"));
+    if (this.enabled) this.syncNow();
+  }
+
   applySettings(merged) {
     this.applying = true;
     try {

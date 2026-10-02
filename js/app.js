@@ -24,6 +24,9 @@ import { WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
 import { playlistArtStyle } from "./artwork.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
+import { Notices } from "./notices.js";
+import { dataWidget, syncWidget } from "./notice-widgets.js";
+import { fileName as userDataFileName, mergeImport, parseBundle, toBundle } from "./user-data.js";
 import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
@@ -97,7 +100,13 @@ $("install-app").addEventListener("click", (e) => {
   install.install();
 });
 registerServiceWorker();
-globalThis.shallowsid = { player, store, sound, sync, tags };   // handy from the devtools console
+const notices = new Notices({
+  widgets: {
+    sync: syncWidget(sync, syncSheet),
+    data: dataWidget({ exportData: () => exportUserData(), importData: () => $("user-data-input").click() }),
+  },
+});
+globalThis.shallowsid = { player, store, sound, sync, tags, notices };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
@@ -688,9 +697,11 @@ function renderPlaylists() {
   };
   $("new-pl").addEventListener("click", create);
   $("new-pl-empty")?.addEventListener("click", create);
-  $("import-pl").addEventListener("click", () => actionSheet("Import playlist", [
-    { text: "Import File…", icon: "document-attach-outline", handler: () => dom.importInput.click() },
-    { text: "Open Link…", icon: "link", handler: () => openPlaylistLink() },
+  $("import-pl").addEventListener("click", () => actionSheet("Import", [
+    { text: "Import Playlist File…", icon: "document-attach-outline", handler: () => dom.importInput.click() },
+    { text: "Open Playlist Link…", icon: "link", handler: () => openPlaylistLink() },
+    { text: "Import User Data…", icon: "download-outline", handler: () => $("user-data-input").click() },
+    { text: "Export User Data…", icon: "archive-outline", handler: () => exportUserData() },
   ]));
   $("sync-open")?.addEventListener("click", () => syncSheet.open());
 }
@@ -1447,6 +1458,28 @@ async function openPlaylistLink() {
   go(link.kind === "live" ? `#/p/${link.id}` : `#/share/${link.blob}`);
 }
 
+// All the user's data as one file, and back (see user-data.js).
+async function exportUserData() {
+  const text = JSON.stringify(toBundle(sync.snapshot(), searchHistory.items));
+  const result = await saveFile(userDataFileName(), text, "application/json", { title: "ShallowSID data", description: "ShallowSID data", extension: ".json" });
+  if (result !== "cancelled") toast("Data exported. The file isn't encrypted: keep it to yourself.", { duration: 4000 });
+}
+
+async function importUserData(file) {
+  let imported;
+  try {
+    imported = parseBundle(await file.text());
+  } catch (err) {
+    return toast(err.message, { color: "warning" });
+  }
+  if (!(await confirmDialog("Import data?",
+    "Adds the playlists, favorites, sound presets and play history from the file to the ones here. Nothing here is removed.", "Import"))) return;
+  const local = sync.snapshot();
+  sync.applyData(mergeImport(local, imported.data), local);
+  searchHistory.merge(imported.searches);
+  toast("Data imported");
+}
+
 async function importFile(file) {
   const parsed = parseM3U8(await file.text(), nameFromFileName(file.name));
   if (!parsed.items.length) return toast("No SID files found in that playlist", { color: "warning" });
@@ -1516,6 +1549,11 @@ dom.tabBar.addEventListener("ionTabButtonClick", (e) => {
   recentOpen = false;
   go(`#/${e.detail.tab}`);
 });
+$("user-data-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (file) importUserData(file);
+});
 dom.importInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   e.target.value = "";
@@ -1552,11 +1590,18 @@ document.addEventListener("keydown", (e) => {
 
 try {
   const tagsReady = tags.init();
+  const noticesReady = notices.load();
   index = await loadIndex({ onText: (text) => searchWorker.postMessage({ type: "load", text }) });
   await tagsReady;
   $("hvsc-version").textContent = index.version ? `HVSC #${index.version}` : "HVSC";
   dom.searchbar.placeholder = `Search High Voltage SID Collection ${index.tunes.length.toLocaleString()} tunes, composers, groups, …`;
+  // Read before render(): those links drop themselves from the address.
+  const openedByLink = ["sync", "curate"].includes(currentRoute().name);
   render();
+  await noticesReady;
+  // Not over the dialog a sync key or invite link opens: once the user moves on.
+  if (openedByLink) window.addEventListener("hashchange", () => notices.start(), { once: true });
+  else notices.start();
 } catch (err) {
   searchError = err.message;
   dom.view.innerHTML = `<div class="empty"><p>${esc(err.message)}</p><p>Run <code>python3 tools/build_index.py</code> first.</p></div>`;

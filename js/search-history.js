@@ -43,6 +43,12 @@ export class SearchHistory {
     this.save();
   }
 
+  // Searches from elsewhere (an imported file): these first, then theirs.
+  merge(entries) {
+    this.items = [...this.items, ...(Array.isArray(entries) ? entries : [])].reduceRight((list, e) => addSearch(list, e), []);
+    this.save();
+  }
+
   remove(index) {
     this.items = this.items.filter((_, i) => i !== index);
     this.save();

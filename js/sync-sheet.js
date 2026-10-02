@@ -194,6 +194,12 @@ export class SyncSheet {
     await this.join(key);
   }
 
+  // "Use a Key from Another Device…": ask for the key, then join.
+  async promptJoin() {
+    const key = await prompt("Use a sync key", { placeholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX", confirm: "Use" });
+    if (key !== null) await this.join(key);
+  }
+
   async join(key) {
     try {
       await this.sync.useKey(key);
@@ -221,11 +227,8 @@ export class SyncSheet {
         case "sync-on":
           await s.turnOn();
           break;
-        case "sync-join": {
-          const key = await prompt("Use a sync key", { placeholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX", confirm: "Use" });
-          if (key === null) return;
-          return this.join(key);
-        }
+        case "sync-join":
+          return this.promptJoin();
         case "sync-scan": {
           const text = await scanQR((t) => { try { return !!parseKey(keyFromText(t)); } catch { return false; } })
             .catch((err) => { throw err.name === "NotAllowedError" ? new Error("Camera access was not allowed") : err; });

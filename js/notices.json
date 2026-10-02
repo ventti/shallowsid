@@ -1,0 +1,19 @@
+[
+  {
+    "id": "move-to-sid-extend-fi",
+    "schedule": {
+      "from": "2026-10-02T00:00:00+03:00",
+      "until": "2026-12-01T00:00:00+02:00",
+      "times": 3,
+      "every": "7d",
+      "canHide": true
+    },
+    "title": "ShallowSID Is Moving",
+    "html": [
+      "<p>ShallowSID moves to <a href=\"https://sid.extend.fi/\" target=\"_blank\" rel=\"noopener\"><strong>sid.extend.fi</strong></a>.",
+      "Either sync via cloud (recommended) or export and re-import your data manually.</p>",
+      "{widget:sync https://sid.extend.fi/}",
+      "{widget:data https://sid.extend.fi/}"
+    ]
+  }
+]
