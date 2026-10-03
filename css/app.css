@@ -8,25 +8,74 @@
      with dark text on filled buttons (7.7:1). */
   --ion-color-primary: #a99cff;
   --ion-color-primary-rgb: 169, 156, 255;
-  --ion-color-primary-contrast: #16131f;
+  --ion-color-primary-contrast: #16131f;   /* = --app-bg; Ionic needs it literal, with its rgb */
   --ion-color-primary-contrast-rgb: 22, 19, 31;
   --ion-color-primary-shade: #9589e0;
   --ion-color-primary-tint: #b2a6ff;
 
-  --ion-background-color: #16131f;
+  /* The grays: every one in the app comes from these. */
+  --app-bg: #16131f;                     /* page, bars, rows; dark text on accents */
+  --app-surface: #221d31;                /* tiles, covers, the tab bar, tag capsules */
+  --app-text: #ffffff;
+  --app-muted: var(--ion-color-medium);  /* secondary text */
+  --app-border: rgba(255, 255, 255, 0.1);
+  --app-outline: rgba(255, 255, 255, 0.25);
+  --app-shadow: rgba(0, 0, 0, 0.35);
+
+  --ion-background-color: var(--app-bg);
   --ion-background-color-rgb: 22, 19, 31;
-  --ion-toolbar-background: #16131f;
-  --ion-tab-bar-background: #1d1929;
-  --ion-item-background: #16131f;
+  --ion-toolbar-background: var(--app-bg);
+  --ion-tab-bar-background: var(--app-surface);
+  --ion-tab-bar-background-focused: var(--app-surface);
+  --ion-item-background: var(--app-bg);
+  --ion-card-background: var(--app-surface);
+  --ion-text-color: var(--app-text);
+  /* Ionic's gray ramps, mixed from the app's background and text rather than
+     the dark palette's black and white, so its components share the tint. */
+  --ion-background-color-step-50: color-mix(in srgb, var(--app-text) 5%, var(--app-bg));
+  --ion-background-color-step-100: color-mix(in srgb, var(--app-text) 10%, var(--app-bg));
+  --ion-background-color-step-150: color-mix(in srgb, var(--app-text) 15%, var(--app-bg));
+  --ion-background-color-step-200: color-mix(in srgb, var(--app-text) 20%, var(--app-bg));
+  --ion-background-color-step-250: color-mix(in srgb, var(--app-text) 25%, var(--app-bg));
+  --ion-background-color-step-300: color-mix(in srgb, var(--app-text) 30%, var(--app-bg));
+  --ion-background-color-step-350: color-mix(in srgb, var(--app-text) 35%, var(--app-bg));
+  --ion-background-color-step-400: color-mix(in srgb, var(--app-text) 40%, var(--app-bg));
+  --ion-background-color-step-450: color-mix(in srgb, var(--app-text) 45%, var(--app-bg));
+  --ion-background-color-step-500: color-mix(in srgb, var(--app-text) 50%, var(--app-bg));
+  --ion-background-color-step-550: color-mix(in srgb, var(--app-text) 55%, var(--app-bg));
+  --ion-background-color-step-600: color-mix(in srgb, var(--app-text) 60%, var(--app-bg));
+  --ion-background-color-step-650: color-mix(in srgb, var(--app-text) 65%, var(--app-bg));
+  --ion-background-color-step-700: color-mix(in srgb, var(--app-text) 70%, var(--app-bg));
+  --ion-background-color-step-750: color-mix(in srgb, var(--app-text) 75%, var(--app-bg));
+  --ion-background-color-step-800: color-mix(in srgb, var(--app-text) 80%, var(--app-bg));
+  --ion-background-color-step-850: color-mix(in srgb, var(--app-text) 85%, var(--app-bg));
+  --ion-background-color-step-900: color-mix(in srgb, var(--app-text) 90%, var(--app-bg));
+  --ion-background-color-step-950: color-mix(in srgb, var(--app-text) 95%, var(--app-bg));
+  --ion-text-color-step-50: color-mix(in srgb, var(--app-bg) 5%, var(--app-text));
+  --ion-text-color-step-100: color-mix(in srgb, var(--app-bg) 10%, var(--app-text));
+  --ion-text-color-step-150: color-mix(in srgb, var(--app-bg) 15%, var(--app-text));
+  --ion-text-color-step-200: color-mix(in srgb, var(--app-bg) 20%, var(--app-text));
+  --ion-text-color-step-250: color-mix(in srgb, var(--app-bg) 25%, var(--app-text));
+  --ion-text-color-step-300: color-mix(in srgb, var(--app-bg) 30%, var(--app-text));
+  --ion-text-color-step-350: color-mix(in srgb, var(--app-bg) 35%, var(--app-text));
+  --ion-text-color-step-400: color-mix(in srgb, var(--app-bg) 40%, var(--app-text));
+  --ion-text-color-step-450: color-mix(in srgb, var(--app-bg) 45%, var(--app-text));
+  --ion-text-color-step-500: color-mix(in srgb, var(--app-bg) 50%, var(--app-text));
+  --ion-text-color-step-550: color-mix(in srgb, var(--app-bg) 55%, var(--app-text));
+  --ion-text-color-step-600: color-mix(in srgb, var(--app-bg) 60%, var(--app-text));
+  --ion-text-color-step-650: color-mix(in srgb, var(--app-bg) 65%, var(--app-text));
+  --ion-text-color-step-700: color-mix(in srgb, var(--app-bg) 70%, var(--app-text));
+  --ion-text-color-step-750: color-mix(in srgb, var(--app-bg) 75%, var(--app-text));
+  --ion-text-color-step-800: color-mix(in srgb, var(--app-bg) 80%, var(--app-text));
+  --ion-text-color-step-850: color-mix(in srgb, var(--app-bg) 85%, var(--app-text));
+  --ion-text-color-step-900: color-mix(in srgb, var(--app-bg) 90%, var(--app-text));
+  --ion-text-color-step-950: color-mix(in srgb, var(--app-bg) 95%, var(--app-text));
 
   --app-accent: var(--ion-color-primary);
   --app-accent-alt: #f2b872;             /* the row's tune, playing another subtune */
-  --app-muted: var(--ion-color-medium);
-  --app-surface: #221d31;
-  --app-border: rgba(255, 255, 255, 0.08);
   --wave-played: var(--app-accent);
-  --wave-rendered: rgba(255, 255, 255, 0.45);
-  --wave-pending: rgba(255, 255, 255, 0.12);
+  --wave-rendered: var(--app-muted);
+  --wave-pending: var(--app-border);
   --side-width: 400px;
 }
 
@@ -170,7 +219,7 @@ body.has-side-panel .mini {
 
 .favorites-thumb {
   background: linear-gradient(135deg, #a99cff, #5b4aa3);
-  color: #16131f;
+  color: var(--app-bg);
   font-size: 20px;
   --art-icon: #ffd166;
 }
@@ -203,7 +252,7 @@ body.has-side-panel .mini {
   overflow: hidden;
 }
 
-/* Quiet capsules, like the system's secondary labels on a tertiary fill. */
+/* Quiet capsules: secondary text on the surface colour. */
 .row-tag {
   font-size: 11px;
   font-weight: 500;
@@ -211,7 +260,7 @@ body.has-side-panel .mini {
   padding: 0 6px;
   border-radius: 8px;
   color: var(--app-muted);
-  background: rgba(120, 120, 128, 0.2);
+  background: var(--app-surface);
   white-space: nowrap;
 }
 
@@ -266,7 +315,7 @@ body.has-side-panel .mini {
   position: relative;
   overflow: hidden;
   display: block;
-  color: #16131f;
+  color: var(--app-bg);
 }
 
 .mix-art .art-label {
@@ -304,7 +353,7 @@ body.has-side-panel .mini {
   place-items: center;
   background: var(--app-surface);
   color: var(--app-muted);
-  box-shadow: 0 2px 8px rgba(22, 19, 31, 0.35);
+  box-shadow: 0 2px 8px var(--app-shadow);
 }
 
 .mix-art .art-avatar ion-icon {
@@ -332,13 +381,13 @@ body.has-side-panel .mini {
 
 .recent-art {
   background: linear-gradient(90deg, #e8887a, #c2507a);
-  color: #16131f;
+  color: var(--app-bg);
   --art-icon: #4f74a8;
 }
 
 .most-played-art {
   background: linear-gradient(90deg, #5ccfbf, #3f8fa1);
-  color: #16131f;
+  color: var(--app-bg);
   --art-icon: #8f5a0a;
 }
 
@@ -532,9 +581,9 @@ ion-app > .np {
   place-items: center;
   background: linear-gradient(135deg, #6c5eb5, #2e2560) center / cover no-repeat;
   image-rendering: pixelated;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--app-text);
   font-size: clamp(32px, 12vw, 64px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 16px 40px var(--app-shadow);
   touch-action: pan-y;
   user-select: none;
   cursor: pointer;
@@ -716,7 +765,7 @@ ion-app > .np {
 
 .sound-content ion-range {
   --bar-background-active: var(--app-accent);
-  --knob-background: #fff;
+  --knob-background: var(--app-text);
 }
 
 .range-value {
@@ -926,7 +975,7 @@ ion-tab-button[hidden] {
 }
 
 .invite-card {
-  border-bottom: 1px solid var(--ion-color-step-150, rgba(255, 255, 255, 0.1));
+  border-bottom: 1px solid var(--app-border);
   padding-bottom: 16px;
 }
 
@@ -960,7 +1009,7 @@ ion-tab-button[hidden] {
 
 .tag-toggle {
   --background: transparent;
-  border: 1px solid var(--ion-color-step-300, rgba(255, 255, 255, 0.25));
+  border: 1px solid var(--app-outline);
 }
 
 .tag-toggle.is-on {

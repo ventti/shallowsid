@@ -92,8 +92,8 @@ export class Waveform {
     const style = getComputedStyle(c);
     const colors = {
       played: style.getPropertyValue("--wave-played").trim() || "#a99cff",
-      rendered: style.getPropertyValue("--wave-rendered").trim() || "#888",
-      pending: style.getPropertyValue("--wave-pending").trim() || "#444",
+      rendered: style.getPropertyValue("--wave-rendered").trim() || "#989aa2",
+      pending: style.getPropertyValue("--wave-pending").trim() || "rgba(255, 255, 255, 0.1)",
     };
     g.clearRect(0, 0, w, h);
     const barW = Math.max(2, Math.round(3 * dpr)), gap = Math.max(1, Math.round(dpr));
