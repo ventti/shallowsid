@@ -12,7 +12,8 @@
  *   colors           number of foreground colors, 1..8 (default 3)
  *   color            null | CSS color | CSS color[] — foreground colors come from here instead of the
  *                    generated palette; with a list, the seed picks `colors` of them (default null)
- *   background       CSS color or null for transparent (default auto from seed)
+ *   background       CSS color, { from, to, angle } for a linear gradient (angle in degrees, 0 is
+ *                    upwards, as for `slide`), or null for transparent (default auto from seed)
  *   pixelAspect      pixel width / height (default 1; e.g. 2 for C64 multicolor)
  *   size             target size in px of the longer side (default 256)
  *   content          0..1 share of the image's longer side the sprite takes; the rest is
@@ -190,6 +191,13 @@
     const clip = overlay && o.slideMode === 'pixels' ? `${slideFill.slice(5, -1)}c` : null;
     if (clip) out = out.replace('</defs>', `<clipPath id="${clip}"><path d="${paths.flat().join('')}"/></clipPath></defs>`);
     if (slideFill && !overlay) out += `<rect ${full} fill="${slideFill}"/>`;
+    else if (g.background && typeof g.background === 'object') {
+      const id = `b${rng(`${seed}:bg`)().toString(36).slice(2, 10)}`;
+      const defs = `<linearGradient id="${id}" ${slidePoints(g.background.angle)}>` +
+        `<stop offset="0" stop-color="${g.background.from}"/><stop offset="1" stop-color="${g.background.to}"/></linearGradient>`;
+      out = out.includes('</defs>') ? out.replace('</defs>', `${defs}</defs>`) : out + `<defs>${defs}</defs>`;
+      out += `<rect ${full} fill="url(#${id})"/>`;
+    }
     else if (g.background) out += `<rect ${full} fill="${g.background}"/>`;
     paths.forEach((d, i) => { if (d.length) out += `<path fill="${g.palette[i]}" d="${d.join('')}"/>`; });
     if (overlay) {

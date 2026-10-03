@@ -22,6 +22,7 @@ import { TagService } from "./tags.js";
 import { TagSheet } from "./tag-sheet.js";
 import { WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
 import { playlistArtStyle } from "./artwork.js";
+import { composerName } from "./composer-colors.js";
 import { paintAvatars } from "./avatars.js";
 import { Install, registerServiceWorker } from "./install.js";
 import { Notices } from "./notices.js";
@@ -353,7 +354,7 @@ function renderMix(id) {
 
 // A playlist's cover mosaic, or a note icon while it's empty.
 function playlistArt(playlist) {
-  const style = playlistArtStyle(playlist);
+  const style = playlistArtStyle(playlist, (path) => index?.get(path)?.author);
   return { art: "playlist-art", style, icon: style ? null : "musical-notes" };
 }
 
@@ -880,7 +881,6 @@ function renderTune(arg) {
 
 const TOP_TUNES = 5;
 // A composer is the name HVSC credits them by, or its alias (COMPOSER_ALIASES).
-const composerName = (credit) => COMPOSER_ALIASES[credit] ?? credit;
 const composerHref = (name) => `#/composer/${encodeURIComponent(name)}`;
 // Joint credits read "A & B" or "A, B & C".
 const creditParts = (credit) => credit.split(/\s*[&,]\s*/);

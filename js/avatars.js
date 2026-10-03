@@ -1,9 +1,12 @@
 // Deterministic DiceBear art, in a preset made for ShallowSID's dark lavender
 // look: composers get a Critters creature seeded by their name (see the
-// composer page). The style is CC0. Markup carries data-composer="<name>" with
+// composer page), in their colours from composer-colors.js, which also tint
+// their tunes' covers. The style is CC0. Markup carries data-composer="<name>" with
 // a fallback; paintAvatars() swaps in the art once DiceBear has loaded from
 // the CDN. `data-animate` makes a critter
 // bob, blink and sway (paused under prefers-reduced-motion).
+
+import { composerColors } from "./composer-colors.js";
 
 const CDN = "https://cdn.jsdelivr.net/npm";
 const CORE_URL = `${CDN}/@dicebear/core@10.7.0/+esm`;
@@ -13,16 +16,25 @@ const styleUrl = (name) => `${CDN}/@dicebear/styles@10.6.0/dist/${name}.min.json
 // option reaches it, and it clashes with the palette.
 const NO_TONGUE = ["smile", "tinySmile", "teeth", "ooh", "line", "smirk", "wavy", "catMouth", "zigzag", "frown", "sad", "slant", "dot", "tooth"];
 
-// App accents and C64-ish brights on the app's surface purples.
+// The colours come from the composer (colorsFor); the rest is fixed.
 const PRESETS = {
   critters: {
-    backgroundColor: ["2a2340", "231e36", "1f2638", "2c2036"],
-    bodyColor: ["a99cff", "5ee0c0", "ff8fb1", "ffd166", "7dd3fc", "b8e986"],
-    accentColor: ["6c5eb5", "2f9c85", "c75d82", "c79a2e", "3f8fb8", "7aa84f"],
     inkColor: ["16131f"],
     mouthVariant: NO_TONGUE,
   },
 };
+
+// DiceBear's colour options for a composer, without the "#": their body and
+// accent, on the same gradient as their tunes' covers.
+function colorsFor(name) {
+  const { body, accent, light, dark, angle } = composerColors(name);
+  const bare = (c) => c.slice(1);
+  return {
+    bodyColor: [bare(body)], accentColor: [bare(accent)],
+    // DiceBear turns its gradient from pointing right; pixelavatar's 0 points up.
+    backgroundColor: [bare(light), bare(dark)], backgroundColorFill: ["linear"], backgroundColorAngle: angle - 90,
+  };
+}
 const ANIMATED = { animationVariant: ["medium", "slow", "slowest"] };   // the calm speeds; the seed picks one
 
 const SLOTS = [
@@ -63,7 +75,7 @@ export async function paintAvatars(root) {
     const seed = el.dataset[attr];
     const animate = el.hasAttribute("data-animate");
     const key = `${style}:${animate}:${seed}`;
-    if (!cache.has(key)) cache.set(key, new core.Avatar(styles[style], { seed, ...PRESETS[style], ...(animate && ANIMATED) }).toDataUri());
+    if (!cache.has(key)) cache.set(key, new core.Avatar(styles[style], { seed, ...PRESETS[style], ...colorsFor(seed), ...(animate && ANIMATED) }).toDataUri());
     el.innerHTML = `<img src="${cache.get(key)}" alt="">`;
     el.classList.add("has-avatar");
   }
