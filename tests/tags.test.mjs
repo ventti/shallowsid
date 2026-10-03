@@ -3,6 +3,8 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
@@ -16,6 +18,9 @@ const { mergeCuration, EMPTY_CURATION } = await import("../js/sync-merge.js");
 const { TagService } = await import("../js/tags.js");
 
 const vocabJSON = JSON.parse(readFileSync(new URL("../js/tags-vocab.json", import.meta.url)));
+// firestore.rules isn't in git: build a fresh one from firestore.rules.in first.
+execFileSync("python3", [fileURLToPath(new URL("../tools/build_rules.py", import.meta.url))], { stdio: "ignore" });
+const builtRules = () => readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
 const vocab = parseVocab(vocabJSON);
 
 // ---- vocabulary and ids --------------------------------------------------------
@@ -38,8 +43,8 @@ test("each group's tags are in alphabetical order, as the app lists them", () =>
 });
 
 test("firestore.rules accepts exactly the vocabulary's tags and retired ids (tools/build_rules.py)", () => {
-  const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
-  const block = rules.match(/BEGIN TAG IDS([\s\S]*?)END TAG IDS/)[1];
+  const rules = builtRules();
+  const block = rules.match(/function tagIds\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/)[1];
   const ids = [...block.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
   assert.deepEqual(ids, [...vocab.byId.keys(), ...(vocabJSON.retired ?? [])]);
   for (const id of vocabJSON.retired ?? []) assert.ok(!vocab.byId.has(id), `${id} is retired and a tag`);
@@ -84,7 +89,7 @@ test("BPMs are whole numbers in range; the index's bpm part keeps valid paths an
 });
 
 test("firestore.rules takes the same BPM range as the app", () => {
-  const rules = readFileSync(new URL("../firestore.rules", import.meta.url), "utf8");
+  const rules = builtRules();
   assert.match(rules, new RegExp(`d\\.b == ${NO_BPM} \\|\\| \\(d\\.b >= ${MIN_BPM} && d\\.b <= ${MAX_BPM}\\)`));
 });
 

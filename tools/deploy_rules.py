@@ -4,7 +4,8 @@
 Rules only decide who may read and write. Deploying them never touches the
 data. Before releasing, this:
 
-  1. checks the file is generated from the current js/tags-vocab.json,
+  1. writes a fresh firestore.rules from firestore.rules.in and the current
+     js/tags-vocab.json (tools/build_rules.py), and deploys that,
   2. refuses rules that stop accepting a tag id the deployed rules accept
      (devices still on the previous version could no longer save those
      tunes; retire ids in the JSON instead of deleting them),
@@ -28,7 +29,7 @@ import json
 import os
 import sys
 
-from build_rules import RULES, VOCAB, accepted_ids, ids_in_rules, render
+from build_rules import VOCAB, accepted_ids, build, ids_in_rules
 from firestore_admin import access_token, call, default_project
 
 API = "https://firebaserules.googleapis.com/v1"
@@ -69,16 +70,14 @@ def main():
     token, from_ci = access_token()
     quota = None if from_ci else project
 
-    content = RULES.read_text()
+    content = build()
     ids = accepted_ids(json.loads(VOCAB.read_text()))
-    if render(content, ids) != content:
-        sys.exit("firestore.rules is out of date with js/tags-vocab.json: run tools/build_rules.py")
 
     release, live = deployed(project, token, quota)
     dropped = sorted(set(ids_in_rules(live or "") or []) - set(ids))
     if dropped:
         sys.exit(f"Refusing to deploy: these tag ids are accepted now and wouldn't be: {', '.join(dropped)}. "
-                 "Move them to \"retired\" in js/tags-vocab.json and run tools/build_rules.py.")
+                 "Move them to \"retired\" in js/tags-vocab.json.")
 
     if live == content:
         summary(f"Firestore rules for `{project}` are already up to date.")

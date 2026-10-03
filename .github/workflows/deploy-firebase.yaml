@@ -1,7 +1,9 @@
 name: Deploy Firebase rules
 
-# Deploys firestore.rules, with the tag ids from js/tags-vocab.json, to the
-# Firebase project. pages.yml calls this between building and deploying the
+# Deploys firestore.rules to the Firebase project. That file isn't in git:
+# tools/build_rules.py writes it from the template firestore.rules.in and the
+# tag ids in js/tags-vocab.json, as the first step of each job, and the check
+# job keeps it as the run's firestore-rules artifact. pages.yml calls this between building and deploying the
 # site, so the site is only deployed if this succeeds, and new app code never
 # goes live before the rules it needs. On its own it runs the checks on pull
 # requests, and can be started by hand (a dry run by default).
@@ -25,7 +27,7 @@ on:
         default: true
   pull_request:
     paths:
-      - firestore.rules
+      - firestore.rules.in
       - firebase.json
       - js/**
       - tests/**
@@ -57,8 +59,15 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Rules match the tag vocabulary
-        run: python3 tools/build_rules.py --check
+      - name: Generate firestore.rules
+        run: python3 tools/build_rules.py
+
+      - name: Keep the generated rules
+        uses: actions/upload-artifact@v7
+        with:
+          name: firestore-rules
+          path: firestore.rules
+          if-no-files-found: error
 
       - name: Unit tests
         run: node --test "tests/*.test.mjs"
@@ -86,6 +95,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
+
+      # tools/deploy_rules.py builds it again itself; this shows it as a step.
+      - name: Generate firestore.rules
+        run: python3 tools/build_rules.py
 
       # FIREBASE_RULES_DEPLOY=off (a repo variable) skips the release, so the
       # site still deploys while Google Cloud isn't set up.

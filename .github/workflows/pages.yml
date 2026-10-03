@@ -49,12 +49,16 @@ jobs:
         with:
           node-version: 24
 
-      - name: Unit tests
-        run: node --test "tests/*.test.mjs"
-
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
+
+      # Not in git: built from firestore.rules.in and js/tags-vocab.json.
+      - name: Generate firestore.rules
+        run: python3 tools/build_rules.py
+
+      - name: Unit tests
+        run: node --test "tests/*.test.mjs"
 
       - name: Resolve HVSC version
         id: hvsc

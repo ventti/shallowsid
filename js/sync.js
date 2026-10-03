@@ -24,7 +24,7 @@
 // newer than they know) instead of reading it as empty data.
 //
 // Only key holders can change or delete the synced copy: every write carries
-// an owner proof derived from the key (see firestore.rules and
+// an owner proof derived from the key (see firestore.rules.in and
 // live-share-core.js), and a delete must first be marked by a proven write.
 // Records from before proofs (vaults/, under `legacyId`) are read-only; a
 // device that hasn't used the new copy for its key yet reads the old one as

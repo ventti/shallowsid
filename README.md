@@ -118,7 +118,7 @@ In the devtools console, `shallowsid.player` and `shallowsid.store` are exposed 
 Sync talks to Firestore's REST API directly, with no secrets in the repo. The only Firebase SDK in use is App Check, loaded from gstatic on the first Firestore request. To enable it:
 
 1. Create a Firebase project and a Firestore database in an EU location (production mode).
-2. Publish [`firestore.rules`](firestore.rules): the deploy workflow does it (see below), or paste it into **Firestore → Rules** once.
+2. Publish the rules: the deploy workflow does it (see below). Or run `tools/build_rules.py` and paste the `firestore.rules` it writes into **Firestore → Rules** once.
 3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults2`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
 4. Register a **Web app** and copy its `apiKey`, `projectId` and `appId` into [`js/sync-config.js`](js/sync-config.js). All are public.
 5. In Google Cloud **Credentials**, restrict that API key:
@@ -142,17 +142,17 @@ With `recaptchaSiteKey` empty, or with an emulator `endpoint`, requests go out w
 
 ### Vaults and write proofs
 
-Synced records live at `vaults2/<id>`. Knowing an id lets you read the ciphertext, but only a device with the sync key can change or delete the record (see the comments in `firestore.rules`).
+Synced records live at `vaults2/<id>`. Knowing an id lets you read the ciphertext, but only a device with the sync key can change or delete the record (see the comments in [`firestore.rules.in`](firestore.rules.in)).
 
 Records from before this are in `vaults/`, which is read-only. A device reads its old record once and writes a new one to `vaults2`. The old records can't be deleted from the app, so remove the `vaults` collection in the Firestore console once devices have moved over.
 
 ### Tags and curators
 
-Curators have no accounts either. Each has a random seed that syncs with their data; `curators/<id>` holds a proof chain like the vaults, and every tag edit is one batch that also moves the curator's chain on. Invites live at `invites/<sha256(secret)>` and work once. See the comments in `firestore.rules`.
+Curators have no accounts either. Each has a random seed that syncs with their data; `curators/<id>` holds a proof chain like the vaults, and every tag edit is one batch that also moves the curator's chain on. Invites live at `invites/<sha256(secret)>` and work once. See the comments in `firestore.rules.in`.
 
-The accepted tag ids are written into `firestore.rules`, so the rules and the app always ship the same list:
+The tag ids live only in `js/tags-vocab.json`. `firestore.rules.in` is a template: `tools/build_rules.py` writes `firestore.rules` (not in git) from it with those ids filled in, so the rules and the app always ship the same list. CI builds it before testing and deploying, and keeps it as the run's **firestore-rules** artifact; `tools/deploy_rules.py` and the unit tests build it themselves.
 
-- Add, rename the label of, or regroup a tag in `js/tags-vocab.json`, then run `tools/build_rules.py`. CI fails if you forget.
+- Add, rename the label of, or regroup a tag in `js/tags-vocab.json` (keep each group in alphabetical order), commit and push. Nothing else to run.
 - To take a tag out, move its id to `"retired"`. The app hides it, but the rules still accept it, so devices on the previous version can still save those tunes. Deleting an id outright makes the deploy refuse.
 
 `tools/curators.py` uses your gcloud login (`gcloud auth login`), which isn't bound by the rules. It reads the project from `js/sync-config.js`.
@@ -168,7 +168,7 @@ The accepted tag ids are written into `firestore.rules`, so the rules and the ap
 
 ## Deploying the Firebase rules
 
-`.github/workflows/deploy-firebase.yaml` deploys `firestore.rules`. The Pages workflow runs it after the build and deploys the site only if it succeeded. On pull requests it only runs the checks.
+`.github/workflows/deploy-firebase.yaml` builds and deploys `firestore.rules`. The Pages workflow runs it after the build and deploys the site only if it succeeded. On pull requests it only runs the checks.
 
 Before releasing, it:
 
@@ -208,10 +208,10 @@ gh variable set GCP_SERVICE_ACCOUNT --body "$SA"
 - Until the variables are set, the site doesn't deploy. Set the repo variable `FIREBASE_RULES_DEPLOY` to `off` to deploy the site without the rules.
 - To try it without releasing: **Actions → Deploy Firebase rules → Run workflow** (a dry run by default), or locally `tools/deploy_rules.py --dry-run` with your gcloud login.
 
-Run the emulator checks locally (needs Java 11+):
+Run the emulator checks locally (needs Java 11+). The emulator reads `firestore.rules`, so build it first:
 
 ```sh
-npx firebase-tools@15.31.0 emulators:exec --only firestore --project demo-shallowsid \
+tools/build_rules.py && npx firebase-tools@15.31.0 emulators:exec --only firestore --project demo-shallowsid \
   "node tests/rules/rules-check.mjs && node tests/rules/sync-check.mjs"
 ```
 

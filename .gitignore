@@ -11,3 +11,6 @@ tools/bpm/results.jsonl
 tools/bpm/review.txt
 tools/bpm/review.m3u8
 tools/sidfeatures/results.jsonl
+
+# Built from firestore.rules.in and js/tags-vocab.json by tools/build_rules.py
+/firestore.rules

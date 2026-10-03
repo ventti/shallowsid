@@ -6,7 +6,7 @@
 //   - the document id (64 hex chars) the backend stores the data under,
 //   - an AES-256-GCM key that encrypts the data before upload, and
 //   - a write seed for the owner proofs that let only key holders change or
-//     delete the document (see firestore.rules; the id alone isn't enough).
+//     delete the document (see firestore.rules.in; the id alone isn't enough).
 // The backend therefore only ever sees an opaque id and ciphertext.
 // `legacyId` is where records lived before write proofs (read-only now).
 

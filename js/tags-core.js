@@ -1,6 +1,6 @@
 // Tune tags: the fixed vocabulary, document ids, curator proofs and the
 // Firestore writes they take. Pure WebCrypto, so it runs in browsers and under
-// `node --test`. See firestore.rules for what the server checks.
+// `node --test`. See firestore.rules.in for what the server checks.
 //
 // Tags are picked from js/tags-vocab.json only, so there's no free text to
 // filter. A tune's tags live at tags/<sha256("path#s")>, where s = 0 is the

@@ -1,5 +1,8 @@
 rules_version = '2';
 
+// TEMPLATE: tools/build_rules.py writes firestore.rules (not in git) from this
+// TEMPLATE: file, with the tag ids from js/tags-vocab.json. Edit this one.
+
 // ShallowSID sync: one document per sync key, at vaults2/<64 hex id>.
 // The id and a write secret are derived from a 128-bit key that only the
 // user's devices know, and the content is encrypted in the browser, so there
@@ -99,121 +102,11 @@ service cloud.firestore {
     // off and on again.
     // Admins come only from invites made with tools/curators.py, which uses
     // IAM credentials and isn't bound by these rules.
-    // Generated from js/tags-vocab.json (tags and retired ids) by
-    // tools/build_rules.py; edit the JSON and run it, don't edit here.
-    // BEGIN TAG IDS
+    // tools/build_rules.py puts the ids in js/tags-vocab.json (tags and
+    // retired ids) in place of the placeholder below, writing firestore.rules.
     function tagIds() {
-      return [
-        'acid',
-        'acid-house',
-        'acid-jazz',
-        'alternative',
-        'ambient',
-        'arabic',
-        'balkan',
-        'ballad',
-        'blues',
-        'bossa-nova',
-        'celtic',
-        'childrens',
-        'christmas',
-        'classical',
-        'country',
-        'cumbia',
-        'disco',
-        'drum-and-bass',
-        'dub',
-        'electro',
-        'eurodance',
-        'experimental',
-        'fake-music',
-        'folk',
-        'funk',
-        'fusion',
-        'gabber',
-        'glitch',
-        'hardcore',
-        'hardstep',
-        'hip-hop',
-        'house',
-        'humppa',
-        'industrial',
-        'italo-disco',
-        'jazz',
-        'jungle',
-        'krautrock',
-        'latin',
-        'mambo',
-        'mariachi',
-        'metal',
-        'minimalistic',
-        'muzak',
-        'noise',
-        'novelty',
-        'oriental',
-        'phonk',
-        'polka',
-        'pop',
-        'prank',
-        'prog',
-        'psychedelic',
-        'rnb',
-        'ragtime',
-        'reggae',
-        'rock',
-        'soul',
-        'synthpop',
-        'tango',
-        'techno',
-        'theme',
-        'traditional',
-        'trance',
-        'trap',
-        'trip-hop',
-        'tv-movie',
-        'waltz',
-        'aggressive',
-        'bouncy',
-        'calm',
-        'cool',
-        'cosmic',
-        'dark',
-        'downtempo',
-        'dramatic',
-        'dreamy',
-        'eccentric',
-        'energetic',
-        'epic',
-        'funny',
-        'happy',
-        'hypnotic',
-        'melancholic',
-        'melodic',
-        'mysterious',
-        'playful',
-        'quirky',
-        'spooky',
-        'uptempo',
-        'demo',
-        'game-complete',
-        'game-over',
-        'high-score',
-        'in-game',
-        'intro',
-        'jingle',
-        'loader',
-        'note',
-        'title-tune',
-        'arpeggios',
-        'cover',
-        'digi',
-        'filter',
-        'multispeed',
-        'remix-classic',
-        'speech'
-      ];
+      return {{TAG_IDS}};
     }
-    // END TAG IDS
 
     function curatorDoc(cid) {
       return /databases/$(database)/documents/curators/$(cid);
