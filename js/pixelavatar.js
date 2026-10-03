@@ -15,6 +15,9 @@
  *   background       CSS color or null for transparent (default auto from seed)
  *   pixelAspect      pixel width / height (default 1; e.g. 2 for C64 multicolor)
  *   size             target size in px of the longer side (default 256)
+ *   content          0..1 share of the image's longer side the sprite takes; the rest is
+ *                    background around it, centred, so a small sprite sits in a larger tile
+ *                    (default 1: edge to edge)
  *   density          0..1 chance a cell is filled (default 0.5)
  *   slide            null | 'auto' | { from, to, angle } — a two-color linear gradient ("color slide");
  *                    'auto' derives the hues and angle from the seed (default null)
@@ -31,7 +34,7 @@
 
   const DEFAULTS = {
     cols: 8, rows: 8, mirror: 'x', symmetry: 'full', colors: 3,
-    color: null, background: 'auto', pixelAspect: 1, size: 256, density: 0.5,
+    color: null, background: 'auto', pixelAspect: 1, size: 256, content: 1, density: 0.5,
     slide: null, slideMode: 'overlay', slideOpacity: 0.5, slideBlend: 'normal',
   };
 
@@ -151,10 +154,15 @@
     const o = Object.assign({}, DEFAULTS, options);
     const g = grid(seed, o);
     const aspect = o.pixelAspect > 0 ? o.pixelAspect : 1;
-    // viewBox in unit cells, pixel width scaled by aspect
+    // viewBox in unit cells, pixel width scaled by aspect, widened by the
+    // margin `content` leaves around the sprite (the same on every side)
     const vbW = g.cols * aspect, vbH = g.rows;
-    const scale = o.size / Math.max(vbW, vbH);
-    const w = +(vbW * scale).toFixed(2), h = +(vbH * scale).toFixed(2);
+    const content = o.content > 0 && o.content <= 1 ? o.content : 1;
+    const pad = (Math.max(vbW, vbH) / content - Math.max(vbW, vbH)) / 2;
+    const viewW = vbW + 2 * pad, viewH = vbH + 2 * pad;
+    const scale = o.size / Math.max(viewW, viewH);
+    const w = +(viewW * scale).toFixed(2), h = +(viewH * scale).toFixed(2);
+    const n = (v) => +v.toFixed(4);
 
     // Merge horizontal runs of the same color into one rect per color path.
     const paths = g.palette.map(() => []);
@@ -169,8 +177,8 @@
       }
     }
 
-    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${vbW} ${vbH}" shape-rendering="crispEdges">`;
-    const full = `width="${vbW}" height="${vbH}"`;
+    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${n(-pad)} ${n(-pad)} ${n(viewW)} ${n(viewH)}" shape-rendering="crispEdges">`;
+    const full = `x="${n(-pad)}" y="${n(-pad)}" width="${n(viewW)}" height="${n(viewH)}"`;
     let slideFill = null;
     if (g.slide) {
       const id = `s${rng(seed)().toString(36).slice(2, 10)}`;   // unique enough when several SVGs share a page
