@@ -1,7 +1,8 @@
 // Deterministic covers from pixelavatar.js: a mirrored pixel sprite in one of
 // the app accents, lit by a two-hue color slide, seeded by the tune path.
-// Playlists show a mosaic of their tunes' covers. In lists the sprite sits small
-// in its tile (THUMB_CONTENT); Now Playing and the lock screen show it whole.
+// Playlists show a mosaic of their tunes' covers. The sprite sits at the same
+// size in its tile (CONTENT) wherever a cover shows: lists, the tune page, Now
+// Playing, the lock screen.
 
 import "./pixelavatar.js";   // sets self.PixelAvatar
 
@@ -15,33 +16,32 @@ const OPTIONS = {
   slide: "auto", slideMode: "pixels", slideOpacity: 1, slideBlend: "overlay",
 };
 
-// How much of a list cover the sprite fills (pixelavatar's `content`): about
-// half, on the tile's own background, so rows of covers stay calm.
-export const THUMB_CONTENT = 0.45;
+// How much of a cover the sprite fills (pixelavatar's `content`), the same at
+// every size: about half, on the tile's own background, so covers stay calm.
+export const CONTENT = 0.45;
 
 const urlCache = new Map();
 
-function svgUrl(path, content = 1) {
-  const key = `${content}:${path}`;
-  if (!urlCache.has(key)) urlCache.set(key, `data:image/svg+xml,${encodeURIComponent(self.PixelAvatar.svg(path, { ...OPTIONS, content }))}`);
-  return urlCache.get(key);
+function svgUrl(path) {
+  if (!urlCache.has(path)) urlCache.set(path, `data:image/svg+xml,${encodeURIComponent(self.PixelAvatar.svg(path, { ...OPTIONS, content: CONTENT }))}`);
+  return urlCache.get(path);
 }
 
-const cssUrl = (path, content) => `url(&quot;${svgUrl(path, content)}&quot;)`;
+const cssUrl = (path) => `url(&quot;${svgUrl(path)}&quot;)`;
 
-// A CSS background-image value: the large cover, edge to edge.
+// A CSS background-image value.
 export const artworkImage = (item) => `url("${svgUrl(item.path)}")`;
 
-// For a style="" attribute in markup: a list cover, the sprite small in its tile.
-export const artworkStyle = (item) => `background-image: ${cssUrl(item.path, THUMB_CONTENT)}`;
+// For a style="" attribute in markup.
+export const artworkStyle = (item) => `background-image: ${cssUrl(item.path)}`;
 
 // The first four distinct tunes' covers in a 2x2 mosaic; with fewer, the first
 // cover alone. Null for an empty playlist.
 export function playlistArtStyle(playlist) {
   const paths = [...new Set(playlist.items.map((i) => i.path))];
   if (!paths.length) return null;
-  if (paths.length < 4) return `background-image: ${cssUrl(paths[0], THUMB_CONTENT)}`;
-  return `background-image: ${paths.slice(0, 4).map((p) => cssUrl(p, THUMB_CONTENT)).join(", ")}; ` +
+  if (paths.length < 4) return `background-image: ${cssUrl(paths[0])}`;
+  return `background-image: ${paths.slice(0, 4).map(cssUrl).join(", ")}; ` +
     "background-position: 0 0, 100% 0, 0 100%, 100% 100%; background-size: 50% 50%";
 }
 
