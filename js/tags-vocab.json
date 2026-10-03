@@ -59,6 +59,7 @@
         { "id": "prog", "label": "Prog" },
         { "id": "psychedelic", "label": "Psychedelic" },
         { "id": "rnb", "label": "R&B" },
+        { "id": "ragtime", "label": "Ragtime" },
         { "id": "reggae", "label": "Reggae" },
         { "id": "rock", "label": "Rock" },
         { "id": "soul", "label": "Soul" },

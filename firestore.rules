@@ -158,6 +158,7 @@ service cloud.firestore {
         'prog',
         'psychedelic',
         'rnb',
+        'ragtime',
         'reggae',
         'rock',
         'soul',
