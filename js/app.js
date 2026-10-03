@@ -312,7 +312,7 @@ function shelfCards() {
   const favorites = store.favorites();
   if (favorites?.items.length) cards.push({ playlist: favorites });
   const recent = recentItems().length;
-  if (recent) cards.push({ href: "#/recent", name: "Recently played", count: recent, art: "recent-art", icon: "time" });
+  if (recent) cards.push({ href: "#/recent", name: "Recently played", count: recent, art: "recent-art", icon: "time-outline" });
   for (const p of store.recentPlaylists()) if (p !== favorites) cards.push({ playlist: p });
   return cards.slice(0, SHELF_COUNT).map((c) => c.playlist
     ? { href: `#/playlist/${c.playlist.id}`, name: c.playlist.name, count: c.playlist.items.length,

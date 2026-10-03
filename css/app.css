@@ -169,9 +169,10 @@ body.has-side-panel .mini {
 }
 
 .favorites-thumb {
-  background: linear-gradient(135deg, #a99cff, #6c5eb5);
+  background: linear-gradient(135deg, #a99cff, #5b4aa3);
   color: #16131f;
   font-size: 20px;
+  --art-icon: #ffd166;
 }
 
 /* A row's second line: composer and year exactly as in a row without tags
@@ -256,7 +257,7 @@ body.has-side-panel .mini {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  font-size: 48px;
+  font-size: 64px;
   margin-bottom: 8px;
 }
 
@@ -282,7 +283,14 @@ body.has-side-panel .mini {
   right: 10px;
   bottom: 10px;
   font-size: 40px;
-  opacity: 0.35;
+}
+
+/* Each cover's icon in a colour of its own that stands off the gradient
+   (--art-icon, set with the gradients below), rather than a faint shade of it. */
+.shelf-art > ion-icon,
+.favorites-thumb > ion-icon {
+  color: var(--art-icon, currentColor);
+  opacity: 0.9;
 }
 
 .mix-art .art-avatar {
@@ -305,12 +313,12 @@ body.has-side-panel .mini {
   opacity: 1;
 }
 
-.mix-art-0 { background: linear-gradient(135deg, #a99cff, #6c5eb5); }
-.mix-art-1 { background: linear-gradient(135deg, #7dd3fc, #3f6fb8); }
-.mix-art-2 { background: linear-gradient(135deg, #ffd166, #c7852e); }
-.mix-art-3 { background: linear-gradient(135deg, #b8e986, #4f8a4f); }
-.mix-art-4 { background: linear-gradient(135deg, #ff8fb1, #a3466f); }
-.mix-art-5 { background: linear-gradient(135deg, #5ee0c0, #2f7d8c); }
+.mix-art-0 { background: linear-gradient(135deg, #a99cff, #5b4aa3); --art-icon: #c4466f; }
+.mix-art-1 { background: linear-gradient(135deg, #8cc2ec, #3d5c9c); --art-icon: #6cbf5a; }
+.mix-art-2 { background: linear-gradient(135deg, #e6c070, #8c6332); --art-icon: #6cbf5a; }
+.mix-art-3 { background: linear-gradient(135deg, #b9df85, #426e3e); --art-icon: #c4466f; }
+.mix-art-4 { background: linear-gradient(135deg, #e88aaa, #8c3c66); --art-icon: #3d8bd0; }
+.mix-art-5 { background: linear-gradient(135deg, #5ccfbf, #2f7d8c); --art-icon: #8f5a0a; }
 
 .has-avatar {
   position: relative;
@@ -323,13 +331,15 @@ body.has-side-panel .mini {
 }
 
 .recent-art {
-  background: linear-gradient(135deg, #ffb38a, #b0507a);
+  background: linear-gradient(90deg, #e8887a, #c2507a);
   color: #16131f;
+  --art-icon: #4f74a8;
 }
 
 .most-played-art {
-  background: linear-gradient(135deg, #5ee0c0, #2f7d8c);
+  background: linear-gradient(90deg, #5ccfbf, #3f8fa1);
   color: #16131f;
+  --art-icon: #8f5a0a;
 }
 
 .shelf-title,
