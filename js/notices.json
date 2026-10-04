@@ -3,9 +3,9 @@
     "id": "move-to-sid-extend-fi",
     "schedule": {
       "from": "2026-10-02T00:00:00+03:00",
-      "until": "2026-12-01T00:00:00+02:00",
+      "until": "2026-10-04T20:00:00+03:00",
       "times": 3,
-      "every": "7d",
+      "every": "1d",
       "canHide": true
     },
     "title": "ShallowSID Is Moving",
