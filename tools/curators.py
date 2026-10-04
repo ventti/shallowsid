@@ -19,7 +19,7 @@ import secrets
 
 from firestore_admin import Firestore, s, value
 
-SITE = "https://ventti.github.io/shallowsid/"
+SITE = "https://sid.extend.fi/"
 
 
 def invite(db, role, days, site):

@@ -9,7 +9,7 @@ const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
 globalThis.document = { visibilityState: "visible", addEventListener() {} };
 globalThis.window = { addEventListener() {} };
-globalThis.location = { origin: "https://example.test", pathname: "/shallowsid/" };
+globalThis.location = { origin: "https://example.test", pathname: "/" };
 
 // The emulator evaluates a write with a currentDocument.updateTime
 // precondition as a create (production doesn't), so every proven update would

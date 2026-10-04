@@ -122,7 +122,7 @@ Sync talks to Firestore's REST API directly, with no secrets in the repo. The on
 3. Optional, and it needs billing enabled: add a TTL policy on the field `expireAt` for collection group `vaults2`. Records then expire 12 months after the last sync. Without it, records stay until deleted, and `privacy.html` says so.
 4. Register a **Web app** and copy its `apiKey`, `projectId` and `appId` into [`js/sync-config.js`](js/sync-config.js). All are public.
 5. In Google Cloud **Credentials**, restrict that API key:
-   - **HTTP referrers:** `https://ventti.github.io/*` and `http://localhost:8765/*`
+   - **HTTP referrers:** `https://sid.extend.fi/*` and `http://localhost:8765/*`
    - **API restrictions:** Cloud Firestore API and Firebase App Check API
 6. Fill in the placeholders in [`privacy.html`](privacy.html).
 
@@ -132,7 +132,7 @@ With `js/sync-config.js` left empty, sync is hidden.
 
 App Check makes Firestore answer only this site. It uses invisible, score-based reCAPTCHA Enterprise, which is free up to 10,000 assessments a month. Tokens are cached, so that's plenty.
 
-1. Create a score-based **reCAPTCHA** web key in Google Cloud **Security → reCAPTCHA** for the domains `ventti.github.io` and `localhost`.
+1. Create a score-based **reCAPTCHA** web key in Google Cloud **Security → reCAPTCHA** for the domains `sid.extend.fi` and `localhost`.
 2. In **Firebase → App Check → Apps**, register the web app with the **reCAPTCHA Enterprise** provider and the site key.
 3. Put the site key in `recaptchaSiteKey` in [`js/sync-config.js`](js/sync-config.js) and deploy.
 4. On localhost the browser console prints an App Check debug token. Add it under **App Check → Apps → Manage debug tokens**.

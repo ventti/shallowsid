@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 const REPO = new URL("../..", import.meta.url).href.replace(/\/$/, "");
 const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
-globalThis.location = { origin: "https://example.test", pathname: "/shallowsid/" };
+globalThis.location = { origin: "https://example.test", pathname: "/" };
 const core = await import(REPO + "/js/tags-core.js");
 const { TagService } = await import(REPO + "/js/tags.js");
 const { readFileSync } = await import("node:fs");

@@ -70,12 +70,12 @@ test("public document content round-trips and rejects junk", () => {
 
 test("pasted playlist links are recognised, and anything else refused", async () => {
   const { parsePlaylistLink } = await import("../js/live-share-core.js");
-  assert.deepEqual(parsePlaylistLink("https://ventti.github.io/shallowsid/#/p/ce26znuuj7bw"), { kind: "live", id: "ce26znuuj7bw" });
+  assert.deepEqual(parsePlaylistLink("https://sid.extend.fi/#/p/ce26znuuj7bw"), { kind: "live", id: "ce26znuuj7bw" });
   assert.deepEqual(parsePlaylistLink("  http://localhost:8765/#/p/CE26ZNUUJ7BW \n"), { kind: "live", id: "ce26znuuj7bw" });
   assert.deepEqual(parsePlaylistLink("ce26znuuj7bw"), { kind: "live", id: "ce26znuuj7bw" });
-  assert.deepEqual(parsePlaylistLink("https://ventti.github.io/shallowsid/#/share/q1bKU7JS8ihNSkos_-"), { kind: "snapshot", blob: "q1bKU7JS8ihNSkos_-" });
+  assert.deepEqual(parsePlaylistLink("https://sid.extend.fi/#/share/q1bKU7JS8ihNSkos_-"), { kind: "snapshot", blob: "q1bKU7JS8ihNSkos_-" });
   for (const bad of [
-    "", "hello", "https://evil.example/", "https://ventti.github.io/shallowsid/#/p/../vaults/x",
+    "", "hello", "https://evil.example/", "https://sid.extend.fi/#/p/../vaults/x",
     "https://x/#/p/ce26znuuj7bw/extra", "https://x/#/p/illegal-id!!", "javascript:alert(1)#/p/ce26znuuj7bw/x",
     "https://x/#/share/<script>", "https://x/#/share/abc", "https://x/#/playlist/abc", null,
   ]) assert.equal(parsePlaylistLink(bad), null, String(bad));

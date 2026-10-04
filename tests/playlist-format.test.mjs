@@ -13,11 +13,11 @@ const playlist = {
 
 test("m3u8 round-trips name, paths and subtunes", () => {
   const text = toM3U8(playlist, {
-    baseUrl: "https://example.org/shallowsid/hvsc/",
+    baseUrl: "https://example.org/hvsc/",
     meta: (path) => (path.includes("Commando") ? { title: "Commando", author: "Rob Hubbard", seconds: 236 } : null),
   });
   assert.match(text, /^#EXTM3U\n#PLAYLIST:Hubbard classics\n#EXTINF:236,Rob Hubbard - Commando\n/);
-  assert.match(text, /https:\/\/example\.org\/shallowsid\/hvsc\/GAMES\/S-Z\/Sp%C3%A4%C3%9Fchen\.sid/);
+  assert.match(text, /https:\/\/example\.org\/hvsc\/GAMES\/S-Z\/Sp%C3%A4%C3%9Fchen\.sid/);
   assert.deepEqual(parseM3U8(text), playlist);
 });
 

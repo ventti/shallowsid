@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const storage = new Map();
 globalThis.localStorage = { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: (k) => storage.delete(k) };
-globalThis.location = { origin: "https://example.test", pathname: "/shallowsid/" };
+globalThis.location = { origin: "https://example.test", pathname: "/" };
 
 const {
   MAX_BPM, MAX_TAGS, MIN_BPM, NO_BPM, TAG_ID, chainStep, cleanBpm, cleanTags, curatorId, decodeBpmIndex, decodeTagIndex, inviteHash, parseInviteLink, parseVocab, sha256Hex, tagDocId,
@@ -105,7 +105,7 @@ test("a chain step's proof opens the current owner and commits to the next token
 
 test("invite links: the secret from a link or on its own, nothing else", () => {
   const secret = "0123456789abcdef0123456789abcdef";
-  assert.equal(parseInviteLink(`https://x.test/shallowsid/#/curate/${secret}`), secret);
+  assert.equal(parseInviteLink(`https://x.test/#/curate/${secret}`), secret);
   assert.equal(parseInviteLink(secret.toUpperCase()), secret);
   assert.equal(parseInviteLink("https://x.test/#/curate/123"), null);
   assert.equal(parseInviteLink("#/p/abcdefghjkmn"), null);
