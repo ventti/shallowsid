@@ -7,7 +7,7 @@
 // saved automatically, like iOS settings.
 
 import {
-  BUILTIN_PRESETS, DEFAULT_PRESET, PRESET_CHIPS, normalizeEngine, normalizeGlobal, normalizeHost, normalizeKnobs, normalizePreset,
+  BUILTIN_PRESETS, DEFAULT_PRESET, PRESET_CHIPS, DEFAULT_ENGINE, normalizeEngine, normalizeGlobal, normalizeHost, normalizeKnobs, normalizePreset,
   parseProfiles, serializeProfiles, splitLegacy,
 } from "./sound-profile.js";
 
@@ -53,6 +53,9 @@ export class SoundSettings extends EventTarget {
     // Per device, so not synced: another device may lack the CPU or the Ultimate.
     this.engine = normalizeEngine(saved.engine);
     this.u64Host = normalizeHost(saved.u64Host);
+    // Picked in the Sound sheet. Until then the app may switch to SIDLite on a slow device.
+    this.engineChosen = saved.engineChosen ?? this.engine !== DEFAULT_ENGINE;
+    this.renderSpeed = Number(saved.renderSpeed) || 0;   // reSIDfp's measured speed (x realtime), 0: not yet
   }
 
   find(id) {
@@ -118,6 +121,21 @@ export class SoundSettings extends EventTarget {
 
   setEngine(engine) {
     this.engine = normalizeEngine(engine);
+    this.engineChosen = true;
+    this.save();
+  }
+
+  // The app's own pick, unless one was made by hand. True if it changed.
+  autoEngine(engine) {
+    engine = normalizeEngine(engine);
+    if (this.engineChosen || engine === this.engine) return false;
+    this.engine = engine;
+    this.save();
+    return true;
+  }
+
+  setRenderSpeed(ratio) {
+    this.renderSpeed = Math.round(ratio * 100) / 100;
     this.save();
   }
 
@@ -199,7 +217,7 @@ export class SoundSettings extends EventTarget {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         v: STATE_VERSION, chip: this.chip, machine: this.machine, selected: this.selected, drafts: this.drafts, presets: this.presets, prerender: this.prerender,
-        engine: this.engine, u64Host: this.u64Host,
+        engine: this.engine, u64Host: this.u64Host, engineChosen: this.engineChosen, renderSpeed: this.renderSpeed,
       }));
     } catch {
       // storage blocked: settings last for this session only

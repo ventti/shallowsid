@@ -134,10 +134,10 @@ async function render(j) {
     }
     worklet.postMessage({ type: "chunk", role: j.role, gen: j.gen, token: j.token, startFrame: frame, pcm }, [pcm.buffer]);
     frame = engineAt = frame + frames;
-    self.postMessage({ type: "progress", role: j.role, token: j.token, frame });
+    self.postMessage({ type: "progress", role: j.role, token: j.token, gen: j.gen, frame });
     await sleep(0);                            // let messages (playhead, sound) in between chunks
   }
-  if (!j.cancelled) self.postMessage({ type: "done", role: j.role, token: j.token, frame });
+  if (!j.cancelled) self.postMessage({ type: "done", role: j.role, token: j.token, gen: j.gen, frame });
 }
 
 // Whether the cache holds enough audio ahead of the playhead for live to rest

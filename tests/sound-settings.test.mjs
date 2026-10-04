@@ -56,3 +56,21 @@ test("engine and Ultimate address are kept per device", () => {
   again.setU64Host("not a host!");
   assert.equal(again.u64Host, "");
 });
+
+test("the app picks SIDLite only until an engine is picked by hand", () => {
+  const s = new SoundSettings();
+  assert.equal(s.engineChosen, false);
+  assert.equal(s.autoEngine("sidlite"), true);
+  assert.equal(s.engine, "sidlite");
+  assert.equal(new SoundSettings().engineChosen, false);
+  s.setEngine("residfp");
+  assert.equal(s.autoEngine("sidlite"), false);
+  assert.equal(new SoundSettings().engine, "residfp");
+});
+
+test("the measured render speed is kept", () => {
+  const s = new SoundSettings();
+  assert.equal(s.renderSpeed, 0);
+  s.setRenderSpeed(1.234);
+  assert.equal(new SoundSettings().renderSpeed, 1.23);
+});

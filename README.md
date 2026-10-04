@@ -33,6 +33,7 @@ Sound (the **Sound** button in Now Playing):
 - **Engine** picks what plays the tunes. It's kept per device and isn't synced.
   - **reSIDfp** (the default) is cycle-exact, and the presets below tune its filter.
   - **SIDLite** comes in the same libsidplayfp build and needs about a tenth of the CPU. Chip and machine apply, but the presets' filter knobs don't.
+  - Until you pick one, a slow device switches itself to SIDLite: when the first pre-render runs under 2× realtime (timed once per device), or when playback stalls twice within a minute.
   - **Ultimate** plays on an [Ultimate 64 or Ultimate II+](https://ultimate64.com/) on your network. Type its IP address (or `host:port`). See [Ultimate 64](#ultimate-64) for its limits.
 
 - **Chip** (Auto/6581/8580) and **Machine** (Auto/PAL/NTSC) are set once, apart from the presets. Auto follows each tune.

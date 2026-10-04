@@ -76,6 +76,26 @@ soundSheet.addEventListener("preview", ({ detail: { chip, knobs } }) => {
   applySound({ ...current, [chip]: { ...current[chip], ...knobs } });
 });
 soundSheet.addEventListener("adjusting", (e) => player.setAdjusting(e.detail));
+// A device too slow for reSIDfp gets SIDLite, unless an engine was picked by hand:
+// when its first pre-render runs under 2x realtime, or playback stalls twice in a minute.
+const SLOW_RENDER_RATIO = 2;
+const STALL_WINDOW_MS = 60_000;
+let stalls = [];
+player.speedMeasured = sound.renderSpeed > 0;   // once per device
+function preferLightEngine() {
+  if (sound.autoEngine("sidlite")) toast("This device is slow for reSIDfp, so tunes now play with SIDLite. Change it in Sound.");
+}
+player.addEventListener("speed", ({ detail: { engine, ratio } }) => {
+  if (engine !== "residfp" || sound.renderSpeed) return;
+  sound.setRenderSpeed(ratio);
+  if (ratio < SLOW_RENDER_RATIO) preferLightEngine();
+});
+player.addEventListener("stall", ({ detail: { engine } }) => {
+  if (engine !== "residfp") return;
+  const now = Date.now();
+  stalls = [...stalls.filter((t) => now - t < STALL_WINDOW_MS), now];
+  if (stalls.length >= 2) preferLightEngine();
+});
 applySound();
 const tags = new TagService();
 const tagSheet = new TagSheet(tags);

@@ -25,6 +25,8 @@
 //   repeat {mode}                        "off" | "all" (the queue) | "one" (the tune)
 //   shuffle {on}
 //   error  {message, item}
+//   speed  {engine, ratio}               how fast reSIDfp pre-renders here (x realtime), measured once
+//   stall  {engine}                      playback ran out of audio, not right after a seek or change
 
 import { Ultimate64 } from "./u64.js";
 
@@ -64,6 +66,9 @@ export function loopedEnd(peaks, bucketsPerSecond, duration) {
 
 const assetUrl = (path) => new URL(path, import.meta.url).href;
 const REMOTE_TICK_MS = 250;
+const SPEED_WARMUP_SECONDS = 1;         // audio pre-rendered before timing starts (module compile, first chunks)
+const SPEED_MIN_WALL_SECONDS = 3;       // then timed over at least this long
+const STALL_GRACE_MS = 3000;            // after a start, seek or change, waiting for audio isn't a stall
 
 export class Player extends EventTarget {
   constructor({ sidUrls, prerender = true, engine = "residfp", u64Host = "" }) {
@@ -73,6 +78,9 @@ export class Player extends EventTarget {
     this.u64 = engine === "u64" ? new Ultimate64(u64Host) : null;   // set: the tune plays there instead
     this.remoteStart = 0;               // performance.now() when the device started the tune
     this.remoteTimer = 0;
+    this.speedRun = null;               // the pre-render being timed, see timeRender()
+    this.speedMeasured = false;
+    this.stallGraceUntil = 0;
     this.sound = null;                  // {emulation, filter} for the engine, see sound-profile.js
     this.prerender = prerender;
     this.adjusting = false;             // Sound sheet open: live changes, no pre-render
@@ -190,6 +198,7 @@ export class Player extends EventTarget {
     const item = this.queue[index];
     const token = ++this.token;
     this.setState("loading");
+    this.graceStall();
     this.duration = item.lengths?.[item.song - 1] || DEFAULT_SONG_SECONDS;
     this.position = this.buffered = this.bufferedFrom = 0;
     this.cacheBase = this.cacheEnd = this.liveEnd = 0;
@@ -255,6 +264,7 @@ export class Player extends EventTarget {
     if (frame === 0) this.resetPeaks();
     this.cacheDirty = false;
     this.startJob(this.cacheWorker, "cache", frame, true);
+    this.speedRun = this.speedMeasured || this.engine !== "residfp" ? null : { gen: this.gen, start: frame, t0: 0, f0: 0 };
     this.freshCacheGen = this.gen;
     this.updateLivePark();
   }
@@ -264,6 +274,7 @@ export class Player extends EventTarget {
   }
 
   stopCache() {
+    this.speedRun = null;
     this.cacheWorker?.postMessage({ type: "stop" });
   }
 
@@ -271,6 +282,7 @@ export class Player extends EventTarget {
   // pre-render starts over with it (or once the Sound sheet closes).
   setSound(sound) {
     this.sound = sound;
+    this.graceStall();
     if (!this.node || !this.current || !this.bytes || this.u64) return;
     this.liveWorker.postMessage({ type: "sound", token: this.token, sound });
     this.freshCacheGen = Infinity;      // what is cached has the old sound
@@ -284,6 +296,7 @@ export class Player extends EventTarget {
   setAdjusting(on) {
     if (on === this.adjusting) return;
     this.adjusting = on;
+    this.graceStall();
     this.emit("scrub", { enabled: this.canScrub });
     if (!this.prerender || !this.current || !this.bytes || this.u64) return;
     this.updateLivePark();              // open: live wakes in step
@@ -319,6 +332,7 @@ export class Player extends EventTarget {
     const engineChanged = local !== this.engine;
     const playing = this.state !== "paused" && this.state !== "idle";
     this.engine = local;
+    this.graceStall();
     if (wasRemote) this.stopRemote();   // silence the device we leave
     this.u64 = remote ? new Ultimate64(u64Host) : null;
     this.emit("scrub", { enabled: this.canScrub });
@@ -439,6 +453,7 @@ export class Player extends EventTarget {
     if (!this.current) return;
     if (this.u64) return this.bytes ? this.playRemote() : this.playIndex(this.index);
     this.ensureAudio();
+    this.graceStall();
     this.node?.port.postMessage({ type: "play" });
     this.setState("playing");
   }
@@ -464,6 +479,7 @@ export class Player extends EventTarget {
     if (!this.node || !this.current || !this.bytes) return;
     const s = Math.max(0, Math.min(seconds, this.duration - 0.05));
     const frame = Math.round(s * this.ctx.sampleRate);
+    this.graceStall();
     this.node.port.postMessage({ type: "seek", frame });
     this.startLive(frame);
     // Audio before the cache window was evicted (very long tune): pre-render from here.
@@ -497,7 +513,10 @@ export class Player extends EventTarget {
         this.bufferedFrom = 0;
       }
       const ready = !msg.waiting && (msg.liveEnd > msg.frame || (msg.end > msg.frame && msg.base <= msg.frame));
-      if (this.state === "playing" && msg.waiting) this.setState("buffering");
+      if (this.state === "playing" && msg.waiting) {
+        this.noteStall();
+        this.setState("buffering");
+      }
       else if ((this.state === "buffering" || this.state === "loading") && ready) this.setState("playing");
       this.emitTime();
     } else if (msg.type === "ended" && msg.token === this.token) {
@@ -519,15 +538,51 @@ export class Player extends EventTarget {
         break;
       }
       case "done":
-        if (msg.role === "cache") this.trimLoopedEnd();
+        if (msg.role !== "cache") break;
+        this.timeRender(msg, true);
+        this.trimLoopedEnd();
         break;
       case "progress":
         if (msg.role === "live") this.errors = 0;
+        else this.timeRender(msg);
         break;
       case "error":
         this.fail(msg.message, this.current);
         break;
     }
+  }
+
+  // How fast reSIDfp renders on this device, from the first pre-render that
+  // runs long enough in a visible tab (hidden ones are throttled). Costs
+  // nothing: the tune is being rendered anyway.
+  timeRender(msg, done = false) {
+    const run = this.speedRun;
+    if (!run || msg.gen !== run.gen) return;
+    if (document.visibilityState !== "visible") {
+      this.speedRun = null;             // try again with the next tune
+      return;
+    }
+    const now = performance.now();
+    const sr = this.ctx.sampleRate;
+    if (!run.t0) {
+      if (msg.frame - run.start >= SPEED_WARMUP_SECONDS * sr) Object.assign(run, { t0: now, f0: msg.frame });
+      return;
+    }
+    const wall = (now - run.t0) / 1000;
+    if (wall < SPEED_MIN_WALL_SECONDS && !done) return;
+    this.speedRun = null;
+    if (wall < 0.5) return;             // a short tune, done too soon to tell
+    this.speedMeasured = true;
+    this.emit("speed", { engine: this.engine, ratio: (msg.frame - run.f0) / sr / wall });
+  }
+
+  graceStall() {
+    this.stallGraceUntil = performance.now() + STALL_GRACE_MS;
+  }
+
+  noteStall() {
+    if (this.u64 || performance.now() < this.stallGraceUntil || document.visibilityState !== "visible") return;
+    this.emit("stall", { engine: this.engine });
   }
 
   fail(message, item) {
