@@ -30,6 +30,11 @@ Written for my own use, so beware of peculiarities.
 
 Sound (the **Sound** button in Now Playing):
 
+- **Engine** picks what plays the tunes. It's kept per device and isn't synced.
+  - **reSIDfp** (the default) is cycle-exact, and the presets below tune its filter.
+  - **SIDLite** comes in the same libsidplayfp build and needs about a tenth of the CPU. Chip and machine apply, but the presets' filter knobs don't.
+  - **Ultimate** plays on an [Ultimate 64 or Ultimate II+](https://ultimate64.com/) on your network. Type its IP address (or `host:port`). See [Ultimate 64](#ultimate-64) for its limits.
+
 - **Chip** (Auto/6581/8580) and **Machine** (Auto/PAL/NTSC) are set once, apart from the presets. Auto follows each tune.
 - One **6581 preset** and one **8580 preset** are selected at a time. The one for the chip that plays is used.
   - 6581 presets hold the filter curve and range, old capacitors and combined waveforms. 8580 presets hold the filter curve, digi boost and combined waveforms.
@@ -278,16 +283,26 @@ To do steps 1 and 4 for all of HVSC in one go, run `tools/bpm/run_hvsc.sh`. It c
 - `bpm.py --force` redoes subtunes; `--list` takes a file of `path[:song]` lines.
 - `review.py compare human.txt` scores the estimates against `path:song bpm` lines, and `review.py compare curators` against what curators have set.
 
+### Ultimate 64
+
+The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). The firmware sends no CORS headers, so the page can't read the device's replies, use the `PUT` routes, or send a password. So:
+
+- Turn off the device's **Network Password**.
+- Tunes always play from the start. Seeking and resuming after a pause restart the tune. Pause plays a silent tune.
+- There's no waveform, and the app can't tell whether the device actually played anything. It only knows the request went out.
+- From `https://sid.extend.fi`, only Chrome reaches a local-network address. It asks for permission to access your local network first. Safari and Firefox block it as mixed content, so for those, run ShallowSID over `http://` yourself (`tools/dev.sh`).
+
 ## How it works
 
 - `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, the BPM estimates and the SID features (`tools/sidfeatures/features.tsv`), and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
 - SID files are fetched one at a time from `https://www.hvsc.c64.org/download/C64Music/<path>`, which allows cross-origin requests. The plain HVSC mirrors don't, so a browser can't fetch from them.
 - `js/search-worker.js` indexes that with [MiniSearch](https://lucaong.github.io/minisearch/) off the main thread.
-- `js/player/engine-worker.js` renders with reSIDfp and runs as two workers:
+- `js/player/engine-worker.js` renders with reSIDfp (or SIDLite) and runs as two workers:
   - A **live** engine renders about 0.25 s ahead of the playhead. It's what you hear, and sound changes apply to it at once.
   - A **cache** engine pre-renders the whole tune, about 13× realtime on an M1 and slower on phones.
 - `js/player/sid-worklet.js` plays live audio when it has it, and cached audio otherwise (right after a seek or chip change, while the live engine catches up). Emulation is deterministic, so both sources sound the same and switching between them is seamless.
 - Songs end at their HVSC song length (3:00 if unknown).
+- `js/player/u64.js` hands tunes to an Ultimate instead, and a clock stands in for the playhead.
 
 ## Known issues
 

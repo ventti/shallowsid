@@ -39,3 +39,20 @@ test("editing a built-in makes a draft for that chip only", () => {
   s.remove(saved.id);
   assert.equal(s.selected[8580], "csg-8580r5-1690");
 });
+
+test("engine and Ultimate address are kept per device", () => {
+  const s = new SoundSettings();
+  assert.equal(s.engine, "residfp");
+  s.setEngine("u64");
+  s.setU64Host(" http://192.168.1.64/v1/info ");
+  const again = new SoundSettings();
+  assert.equal(again.engine, "u64");
+  assert.equal(again.u64Host, "192.168.1.64");
+  assert.equal("engine" in again.syncPrefs, false);
+  again.setEngine("nonsense");
+  assert.equal(again.engine, "residfp");
+  again.setU64Host("u64.local:8080");
+  assert.equal(again.u64Host, "u64.local:8080");
+  again.setU64Host("not a host!");
+  assert.equal(again.u64Host, "");
+});

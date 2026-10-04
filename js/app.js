@@ -52,7 +52,9 @@ const dom = {
 const store = new PlaylistStore();
 const searchHistory = new SearchHistory();
 const sound = new SoundSettings();
-const player = new Player({ sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender });
+const player = new Player({
+  sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender, engine: sound.engine, u64Host: sound.u64Host,
+});
 connectMediaSession(player);
 const soundSheet = new SoundSheet(sound);
 // Hand the engine a new setup only when it really changes.
@@ -67,6 +69,7 @@ function applySound(settings = sound.current) {
 sound.addEventListener("change", () => {
   applySound();
   player.setPrerender(sound.prerender);
+  player.setOutput(sound.engine, sound.u64Host);
 });
 soundSheet.addEventListener("preview", ({ detail: { chip, knobs } }) => {
   const current = sound.current;

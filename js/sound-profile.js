@@ -20,6 +20,18 @@ const CHIPS = ["auto", ...PRESET_CHIPS];
 const MACHINES = ["auto", "PAL", "NTSC"];
 const WAVEFORMS = ["WEAK", "AVERAGE", "STRONG"];
 
+// Where tunes play: reSIDfp (cycle-exact, tunable), SIDLite (about a tenth of
+// the CPU, no filter tuning), or a real Ultimate 64 / II+ on the network.
+export const ENGINES = ["residfp", "sidlite", "u64"];
+export const DEFAULT_ENGINE = "residfp";
+export const normalizeEngine = (v) => (ENGINES.includes(v) ? v : DEFAULT_ENGINE);
+
+// "http://192.168.1.64/" -> "192.168.1.64"; a port stays. Anything else -> "".
+export function normalizeHost(v) {
+  const host = String(v ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+  return /^[a-z0-9.-]+(:\d{1,5})?$/i.test(host) || /^\[[0-9a-f:]+\](:\d{1,5})?$/i.test(host) ? host : "";
+}
+
 // The knobs each chip's presets hold.
 export const CHIP_KNOBS = Object.freeze({
   6581: ["filter6581Curve", "filter6581Range", "old6581Caps", "combinedWaveforms"],

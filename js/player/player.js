@@ -11,6 +11,10 @@
 //          Until live has caught up with a change, the cache's old sound
 //          plays on rather than silence.
 //
+// With the Ultimate 64 as output (setOutput "u64") nothing renders here: the
+// device plays the tune (see u64.js) and a clock stands in for the worklet's
+// position. It always plays from the start, so seeking and resuming restart it.
+//
 // Events (all CustomEvent, detail as listed):
 //   track  {item, index}                 a new queue item was loaded
 //   state  {state}                       "idle" | "loading" | "playing" | "paused" | "buffering"
@@ -21,6 +25,8 @@
 //   repeat {mode}                        "off" | "all" (the queue) | "one" (the tune)
 //   shuffle {on}
 //   error  {message, item}
+
+import { Ultimate64 } from "./u64.js";
 
 const PEAK_BUCKETS_PER_SECOND = 10;
 const DEFAULT_SONG_SECONDS = 180;       // tunes missing from Songlengths.md5
@@ -57,11 +63,16 @@ export function loopedEnd(peaks, bucketsPerSecond, duration) {
 }
 
 const assetUrl = (path) => new URL(path, import.meta.url).href;
+const REMOTE_TICK_MS = 250;
 
 export class Player extends EventTarget {
-  constructor({ sidUrls, prerender = true }) {
+  constructor({ sidUrls, prerender = true, engine = "residfp", u64Host = "" }) {
     super();
     this.sidUrls = sidUrls;             // (item) => candidate URLs of the .sid file
+    this.engine = engine === "u64" ? "residfp" : engine;   // what the workers render with
+    this.u64 = engine === "u64" ? new Ultimate64(u64Host) : null;   // set: the tune plays there instead
+    this.remoteStart = 0;               // performance.now() when the device started the tune
+    this.remoteTimer = 0;
     this.sound = null;                  // {emulation, filter} for the engine, see sound-profile.js
     this.prerender = prerender;
     this.adjusting = false;             // Sound sheet open: live changes, no pre-render
@@ -90,7 +101,7 @@ export class Player extends EventTarget {
   }
 
   get canScrub() {
-    return this.prerender && !this.adjusting;
+    return this.prerender && !this.adjusting && !this.u64;
   }
 
   // The live engine may rest on the cache unless the sound is being adjusted.
@@ -174,7 +185,7 @@ export class Player extends EventTarget {
 
   async playIndex(index) {
     if (index < 0 || index >= this.queue.length) return;
-    const audioReady = this.ensureAudio();
+    const audioReady = this.u64 ? null : this.ensureAudio();
     this.index = index;
     const item = this.queue[index];
     const token = ++this.token;
@@ -190,6 +201,7 @@ export class Player extends EventTarget {
       const [bytes] = await Promise.all([this.fetchSid(item), audioReady]);
       if (token !== this.token) return;
       this.bytes = bytes;
+      if (this.u64) return await this.playRemote();
       const sampleRate = this.ctx.sampleRate;
       this.node.port.postMessage({
         type: "reset", token, channels: this.channels(), startFrame: 0, stopFrame: Math.round(this.duration * sampleRate),
@@ -229,7 +241,7 @@ export class Player extends EventTarget {
     const copy = this.bytes.slice(0);    // transferred; keep the original for restarts
     worker.postMessage({
       type: "load", role, token: this.token, gen: ++this.gen, bytes: copy, song: this.current.song - 1,
-      sampleRate, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
+      engine: this.engine, sampleRate, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
       sound: this.sound, peaks, parkable: role === "live" && this.livePark, freshCacheGen: this.freshCacheGen,
     }, [copy]);
   }
@@ -259,7 +271,7 @@ export class Player extends EventTarget {
   // pre-render starts over with it (or once the Sound sheet closes).
   setSound(sound) {
     this.sound = sound;
-    if (!this.node || !this.current || !this.bytes) return;
+    if (!this.node || !this.current || !this.bytes || this.u64) return;
     this.liveWorker.postMessage({ type: "sound", token: this.token, sound });
     this.freshCacheGen = Infinity;      // what is cached has the old sound
     this.updateLivePark();
@@ -273,7 +285,7 @@ export class Player extends EventTarget {
     if (on === this.adjusting) return;
     this.adjusting = on;
     this.emit("scrub", { enabled: this.canScrub });
-    if (!this.prerender || !this.current || !this.bytes) return;
+    if (!this.prerender || !this.current || !this.bytes || this.u64) return;
     this.updateLivePark();              // open: live wakes in step
     if (on) this.stopCache();
     else if (this.cacheDirty || this.cacheEnd < Math.round(this.duration * this.ctx.sampleRate) - 1) this.startCache(0);
@@ -283,7 +295,7 @@ export class Player extends EventTarget {
     if (on === this.prerender) return;
     this.prerender = on;
     this.emit("scrub", { enabled: this.canScrub });
-    if (!this.node || !this.current || !this.bytes) return;
+    if (!this.node || !this.current || !this.bytes || this.u64) return;
     this.liveWorker.postMessage({ type: "peaks", token: this.token, peaks: !on });
     this.updateLivePark();
     if (on) {
@@ -294,6 +306,82 @@ export class Player extends EventTarget {
       this.node.port.postMessage({ type: "cache-clear" });
       this.resetPeaks();
     }
+  }
+
+  // Where tunes play: engine "residfp" or "sidlite" here, or "u64" on the
+  // Ultimate at `u64Host`. The current tune carries on with the new one
+  // (from the start on the Ultimate, which can't seek).
+  setOutput(engine, u64Host = "") {
+    const remote = engine === "u64";
+    const local = remote ? this.engine : engine;
+    if (remote === !!this.u64 && local === this.engine && (!remote || u64Host === this.u64.host)) return;
+    const wasRemote = !!this.u64;
+    const engineChanged = local !== this.engine;
+    const playing = this.state !== "paused" && this.state !== "idle";
+    this.engine = local;
+    if (wasRemote) this.stopRemote();   // silence the device we leave
+    this.u64 = remote ? new Ultimate64(u64Host) : null;
+    this.emit("scrub", { enabled: this.canScrub });
+    if (!this.current || !this.bytes) return;
+    if (remote) {
+      if (!wasRemote) this.stopLocal();
+      if (playing) this.playRemote();
+      else this.pause();
+    } else if (wasRemote) {
+      this.playIndex(this.index).then(() => playing || this.pause());
+    } else if (engineChanged && this.node) {
+      this.startLive(Math.round(this.position * this.ctx.sampleRate));
+      this.freshCacheGen = Infinity;    // what is cached came from the other engine
+      this.updateLivePark();
+      if (this.prerender && this.adjusting) this.cacheDirty = true;
+      else if (this.prerender) this.startCache(0);
+    }
+  }
+
+  // ---- Ultimate 64 --------------------------------------------------------
+
+  stopLocal() {
+    this.node?.port.postMessage({ type: "pause" });
+    this.liveWorker?.postMessage({ type: "stop" });
+    this.stopCache();
+    this.resetPeaks();
+  }
+
+  // Start the current tune on the device, from its beginning.
+  async playRemote() {
+    const token = this.token;
+    const u64 = this.u64;
+    clearInterval(this.remoteTimer);
+    this.position = 0;
+    this.setState("loading");
+    this.emitTime();
+    try {
+      await u64.play(this.bytes, this.current.song);
+    } catch (err) {
+      if (token !== this.token || u64 !== this.u64) return;
+      this.setState("paused");
+      this.emit("error", { message: err.message, item: this.current });
+      return;
+    }
+    if (token !== this.token || u64 !== this.u64) return;
+    this.errors = 0;
+    this.remoteStart = performance.now();
+    this.remoteTimer = setInterval(() => this.remoteTick(), REMOTE_TICK_MS);
+    this.setState("playing");
+  }
+
+  remoteTick() {
+    this.position = Math.min(this.duration, (performance.now() - this.remoteStart) / 1000);
+    this.emitTime();
+    if (this.position < this.duration) return;
+    clearInterval(this.remoteTimer);
+    if (this.repeat === "one") this.playRemote();
+    else this.next();
+  }
+
+  stopRemote() {
+    clearInterval(this.remoteTimer);
+    this.u64?.stop().catch(() => {});
   }
 
   setRepeat(mode) {
@@ -349,12 +437,14 @@ export class Player extends EventTarget {
 
   play() {
     if (!this.current) return;
+    if (this.u64) return this.bytes ? this.playRemote() : this.playIndex(this.index);
     this.ensureAudio();
     this.node?.port.postMessage({ type: "play" });
     this.setState("playing");
   }
 
   pause() {
+    if (this.u64) this.stopRemote();
     this.node?.port.postMessage({ type: "pause" });
     if (this.current) this.setState("paused");
   }
@@ -367,6 +457,10 @@ export class Player extends EventTarget {
   // The cache (when it has the target) plays at once; the live engine always
   // re-syncs to the new position in the background.
   seek(seconds) {
+    if (this.u64) {                     // the device can only start over
+      if (seconds < 1 && this.current && this.bytes && this.state !== "paused") this.playRemote();
+      return;
+    }
     if (!this.node || !this.current || !this.bytes) return;
     const s = Math.max(0, Math.min(seconds, this.duration - 0.05));
     const frame = Math.round(s * this.ctx.sampleRate);
@@ -388,6 +482,7 @@ export class Player extends EventTarget {
   // ---- messages ------------------------------------------------------------
 
   onWorklet(msg) {
+    if (this.u64) return;
     if (msg.type === "pos") {
       const sr = this.ctx.sampleRate;
       this.position = msg.frame / sr;
@@ -413,7 +508,7 @@ export class Player extends EventTarget {
   }
 
   onWorker(msg) {
-    if (msg.token !== this.token) return;
+    if (msg.token !== this.token || this.u64) return;
     switch (msg.type) {
       case "peaks": {
         const first = Math.floor(msg.startFrame / msg.framesPerBucket);

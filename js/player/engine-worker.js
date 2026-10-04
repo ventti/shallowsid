@@ -1,5 +1,5 @@
-// Module worker that renders a SID subtune with libsidplayfp (reSIDfp) and
-// streams the PCM to the AudioWorklet. The player runs two of these:
+// Module worker that renders a SID subtune with libsidplayfp (reSIDfp, or the
+// much lighter SIDLite, as each job asks) and streams the PCM to the AudioWorklet. The player runs two of these:
 //
 // - role "live":  renders just ahead of the playhead, so sound changes apply
 //                 to what you hear within ~0.25 s.
@@ -15,7 +15,7 @@
 // Only a cache rendered with the current sound counts: render jobs carry a
 // generation number, and the player names the first one that has it.
 //
-// Messages: worklet-port, load {role, token, gen, parkable, freshCacheGen, ...}, sound {token, sound},
+// Messages: worklet-port, load {role, engine, token, gen, parkable, freshCacheGen, ...}, sound {token, sound},
 // park {token, parkable, freshCacheGen}, peaks {token, peaks}, stop.
 
 import loadLibsidplayfp, { SidAudioEngine } from "https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/index.js";
@@ -29,7 +29,8 @@ const PEAK_BUCKETS_PER_SECOND = 10;   // waveform overview resolution
 const PARK_AHEAD_SECONDS = 4;         // live parks once the cache is this far ahead of the playhead ...
 const WAKE_AHEAD_SECONDS = 2;         // ... and wakes when it gets this close to the cache's end
 
-const modulePromise = loadLibsidplayfp({ engine: "residfp" });
+const modules = {};                   // engine -> its wasm module, loaded on first use
+const loadModule = (engine = "residfp") => (modules[engine] ??= loadLibsidplayfp({ engine }));
 let worklet = null;                   // MessagePort to the AudioWorklet
 let job = null;                       // the render currently in progress
 let playheadFrame = 0;
@@ -90,7 +91,7 @@ function applyFilter(engine, sound) {
 }
 
 async function render(j) {
-  const module = await modulePromise;
+  const module = await loadModule(j.engine);
   if (j.cancelled) return;
   const role = ROLES[j.role];
   const engine = new SidAudioEngine({ module, sampleRate: j.sampleRate, stereo: j.channels === 2 });

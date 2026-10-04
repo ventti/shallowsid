@@ -763,6 +763,11 @@ ion-app > .np {
   max-width: 240px;
 }
 
+.sound-content ion-segment[data-setting="engine"] {
+  width: 100%;
+  max-width: none;
+}
+
 .sound-content ion-range {
   --bar-background-active: var(--app-accent);
   --knob-background: var(--app-text);

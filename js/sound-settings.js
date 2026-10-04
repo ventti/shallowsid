@@ -7,8 +7,8 @@
 // saved automatically, like iOS settings.
 
 import {
-  BUILTIN_PRESETS, DEFAULT_PRESET, PRESET_CHIPS, normalizeGlobal, normalizeKnobs, normalizePreset, parseProfiles,
-  serializeProfiles, splitLegacy,
+  BUILTIN_PRESETS, DEFAULT_PRESET, PRESET_CHIPS, normalizeEngine, normalizeGlobal, normalizeHost, normalizeKnobs, normalizePreset,
+  parseProfiles, serializeProfiles, splitLegacy,
 } from "./sound-profile.js";
 
 const STORAGE_KEY = "shallowsid.sound";
@@ -50,6 +50,9 @@ export class SoundSettings extends EventTarget {
     this.selected = perChip((chip) => this.validId(chip, (legacy ?? saved).selected?.[chip]));
     this.drafts = perChip((chip) => (legacy || !saved.drafts?.[chip] ? null : normalizeKnobs(chip, saved.drafts[chip])));
     this.prerender = saved.prerender !== false;   // playback preference, not part of a profile
+    // Per device, so not synced: another device may lack the CPU or the Ultimate.
+    this.engine = normalizeEngine(saved.engine);
+    this.u64Host = normalizeHost(saved.u64Host);
   }
 
   find(id) {
@@ -110,6 +113,16 @@ export class SoundSettings extends EventTarget {
 
   setPrerender(on) {
     this.prerender = !!on;
+    this.save();
+  }
+
+  setEngine(engine) {
+    this.engine = normalizeEngine(engine);
+    this.save();
+  }
+
+  setU64Host(host) {
+    this.u64Host = normalizeHost(host);
     this.save();
   }
 
@@ -186,6 +199,7 @@ export class SoundSettings extends EventTarget {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         v: STATE_VERSION, chip: this.chip, machine: this.machine, selected: this.selected, drafts: this.drafts, presets: this.presets, prerender: this.prerender,
+        engine: this.engine, u64Host: this.u64Host,
       }));
     } catch {
       // storage blocked: settings last for this session only

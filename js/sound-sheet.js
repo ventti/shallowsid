@@ -1,6 +1,6 @@
-// The "Sound" sheet: pick the chip and machine, a 6581 and an 8580 preset,
-// adjust reSIDfp's knobs, and save, export or import your own variants. Laid
-// out like iOS Settings.
+// The "Sound" sheet: pick the engine (or an Ultimate 64), the chip and machine,
+// a 6581 and an 8580 preset, adjust reSIDfp's knobs, and save, export or import
+// your own variants. Laid out like iOS Settings.
 
 import { safeFileName } from "./playlist-format.js";
 import { PRESET_CHIPS } from "./sound-profile.js";
@@ -16,10 +16,12 @@ const TOGGLES = {
 };
 
 // `chip` marks a per-chip knob; without it the setting is global.
-const segment = (key, value, options, chip = "") => `
-  <ion-segment data-setting="${key}"${chip ? ` data-chip="${chip}"` : ""} value="${esc(value)}">
+const segment = (key, value, options, chip = "", off = "") => `
+  <ion-segment data-setting="${key}"${chip ? ` data-chip="${chip}"` : ""} value="${esc(value)}"${off}>
     ${options.map(([v, text]) => `<ion-segment-button value="${esc(v)}"><ion-label>${esc(text)}</ion-label></ion-segment-button>`).join("")}
   </ion-segment>`;
+
+const U64_NOTE = "Plays on an Ultimate 64 or II+ on your network, always from a tune's start. Turn off its network password. On https only Chrome reaches it.";
 
 const PREVIEW_INTERVAL_MS = 80;   // live slider updates while dragging
 
@@ -49,10 +51,10 @@ export class SoundSheet extends EventTarget {
     this.modal.present();
   }
 
-  presetRow(p) {
+  presetRow(p, off) {
     const active = p.id === this.settings.selected[p.chip];
     const menu = p.builtin ? "" : `<ion-button slot="end" fill="clear" data-preset-menu="${p.id}" aria-label="More"><ion-icon slot="icon-only" name="ellipsis-horizontal"></ion-icon></ion-button>`;
-    return `<ion-item button detail="false" data-preset="${p.id}">
+    return `<ion-item button detail="false" data-preset="${p.id}"${off}>
       <ion-label>
         <h3>${esc(p.name)}${active && this.settings.isEdited(p.chip) ? ` <span class="edited-mark">Edited</span>` : ""}</h3>
       </ion-label>
@@ -61,16 +63,18 @@ export class SoundSheet extends EventTarget {
     </ion-item>`;
   }
 
-  // One chip's presets and knobs. Grayed out while the other chip is forced.
+  // One chip's presets and knobs. Grayed out while the other chip is forced;
+  // with SIDLite, which has no filter settings, the presets are too.
   chipSection(chip) {
     const { builtin, mine } = this.settings.presetsFor(chip);
     const k = this.settings.knobs(chip);
-    const off = this.settings.chip !== "auto" && this.settings.chip !== chip ? " disabled" : "";
+    const lite = this.settings.engine === "sidlite" ? " disabled" : "";
+    const off = lite || (this.settings.chip !== "auto" && this.settings.chip !== chip ? " disabled" : "");
     return `
       <h3 class="sound-section">${chip} presets</h3>
       <ion-list inset>
-        ${[...builtin, ...mine].map((p) => this.presetRow(p)).join("")}
-        <ion-item button detail="false" data-save-new="${chip}" lines="none">
+        ${[...builtin, ...mine].map((p) => this.presetRow(p, lite)).join("")}
+        <ion-item button detail="false" data-save-new="${chip}" lines="none"${lite}>
           <ion-icon slot="start" name="add-circle-outline" color="primary"></ion-icon>
           <ion-label color="primary">Save as ${chip} Preset…</ion-label>
         </ion-item>
@@ -84,14 +88,34 @@ export class SoundSheet extends EventTarget {
           </ion-item>`).join("")}
         ${TOGGLES[chip].map(({ key, label }) => `
           <ion-item><ion-toggle data-setting="${key}" data-chip="${chip}" ${k[key] ? "checked" : ""}${off}>${label}</ion-toggle></ion-item>`).join("")}
-        <ion-item lines="none"><ion-label>Combined waveforms</ion-label>${segment("combinedWaveforms", k.combinedWaveforms, [["WEAK", "Weak"], ["AVERAGE", "Avg"], ["STRONG", "Strong"]], chip)}</ion-item>
+        <ion-item lines="none"><ion-label>Combined waveforms</ion-label>${segment("combinedWaveforms", k.combinedWaveforms, [["WEAK", "Weak"], ["AVERAGE", "Avg"], ["STRONG", "Strong"]], chip, off)}</ion-item>
       </ion-list>`;
+  }
+
+  engineSection() {
+    const { engine, u64Host } = this.settings;
+    return `
+      <h3 class="sound-section">Engine</h3>
+      <ion-list inset>
+        <ion-item lines="${engine === "u64" ? "full" : "none"}">${segment("engine", engine, [["residfp", "reSIDfp"], ["sidlite", "SIDLite"], ["u64", "Ultimate"]])}</ion-item>
+        ${engine === "u64" ? `<ion-item lines="none">
+          <ion-input id="sound-u64-host" label="Address" placeholder="192.168.1.64" value="${esc(u64Host)}" inputmode="url"
+            autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></ion-input>
+        </ion-item>` : ""}
+      </ion-list>
+      ${engine === "u64" ? `<p class="sound-note">${U64_NOTE}</p>` : ""}`;
   }
 
   render() {
     this.revertButton.hidden = !this.settings.anyEdited;
+    if (this.settings.engine === "u64") {     // the device has its own chips
+      this.root.innerHTML = this.engineSection();
+      return;
+    }
     const mine = this.settings.presets;
     this.root.innerHTML = `
+      ${this.engineSection()}
+
       <h3 class="sound-section">Emulation</h3>
       <ion-list inset>
         <ion-item><ion-label>Chip</ion-label>${segment("chip", this.settings.chip, [["auto", "Auto"], ["6581", "6581"], ["8580", "8580"]])}</ion-item>
@@ -135,11 +159,13 @@ export class SoundSheet extends EventTarget {
     // Segments, toggles and sliders (on release) change the sound.
     root.addEventListener("ionChange", (e) => {
       if (e.target.id === "sound-prerender") return this.settings.setPrerender(e.detail.checked);
+      if (e.target.id === "sound-u64-host") return this.settings.setU64Host(e.detail.value);
       const { setting: key, chip } = e.target.dataset ?? {};
       if (!key) return;
       const value = e.target.tagName === "ION-TOGGLE" ? e.detail.checked : e.detail.value;
       const partial = { [key]: typeof value === "number" ? Math.round(value * 100) / 100 : value };
-      if (chip) this.settings.update(chip, partial);
+      if (key === "engine") this.settings.setEngine(value);
+      else if (chip) this.settings.update(chip, partial);
       else this.settings.setGlobal(partial);
     });
     // While dragging: update the value label and let the sound follow (not saved until release).
