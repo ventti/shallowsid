@@ -82,9 +82,7 @@ const SLOW_RENDER_RATIO = 2;
 const STALL_WINDOW_MS = 60_000;
 let stalls = [];
 player.speedMeasured = sound.renderSpeed > 0;   // once per device
-function preferLightEngine() {
-  if (sound.autoEngine("sidlite")) toast("This device is slow for reSIDfp, so tunes now play with SIDLite. Change it in Sound.");
-}
+const preferLightEngine = () => sound.autoEngine("sidlite");   // quietly: it shows in Sound
 player.addEventListener("speed", ({ detail: { engine, ratio } }) => {
   if (engine !== "residfp" || sound.renderSpeed) return;
   sound.setRenderSpeed(ratio);
