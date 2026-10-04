@@ -81,6 +81,7 @@
         { "id": "aggressive", "label": "Aggressive" },
         { "id": "bouncy", "label": "Bouncy" },
         { "id": "calm", "label": "Calm" },
+        { "id": "catchy", "label": "Catchy" },
         { "id": "cool", "label": "Cool" },
         { "id": "cosmic", "label": "Cosmic" },
         { "id": "dark", "label": "Dark" },
