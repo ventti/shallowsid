@@ -226,7 +226,7 @@ export class Player extends EventTarget {
     }
   }
 
-  // Try each source in turn (remote HVSC first, then an optional self-hosted copy).
+  // Try each configured source in turn (mirror, official HVSC, local copy).
   async fetchSid(item) {
     let lastError = null;
     for (const url of this.sidUrls(item)) {

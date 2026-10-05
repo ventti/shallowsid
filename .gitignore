@@ -1,6 +1,11 @@
 _site/
 data/
 hvsc/
+_hvsc-source/
+_hvsc-hosting/
+.firebase/
+firebase-debug.log
+gha-creds-*.json
 __pycache__/
 .DS_Store
 firestore-debug.log

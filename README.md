@@ -83,7 +83,7 @@ Keyboard: **Space** plays or pauses. **Shift+←/→** skips. **F** toggles Favo
 Playlists:
 
 - Adding a tune (same subtune) that a playlist already has asks first. **Always Allow in This Playlist**, or **Allow Duplicates** in the playlist's **⋮** menu, stops asking for that playlist. Favorites keep each tune once.
-- **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute hvsc.c64.org URLs. The subtune goes in an `#EXTSID:subtune=N` line.
+- **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute Firebase mirror URLs. The subtune goes in an `#EXTSID:subtune=N` line.
   - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
   - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.
 - **Import** (on **Playlists**): **Import File…** opens the system file picker, where the same cloud drives show up. **Open Link…** takes a pasted live or snapshot link and shows the playlist to save. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
@@ -101,7 +101,7 @@ Needs Python 3, `7z` or `bsdtar`, and Node 20+ for the tests.
    tools/dev.sh 8000
    ```
 
-   The first run downloads HVSC (~85 MB), reads every tune's header into `data/index.json`, then deletes the download. Only that ~5 MB catalogue is kept, in `~/.cache/shallowsid/_site`. The songs are streamed from hvsc.c64.org when played.
+   The first run downloads HVSC (~85 MB), reads every tune's header into `data/index.json`, then deletes the download. Only that ~5 MB catalogue is kept, in `~/.cache/shallowsid/_site`. The songs are fetched from the Firebase mirror when played, with the official HVSC site as a fallback.
 
 2. Open <http://localhost:8000>.
 
@@ -227,13 +227,69 @@ tools/build_rules.py && npx firebase-tools@15.31.0 emulators:exec --only firesto
 
 ## Local HVSC copy (optional)
 
-If hvsc.c64.org is unreachable, the app falls back to an `hvsc/` folder next to `index.html`. To get the latest HVSC there (~375 MB unpacked):
+If the Firebase mirror and hvsc.c64.org are unreachable, the app falls back to an `hvsc/` folder next to `index.html`. To get the latest HVSC there (~375 MB unpacked):
 
 ```sh
 tools/fetch_hvsc.py --dest ~/.cache/shallowsid/_site/hvsc
 ```
 
 When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it instead of downloading. For GitHub Pages, run `tools/fetch_hvsc.py --dest _site/hvsc` before the build step. It fits under the 1 GB limit.
+
+## HVSC Firebase Hosting
+
+SID hosting is separate from the GitHub Pages app, at
+`https://shallowsid-hvsc.web.app/<HVSC path>`. Collection files are generated
+locally or in CI and never committed. `firebase.json` selects only the
+`shallowsid-hvsc` hosting site; deploy with `--only hosting` to avoid changing
+Firestore rules.
+
+The pinned Firebase CLI uploads each original SID individually as level-9 gzip.
+Hosting negotiates gzip with browsers and transparently decodes downloads for
+`fetch()`, preserving normal `.sid` URLs. Do not gzip the local files a second
+time. CORS allows public browser reads, including from `https://sid.extend.fi`.
+SIDs cache for one day; `manifest.json` revalidates so release checks stay fresh.
+
+Build, deploy and verify locally:
+
+```sh
+python3 tools/fetch_hvsc.py --dest _hvsc-source --keep-archive
+python3 tools/prepare_hvsc_hosting.py
+firebase deploy --only hosting --project shallowsid --non-interactive
+python3 tools/check_hvsc_hosting.py
+```
+
+Preparation reports the collection version, file count, original/gzip byte totals
+and elapsed time. It preserves the archive's `DOCUMENTS` directory. Verification
+checks the live manifest plus original bytes, gzip and CORS for a tune from each
+of MUSICIANS, GAMES and DEMOS.
+
+**Actions → Deploy HVSC to Firebase Hosting → Run workflow** updates the full
+collection on demand. It also checks every Monday, and runs on `main` when its
+scripts/configuration change. Unchanged collections and hosting configuration
+skip deployment; a lower HVSC version cannot replace a newer deployed release.
+Each release atomically replaces the complete file tree, including path renames
+and removals. Firebase reuses uploads by content hash. The Pages workflow keeps
+this scheduled workflow enabled during periods without repository activity.
+
+CI reuses `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` with no
+service-account key. Its existing rules/tag permissions do not grant Hosting
+deployment. The narrower additional custom role is defined in
+`tools/hvsc-hosting-role.yaml`; it can update existing Hosting sites across the
+`shallowsid` project, but cannot create/delete sites or change IAM:
+
+```sh
+gcloud iam roles create hvscHostingDeployer --project shallowsid \
+  --file tools/hvsc-hosting-role.yaml
+gcloud projects add-iam-policy-binding shallowsid \
+  --member serviceAccount:shallowsid-ci@shallowsid.iam.gserviceaccount.com \
+  --role projects/shallowsid/roles/hvscHostingDeployer --condition=None
+```
+
+Use Firebase Console → Hosting → `shallowsid-hvsc` → release storage settings
+to keep a small number of releases (for example, two). Old releases consume the
+shared Hosting storage allowance. Keep the project on Spark for free hosting
+with traffic cut off at its quota rather than paid overages. Hosting does not
+change the SID files' copyrights or grant redistribution rights.
 
 ## BPM estimates (experimental)
 
@@ -298,7 +354,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 ## How it works
 
 - `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, the BPM estimates and the SID features (`tools/sidfeatures/features.tsv`), and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
-- SID files are fetched one at a time from `https://www.hvsc.c64.org/download/C64Music/<path>`, which allows cross-origin requests. The plain HVSC mirrors don't, so a browser can't fetch from them.
+- SID files are fetched one at a time from `https://shallowsid-hvsc.web.app/<path>` with gzip and CORS. The official `https://www.hvsc.c64.org/download/C64Music/<path>` and an optional local `hvsc/` copy are fallbacks. The plain HVSC archive mirrors don't allow cross-origin fetches.
 - `js/search-worker.js` indexes that with [MiniSearch](https://lucaong.github.io/minisearch/) off the main thread.
 - `js/player/engine-worker.js` renders with reSIDfp (or SIDLite) and runs as two workers:
   - A **live** engine renders about 0.25 s ahead of the playhead. It's what you hear, and sound changes apply to it at once.
@@ -313,7 +369,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 - Tunes longer than ~10 minutes keep a sliding window of audio. Seeking far back re-renders from that point.
 - No C64 ROMs are shipped. libsidplayfp's built-in fallbacks play most RSID tunes, but some BASIC-driven tunes may be silent.
 - On iOS, the audio unlocks only after the first tap. Before Safari 17, the mute switch silences Web Audio.
-- Playback depends on hvsc.c64.org's download URL. It works and allows cross-origin fetches, but it isn't a documented API. If it changes, use a local HVSC copy (see above).
+- Playback uses the CI-maintained Firebase mirror, with the official HVSC download URL and a local copy as fallbacks. If neither remote source is available, use a local HVSC copy (see above).
 - Needs a browser with WebAssembly exception handling (Safari 18+, recent Chrome/Firefox).
 - Playlists are stored in `localStorage`, so they stay in that browser. Export or share them to move them around.
 

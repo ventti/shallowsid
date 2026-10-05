@@ -1,0 +1,9 @@
+title: HVSC Hosting Deployer
+description: Deploy existing Firebase Hosting sites; cannot create or delete sites or change IAM.
+stage: GA
+includedPermissions:
+  - firebase.projects.get
+  - firebasehosting.sites.get
+  - firebasehosting.sites.update
+  - resourcemanager.projects.get
+  - serviceusage.services.use
