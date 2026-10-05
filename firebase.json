@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "shallowsid-hvsc",
+    "site": "shallowsid",
     "public": "_hvsc-hosting",
     "ignore": ["**/.*"],
     "headers": [
