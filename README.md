@@ -289,7 +289,9 @@ To do steps 1 and 4 for all of HVSC in one go, run `tools/bpm/run_hvsc.sh`. It c
 The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). The firmware sends no CORS headers, so the page can't read the device's replies, use the `PUT` routes, or send a password. So:
 
 - Turn off the device's **Network Password**.
-- Tunes always play from the start. Seeking and resuming after a pause restart the tune. Pause plays a silent tune.
+- **Status** under the address shows whether the device answers (checked every 5 s while **Sound** is open). That's all the page can learn: what it plays stays unknown.
+- The play button turns into play/stop. Stopping plays a silent tune, and only when the device was playing for ShallowSID.
+- Tunes always play from the start. Seeking restarts the tune.
 - There's no waveform, and the app can't tell whether the device actually played anything. It only knows the request went out.
 - From `https://sid.extend.fi`, only Chrome reaches a local-network address. It asks for permission to access your local network first. Safari and Firefox block it as mixed content, so for those, run ShallowSID over `http://` yourself (`tools/dev.sh`).
 
