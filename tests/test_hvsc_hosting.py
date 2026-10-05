@@ -7,12 +7,33 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 from prepare_hvsc_hosting import needs_deploy, prepare
+from hvsc_ci import output, remote_manifest
 
 
 class HostingPreparationTests(unittest.TestCase):
+    def test_ci_outputs_append_to_github_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "outputs"
+            with patch.dict("os.environ", {"GITHUB_OUTPUT": str(path)}), contextlib.redirect_stdout(io.StringIO()):
+                output("version", 85)
+                output("changed", "false")
+            self.assertEqual(path.read_text(), "version=85\nchanged=false\n")
+
+    def test_missing_manifest_is_first_deploy_but_server_errors_fail(self):
+        url = "https://example.org/manifest.json"
+        missing = urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        with patch("hvsc_ci.urllib.request.urlopen", side_effect=missing):
+            self.assertEqual(remote_manifest("https://example.org"), {})
+        unavailable = urllib.error.HTTPError(url, 503, "Unavailable", {}, None)
+        with patch("hvsc_ci.urllib.request.urlopen", side_effect=unavailable):
+            with self.assertRaises(urllib.error.HTTPError):
+                remote_manifest("https://example.org")
+
     def test_update_decision_and_downgrade_protection(self):
         local = {"hvsc_version": 85, "fingerprint": "content", "hosting_config": "config", "gzip_bytes": 123}
         self.assertTrue(needs_deploy(local, {}))
