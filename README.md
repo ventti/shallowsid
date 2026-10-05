@@ -264,7 +264,8 @@ checks the live manifest plus original bytes, gzip and CORS for a tune from each
 of MUSICIANS, GAMES and DEMOS.
 
 **Actions → Deploy HVSC to Firebase Hosting → Run workflow** updates the full
-collection on demand. It also checks every Monday, and runs on `main` when its
+collection on demand. It also checks January 1 and July 1, after the usual
+December and June releases, and runs on `main` when its
 scripts/configuration change. Unchanged collections and hosting configuration
 skip deployment; a lower HVSC version cannot replace a newer deployed release.
 Each release atomically replaces the complete file tree, including path renames
