@@ -7,6 +7,8 @@
 //
 //   play  POST /v1/runners:sidplay?songnr=N with the .sid attached
 //   stop  the same with a silent tune, which takes the machine over
+//   ping  GET /v1/info: the answer is unreadable, but that one came at all
+//         tells a reachable device from an absent one (which times out)
 //
 // An https page may not reach http://<LAN address> either (mixed content).
 // Chrome lets it after asking for local network access (targetAddressSpace);
@@ -58,5 +60,17 @@ export class Ultimate64 {
 
   stop() {
     return this.play(silentSid(), 1);
+  }
+
+  async reachable(timeoutMs = 3000) {
+    if (!this.host) return false;
+    try {
+      await fetch(`http://${this.host}/v1/info`, {
+        mode: "no-cors", cache: "no-store", targetAddressSpace: addressSpace(this.host), signal: AbortSignal.timeout(timeoutMs),
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

@@ -3,6 +3,7 @@
 // your own variants. Laid out like iOS Settings.
 
 import { safeFileName } from "./playlist-format.js";
+import { Ultimate64 } from "./player/u64.js";
 import { PRESET_CHIPS } from "./sound-profile.js";
 import { actionSheet, confirmDialog, esc, prompt, saveFile, toast } from "./ui.js";
 
@@ -21,6 +22,9 @@ const segment = (key, value, options, chip = "", off = "") => `
     ${options.map(([v, text]) => `<ion-segment-button value="${esc(v)}"><ion-label>${esc(text)}</ion-label></ion-segment-button>`).join("")}
   </ion-segment>`;
 
+const PING_INTERVAL_MS = 5000;        // how often the Ultimate is checked while the sheet is open
+const U64_STATUS = { checking: "Checking…", up: "Reachable", down: "Not reachable", none: "No address" };
+
 const U64_NOTE = "Plays on an Ultimate 64 or II+ on your network, always from a tune's start. Turn off its network password. On https only Chrome reaches it.";
 
 const PREVIEW_INTERVAL_MS = 80;   // live slider updates while dragging
@@ -38,12 +42,30 @@ export class SoundSheet extends EventTarget {
     this.revertButton = document.getElementById("sound-revert");
     this.revertButton.addEventListener("click", () => this.settings.revert());
     document.getElementById("sound-done").addEventListener("click", () => this.modal.dismiss());
+    this.u64Status = "checking";
+    this.pingTimer = 0;
+    this.open = false;
+    this.modal.addEventListener("didPresent", () => {
+      this.open = true;
+      this.startPinging();
+    });
+    this.modal.addEventListener("willDismiss", () => {
+      this.open = false;
+      clearInterval(this.pingTimer);
+    });
     this.modal.addEventListener("willPresent", () => {
       this.render();
       this.dispatchEvent(new CustomEvent("adjusting", { detail: true }));
     });
     this.modal.addEventListener("didDismiss", () => this.dispatchEvent(new CustomEvent("adjusting", { detail: false })));
-    settings.addEventListener("change", () => this.render());
+    let host = settings.u64Host, engine = settings.engine;
+    settings.addEventListener("change", () => {
+      const moved = host !== settings.u64Host || engine !== settings.engine;
+      ({ u64Host: host, engine } = settings);
+      if (moved) this.u64Status = "checking";
+      this.render();
+      if (moved && this.open) this.startPinging();
+    });
     this.bind();
   }
 
@@ -98,12 +120,36 @@ export class SoundSheet extends EventTarget {
       <h3 class="sound-section">Engine</h3>
       <ion-list inset>
         <ion-item lines="${engine === "u64" ? "full" : "none"}">${segment("engine", engine, [["residfp", "reSIDfp"], ["sidlite", "SIDLite"], ["u64", "Ultimate"]])}</ion-item>
-        ${engine === "u64" ? `<ion-item lines="none">
+        ${engine === "u64" ? `<ion-item>
           <ion-input id="sound-u64-host" label="Address" placeholder="192.168.1.64" value="${esc(u64Host)}" inputmode="url"
             autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></ion-input>
+        </ion-item>
+        <ion-item lines="none">
+          <ion-label>Status</ion-label>
+          <span slot="end" id="sound-u64-status" class="u64-status" data-status="${this.u64Status}">${U64_STATUS[this.u64Status]}</span>
         </ion-item>` : ""}
       </ion-list>
       ${engine === "u64" ? `<p class="sound-note">${U64_NOTE}</p>` : ""}`;
+  }
+
+  // Check the Ultimate now and every few seconds while the sheet is open.
+  startPinging() {
+    clearInterval(this.pingTimer);
+    if (this.settings.engine !== "u64") return;
+    this.pingTimer = setInterval(() => this.ping(), PING_INTERVAL_MS);
+    this.ping();
+  }
+
+  async ping() {
+    const host = this.settings.u64Host;
+    const status = !host ? "none" : (await new Ultimate64(host).reachable()) ? "up" : "down";
+    if (host !== this.settings.u64Host) return;      // the address changed meanwhile
+    this.u64Status = status;
+    const el = this.root.querySelector("#sound-u64-status");
+    if (el) {
+      el.dataset.status = status;
+      el.textContent = U64_STATUS[status];
+    }
   }
 
   render() {

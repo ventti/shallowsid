@@ -334,7 +334,8 @@ export class Player extends EventTarget {
     const playing = this.state !== "paused" && this.state !== "idle";
     this.engine = local;
     this.graceStall();
-    if (wasRemote) this.stopRemote();   // silence the device we leave
+    if (wasRemote && playing) this.stopRemote();   // silence the device we leave, if we were playing on it
+    else clearInterval(this.remoteTimer);
     this.u64 = remote ? new Ultimate64(u64Host) : null;
     if (remote !== wasRemote) this.emit("output", { remote });
     this.emit("scrub", { enabled: this.canScrub });
@@ -342,7 +343,6 @@ export class Player extends EventTarget {
     if (remote) {
       if (!wasRemote) this.stopLocal();
       if (playing) this.playRemote();
-      else this.pause();
     } else if (wasRemote) {
       this.playIndex(this.index).then(() => playing || this.pause());
     } else if (engineChanged && this.node) {
@@ -461,7 +461,7 @@ export class Player extends EventTarget {
   }
 
   pause() {
-    if (this.u64) {                     // a stop: the next play starts the tune over
+    if (this.u64 && this.state !== "paused" && this.state !== "idle") {   // a stop: the next play starts the tune over
       this.stopRemote();
       this.position = 0;
       this.emitTime();

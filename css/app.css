@@ -1117,3 +1117,28 @@ ion-tab-button[hidden] {
 .notice-widget ion-item {
   --background: var(--app-surface);
 }
+
+/* Ultimate reachability, beside its address in Sound */
+.u64-status {
+  color: var(--app-muted);
+  font-size: 15px;
+}
+
+.u64-status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-inline-end: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+
+.u64-status[data-status="up"] {
+  color: var(--ion-color-success);
+}
+
+.u64-status[data-status="down"] {
+  color: var(--ion-color-danger);
+}
