@@ -44,13 +44,13 @@ export class SoundSheet extends EventTarget {
     document.getElementById("sound-done").addEventListener("click", () => this.modal.dismiss());
     this.u64Status = "checking";
     this.pingTimer = 0;
-    this.open = false;
+    this.isOpen = false;
     this.modal.addEventListener("didPresent", () => {
-      this.open = true;
+      this.isOpen = true;
       this.startPinging();
     });
     this.modal.addEventListener("willDismiss", () => {
-      this.open = false;
+      this.isOpen = false;
       clearInterval(this.pingTimer);
     });
     this.modal.addEventListener("willPresent", () => {
@@ -64,7 +64,7 @@ export class SoundSheet extends EventTarget {
       ({ u64Host: host, engine } = settings);
       if (moved) this.u64Status = "checking";
       this.render();
-      if (moved && this.open) this.startPinging();
+      if (moved && this.isOpen) this.startPinging();
     });
     this.bind();
   }
