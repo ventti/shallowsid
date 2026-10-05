@@ -40,7 +40,7 @@ def verify(base, root):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--url", default="https://shallowsid-hvsc.web.app")
+    parser.add_argument("--url", default="https://shallowsid.web.app")
     parser.add_argument("--root", type=Path, default=Path("_hvsc-hosting"))
     args = parser.parse_args()
     verify(args.url, args.root)

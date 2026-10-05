@@ -34,7 +34,7 @@ const PAGE_SIZE = 100;
 // SID files come from the gzip-enabled Firebase mirror, refreshed by CI.
 // The official site and an optional local hvsc/ copy remain fallbacks.
 const SID_SOURCES = [
-  "https://shallowsid-hvsc.web.app/",
+  "https://shallowsid.web.app/",
   "https://www.hvsc.c64.org/download/C64Music/",
   new URL("../hvsc/", import.meta.url).href,
 ];

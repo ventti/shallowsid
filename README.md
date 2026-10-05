@@ -238,9 +238,9 @@ When `<out>/hvsc` exists, `tools/build_index.py` builds the catalogue from it in
 ## HVSC Firebase Hosting
 
 SID hosting is separate from the GitHub Pages app, at
-`https://shallowsid-hvsc.web.app/<HVSC path>`. Collection files are generated
+`https://shallowsid.web.app/<HVSC path>`. Collection files are generated
 locally or in CI and never committed. `firebase.json` selects only the
-`shallowsid-hvsc` hosting site; deploy with `--only hosting` to avoid changing
+default `shallowsid` hosting site; deploy with `--only hosting` to avoid changing
 Firestore rules.
 
 The pinned Firebase CLI uploads each original SID individually as level-9 gzip.
@@ -286,7 +286,7 @@ gcloud projects add-iam-policy-binding shallowsid \
   --role projects/shallowsid/roles/hvscHostingDeployer --condition=None
 ```
 
-Use Firebase Console → Hosting → `shallowsid-hvsc` → release storage settings
+Use Firebase Console → Hosting → `shallowsid` → release storage settings
 to keep a small number of releases (for example, two). Old releases consume the
 shared Hosting storage allowance. Keep the project on Spark for free hosting
 with traffic cut off at its quota rather than paid overages. Hosting does not
@@ -355,7 +355,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 ## How it works
 
 - `tools/build_index.py` parses every PSID/RSID header, joins in `Songlengths.md5`, the BPM estimates and the SID features (`tools/sidfeatures/features.tsv`), and writes a columnar `data/index.json` (~4.9 MB, ~1.3 MB gzipped).
-- SID files are fetched one at a time from `https://shallowsid-hvsc.web.app/<path>` with gzip and CORS. The official `https://www.hvsc.c64.org/download/C64Music/<path>` and an optional local `hvsc/` copy are fallbacks. The plain HVSC archive mirrors don't allow cross-origin fetches.
+- SID files are fetched one at a time from `https://shallowsid.web.app/<path>` with gzip and CORS. The official `https://www.hvsc.c64.org/download/C64Music/<path>` and an optional local `hvsc/` copy are fallbacks. The plain HVSC archive mirrors don't allow cross-origin fetches.
 - `js/search-worker.js` indexes that with [MiniSearch](https://lucaong.github.io/minisearch/) off the main thread.
 - `js/player/engine-worker.js` renders with reSIDfp (or SIDLite) and runs as two workers:
   - A **live** engine renders about 0.25 s ahead of the playhead. It's what you hear, and sound changes apply to it at once.

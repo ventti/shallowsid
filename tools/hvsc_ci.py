@@ -36,7 +36,7 @@ def main():
     commands.add_parser("resolve-version")
     changes = commands.add_parser("check-changes")
     changes.add_argument("--root", type=Path, default=Path("_hvsc-hosting"))
-    changes.add_argument("--url", default="https://shallowsid-hvsc.web.app")
+    changes.add_argument("--url", default="https://shallowsid.web.app")
     args = parser.parse_args()
     if args.command == "resolve-version":
         output("version", int(latest_version()["version"]))
