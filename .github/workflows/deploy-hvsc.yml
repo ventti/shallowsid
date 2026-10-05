@@ -7,6 +7,7 @@ on:
       - .github/workflows/deploy-hvsc.yml
       - firebase.json
       - tools/prepare_hvsc_hosting.py
+      - tools/hvsc_ci.py
       - tests/test_hvsc_hosting.py
   push:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - tools/fetch_hvsc.py
       - tools/prepare_hvsc_hosting.py
       - tools/check_hvsc_hosting.py
+      - tools/hvsc_ci.py
   schedule:
     # HVSC normally releases in late June and December; check just afterwards.
     - cron: "23 3 1 1,7 *"
@@ -56,14 +58,7 @@ jobs:
 
       - name: Resolve latest HVSC
         id: hvsc
-        run: |
-          python3 - <<'PY'
-          import os, sys
-          sys.path.insert(0, 'tools')
-          from fetch_hvsc import latest_version
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write(f"version={latest_version()['version']}\n")
-          PY
+        run: python3 tools/hvsc_ci.py resolve-version
 
       - uses: actions/cache@v6
         with:
@@ -79,26 +74,7 @@ jobs:
 
       - name: Skip unchanged collections and prevent downgrades
         id: changes
-        run: |
-          python3 - <<'PY'
-          import json, os, sys, urllib.error, urllib.request
-          from pathlib import Path
-          sys.path.insert(0, 'tools')
-          from prepare_hvsc_hosting import needs_deploy
-          local = json.loads(Path('_hvsc-hosting/manifest.json').read_text())
-          try:
-              with urllib.request.urlopen('https://shallowsid-hvsc.web.app/manifest.json', timeout=60) as response:
-                  remote = json.load(response)
-          except urllib.error.HTTPError as error:
-              if error.code != 404:
-                  raise
-              remote = {}
-          # Manifest includes the configuration hash, so header changes deploy too.
-          changed = needs_deploy(local, remote)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
-              out.write(f"changed={str(changed).lower()}\n")
-          print('Deployment required' if changed else 'HVSC and hosting configuration unchanged')
-          PY
+        run: python3 tools/hvsc_ci.py check-changes
 
       - name: Authenticate using existing GitHub Workload Identity
         if: steps.changes.outputs.changed == 'true'

@@ -64,7 +64,7 @@ jobs:
 
       - name: Resolve HVSC version
         id: hvsc
-        run: echo "version=$(curl -fsS https://www.hvsc.c64.org/api/v1/version | python3 -c 'import sys,json;print(json.load(sys.stdin)["version"])' || echo 85)" >> "$GITHUB_OUTPUT"
+        run: python3 tools/hvsc_ci.py resolve-version
 
       - name: Cache HVSC archive
         uses: actions/cache@v6
