@@ -32,7 +32,9 @@ jobs:
       actions: write
     steps:
       - name: Re-enable this workflow (resets the 60-day inactivity timer)
-        run: gh workflow enable pages.yml --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh workflow enable pages.yml --repo "$GITHUB_REPOSITORY"
+          gh workflow enable deploy-hvsc.yml --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ github.token }}
 

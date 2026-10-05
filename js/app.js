@@ -31,9 +31,13 @@ import { fileName as userDataFileName, mergeImport, parseBundle, toBundle } from
 import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
-// SID files come from the official HVSC site (CORS-enabled, fetched one by one).
-// A local copy under hvsc/ (tools/fetch_hvsc.py) is the fallback.
-const SID_SOURCES = ["https://www.hvsc.c64.org/download/C64Music/", new URL("../hvsc/", import.meta.url).href];
+// SID files come from the gzip-enabled Firebase mirror, refreshed by CI.
+// The official site and an optional local hvsc/ copy remain fallbacks.
+const SID_SOURCES = [
+  "https://shallowsid-hvsc.web.app/",
+  "https://www.hvsc.c64.org/download/C64Music/",
+  new URL("../hvsc/", import.meta.url).href,
+];
 const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
 const SUGGESTION_COUNT = 10;
 const FAVORITE_COMPOSER_COUNT = 10;

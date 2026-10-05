@@ -23,6 +23,7 @@ test("m3u8 round-trips name, paths and subtunes", () => {
 
 test("import accepts the usual path styles", () => {
   const cases = {
+    "https://shallowsid-hvsc.web.app/MUSICIANS/G/Galway_Martin/Wizball.sid": "MUSICIANS/G/Galway_Martin/Wizball.sid",
     "https://www.example.com/hvsc/MUSICIANS/G/Galway_Martin/Wizball.sid": "MUSICIANS/G/Galway_Martin/Wizball.sid",
     "hvsc/DEMOS/A-F/Blah.sid": "DEMOS/A-F/Blah.sid",
     "/MUSICIANS/T/Tel_Jeroen/Cybernoid.sid": "MUSICIANS/T/Tel_Jeroen/Cybernoid.sid",

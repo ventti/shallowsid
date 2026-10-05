@@ -1,4 +1,27 @@
 {
+  "hosting": {
+    "site": "shallowsid-hvsc",
+    "public": "_hvsc-hosting",
+    "ignore": ["**/.*"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          { "key": "Access-Control-Allow-Origin", "value": "*" },
+          { "key": "Cache-Control", "value": "public, max-age=86400" },
+          { "key": "X-Content-Type-Options", "value": "nosniff" }
+        ]
+      },
+      {
+        "source": "**/*.sid",
+        "headers": [{ "key": "Content-Type", "value": "application/octet-stream" }]
+      },
+      {
+        "source": "/manifest.json",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
+  },
   "firestore": { "rules": "firestore.rules" },
   "emulators": { "firestore": { "port": 8089 } }
 }
