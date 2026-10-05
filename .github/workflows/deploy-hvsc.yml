@@ -17,7 +17,8 @@ on:
       - tools/prepare_hvsc_hosting.py
       - tools/check_hvsc_hosting.py
   schedule:
-    - cron: "23 3 * * 1"
+    # HVSC normally releases in late June and December; check just afterwards.
+    - cron: "23 3 1 1,7 *"
 
 permissions:
   contents: read
