@@ -142,6 +142,7 @@ export class NowPlaying {
     const p = this.player, el = this.el;
     p.addEventListener("track", ({ detail: { item } }) => this.showTrack(item));
     p.addEventListener("state", ({ detail: { state } }) => this.showState(state));
+    p.addEventListener("output", () => this.showState(p.state));
     p.addEventListener("time", ({ detail }) => {
       this.waveform.setTime(detail);
       el.pos.textContent = formatTime(detail.position);
@@ -228,12 +229,13 @@ export class NowPlaying {
     this.el.tagList.innerHTML = [tempo, ...whole.map((id) => chip(id)), ...sub.map((id) => chip(id, item.song)), edit].join("");
   }
 
+  // The Ultimate can't resume where it was, so there it's play/stop.
   showState(state) {
     const playing = state === "playing" || state === "buffering" || state === "loading";
-    const icon = playing ? "pause" : "play";
+    const halt = this.player.u64 ? "stop" : "pause";
     for (const btn of [this.el.play, this.el.miniPlay]) {
-      btn.querySelector("ion-icon").name = icon;
-      btn.setAttribute("aria-label", playing ? "Pause" : "Play");
+      btn.querySelector("ion-icon").name = playing ? halt : "play";
+      btn.setAttribute("aria-label", playing ? (halt === "stop" ? "Stop" : "Pause") : "Play");
     }
     this.el.np.classList.toggle("is-paused", !playing);
   }

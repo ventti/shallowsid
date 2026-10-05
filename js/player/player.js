@@ -26,6 +26,7 @@
 //   shuffle {on}
 //   error  {message, item}
 //   speed  {engine, ratio}               how fast reSIDfp pre-renders here (x realtime), measured once
+//   output {remote}                      tunes now play here (false) or on the Ultimate (true)
 //   stall  {engine}                      playback ran out of audio, not right after a seek or change
 
 import { Ultimate64 } from "./u64.js";
@@ -335,6 +336,7 @@ export class Player extends EventTarget {
     this.graceStall();
     if (wasRemote) this.stopRemote();   // silence the device we leave
     this.u64 = remote ? new Ultimate64(u64Host) : null;
+    if (remote !== wasRemote) this.emit("output", { remote });
     this.emit("scrub", { enabled: this.canScrub });
     if (!this.current || !this.bytes) return;
     if (remote) {
@@ -459,7 +461,11 @@ export class Player extends EventTarget {
   }
 
   pause() {
-    if (this.u64) this.stopRemote();
+    if (this.u64) {                     // a stop: the next play starts the tune over
+      this.stopRemote();
+      this.position = 0;
+      this.emitTime();
+    }
     this.node?.port.postMessage({ type: "pause" });
     if (this.current) this.setState("paused");
   }
