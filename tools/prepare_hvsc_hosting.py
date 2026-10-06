@@ -15,6 +15,17 @@ from pathlib import Path
 import shutil
 import time
 
+NOT_FOUND_PAGE = b'''<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=https://sid.extend.fi/">
+  <title>ShallowSID</title>
+</head>
+<body><a href="https://sid.extend.fi/">Open ShallowSID</a></body>
+</html>
+'''
+
 
 def needs_deploy(local, remote):
     if remote.get("hvsc_version", 0) > local["hvsc_version"]:
@@ -55,6 +66,9 @@ def prepare(source, out, version, workers=None):
     start = time.perf_counter()
     with ThreadPoolExecutor(max_workers=workers or os.cpu_count() or 1) as pool:
         entries = list(pool.map(copy_file, files))
+    (out / "404.html").write_bytes(NOT_FOUND_PAGE)
+    entries.append(("404.html", hashlib.sha256(NOT_FOUND_PAGE).hexdigest(),
+                    len(NOT_FOUND_PAGE), len(gzip.compress(NOT_FOUND_PAGE, compresslevel=9, mtime=0))))
     fingerprint = hashlib.sha256(json.dumps(
         [(name, digest) for name, digest, _, _ in entries], separators=(",", ":")
     ).encode()).hexdigest()

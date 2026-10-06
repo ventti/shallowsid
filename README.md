@@ -243,6 +243,10 @@ locally or in CI and never committed. `firebase.json` selects only the
 default `shallowsid` hosting site; deploy with `--only hosting` to avoid changing
 Firestore rules.
 
+Browser visits to the Hosting root redirect to `https://sid.extend.fi/`.
+Missing paths serve a custom 404 page that immediately redirects browsers there;
+missing SID fetches retain their HTTP 404 status for playback fallback.
+
 The pinned Firebase CLI uploads each original SID individually as level-9 gzip.
 Hosting negotiates gzip with browsers and transparently decodes downloads for
 `fetch()`, preserving normal `.sid` URLs. Do not gzip the local files a second

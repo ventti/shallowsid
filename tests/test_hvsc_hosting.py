@@ -11,7 +11,7 @@ from unittest.mock import patch
 import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
-from prepare_hvsc_hosting import needs_deploy, prepare
+from prepare_hvsc_hosting import NOT_FOUND_PAGE, needs_deploy, prepare
 from hvsc_ci import output, remote_manifest
 
 
@@ -59,12 +59,14 @@ class HostingPreparationTests(unittest.TestCase):
                 second = prepare(source, out, 85, workers=2)
             self.assertEqual(first, second)
             self.assertEqual(first["sid_files"], 1)
-            self.assertEqual(first["files"], 2)
+            self.assertEqual(first["files"], 3)
+            self.assertEqual((out / "404.html").read_bytes(), NOT_FOUND_PAGE)
             self.assertEqual((out / tune.relative_to(source)).read_bytes(), raw)
             self.assertTrue((out / "DOCUMENTS/Copyright.txt").exists())
             self.assertFalse((out / "secret.json").exists())
             expected = len(gzip.compress(raw, compresslevel=9, mtime=0))
             expected += len(gzip.compress(b"Original collection notice", compresslevel=9, mtime=0))
+            expected += len(gzip.compress(NOT_FOUND_PAGE, compresslevel=9, mtime=0))
             self.assertEqual(first["gzip_bytes"], expected)
             tune.write_bytes(raw + b"changed")
             with contextlib.redirect_stdout(io.StringIO()):
