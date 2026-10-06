@@ -3,6 +3,9 @@
     "site": "shallowsid",
     "public": "_hvsc-hosting",
     "ignore": ["**/.*"],
+    "redirects": [
+      { "source": "/", "destination": "https://sid.extend.fi/", "type": 302 }
+    ],
     "headers": [
       {
         "source": "**",

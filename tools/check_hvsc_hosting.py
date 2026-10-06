@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import urllib.parse
 import urllib.request
+import urllib.error
 
 
 def verify(base, root):
@@ -15,6 +16,17 @@ def verify(base, root):
         remote = json.load(response)
     if remote != local:
         raise ValueError("Live manifest does not match the prepared collection")
+    with urllib.request.urlopen(base.rstrip("/") + "/", timeout=60) as response:
+        if response.geturl() != "https://sid.extend.fi/":
+            raise ValueError("Hosting root did not redirect to the app")
+    try:
+        urllib.request.urlopen(base.rstrip("/") + "/__hvsc_missing_redirect_check__", timeout=60)
+    except urllib.error.HTTPError as error:
+        if error.code != 404 or error.read() != (root / "404.html").read_bytes():
+            raise ValueError("Missing paths did not serve the redirecting 404 page") from error
+    else:
+        raise ValueError("Missing paths must retain HTTP 404 status")
+    print("Verified root redirect and custom 404 redirect page")
     # Sample each collection section, including nested musician paths.
     samples = [next(iter(sorted((root / section).rglob("*.sid"))), None)
                for section in ("MUSICIANS", "GAMES", "DEMOS")]
