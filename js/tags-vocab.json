@@ -24,6 +24,7 @@
         { "id": "disco", "label": "Disco" },
         { "id": "drum-and-bass", "label": "Drum & Bass" },
         { "id": "dub", "label": "Dub" },
+        { "id": "dubstep", "label": "Dubstep" },
         { "id": "electro", "label": "Electro" },
         { "id": "eurodance", "label": "Eurodance" },
         { "id": "experimental", "label": "Experimental" },
