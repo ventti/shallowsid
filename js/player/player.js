@@ -30,6 +30,7 @@
 //   stall  {engine}                      playback ran out of audio, not right after a seek or change
 
 import { Ultimate64 } from "./u64.js";
+import { createSessionAudio } from "./session-audio.js";
 
 const PEAK_BUCKETS_PER_SECOND = 10;
 const DEFAULT_SONG_SECONDS = 180;       // tunes missing from Songlengths.md5
@@ -124,9 +125,16 @@ export class Player extends EventTarget {
       this.ctx = new AudioContext({ latencyHint: "playback" });
       // Safari 17+: play through the ringer/mute switch like a music app.
       if (navigator.audioSession) navigator.audioSession.type = "playback";
+      if ("mediaSession" in navigator) this.sessionAudio = createSessionAudio(this);
       this.audioReady = this.initAudioGraph();
     }
-    if (this.ctx.state !== "running") this.ctx.resume().catch(() => {});
+    this.sessionAudio?.play().catch((error) => {
+      // A quick play/pause can abort play normally. Other failures mean system
+      // controls cannot retain this session, so do not hide them.
+      if (error.name !== "AbortError") console.warn("System media controls could not start", error);
+    });
+    // Resume even when a preceding pause's suspend has not completed yet.
+    this.ctx.resume().catch(() => {});
     return this.audioReady;
   }
 
@@ -358,6 +366,10 @@ export class Player extends EventTarget {
 
   stopLocal() {
     this.node?.port.postMessage({ type: "pause" });
+    if (this.sessionAudio) {
+      this.sessionAudio.pause();
+      this.ctx.suspend().catch(() => {});
+    }
     this.liveWorker?.postMessage({ type: "stop" });
     this.stopCache();
     this.resetPeaks();
@@ -467,6 +479,10 @@ export class Player extends EventTarget {
       this.emitTime();
     }
     this.node?.port.postMessage({ type: "pause" });
+    if (this.sessionAudio) {
+      this.sessionAudio.pause();
+      this.ctx.suspend().catch(() => {});
+    }
     if (this.current) this.setState("paused");
   }
 
@@ -499,6 +515,8 @@ export class Player extends EventTarget {
     if (!this.node || (seconds !== null && !this.canScrub)) return;
     const frame = seconds === null ? null : Math.round(seconds * this.ctx.sampleRate);
     this.node.port.postMessage({ type: "scrub", frame });
+    if (seconds !== null) this.ctx.resume().catch(() => {});
+    else if (this.sessionAudio && (this.state === "paused" || this.state === "idle")) this.ctx.suspend().catch(() => {});
   }
 
   // ---- messages ------------------------------------------------------------
