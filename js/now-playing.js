@@ -15,7 +15,7 @@ const REPEAT_LABELS = { off: "Repeat: off", all: "Repeat: playlist", one: "Repea
 const UP_NEXT_MAX = 50;
 
 export class NowPlaying {
-  constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, onOpenSound, tags, onOpenTag, onEditTags }) {
+  constructor(player, { onAddToPlaylist, onShowFolder, onShare, onOpenComposer, isFavorite, onToggleFavorite, tags, onOpenTag, onEditTags }) {
     this.player = player;
     this.onAddToPlaylist = onAddToPlaylist;
     this.onShowFolder = onShowFolder;
@@ -23,7 +23,6 @@ export class NowPlaying {
     this.onOpenComposer = onOpenComposer;
     this.isFavorite = isFavorite;
     this.onToggleFavorite = onToggleFavorite;
-    this.onOpenSound = onOpenSound;
     this.tags = tags;
     this.onOpenTag = onOpenTag;
     this.onEditTags = onEditTags;
@@ -35,7 +34,7 @@ export class NowPlaying {
       art: $("np-art"), title: $("np-title"), author: $("np-author"), released: $("np-released"),
       badges: $("np-badges"), tagList: $("np-tags"), pos: $("np-pos"), dur: $("np-dur"), state: $("np-state"),
       play: $("np-play"), prev: $("np-prev"), next: $("np-next"), subtune: $("np-subtune"),
-      add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), sound: $("np-sound"), queue: $("np-queue"),
+      add: $("np-add"), folder: $("np-folder"), share: $("np-share"), fav: $("np-fav"), queue: $("np-queue"),
       repeat: $("np-repeat"), shuffle: $("np-shuffle"),
     };
     this.waveform = new Waveform($("np-wave"), {
@@ -87,7 +86,6 @@ export class NowPlaying {
     el.add.addEventListener("click", () => p.current && this.onAddToPlaylist(p.current));
     el.share.addEventListener("click", () => p.current && this.onShare(p.current));   // with the subtune playing
     el.fav.addEventListener("click", () => p.current && this.onToggleFavorite(p.current));
-    el.sound.addEventListener("click", () => this.onOpenSound());
     el.folder.addEventListener("click", () => {
       if (!p.current) return;
       this.close();

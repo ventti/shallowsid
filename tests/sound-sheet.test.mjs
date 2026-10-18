@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SoundSheet } from "../js/sound-sheet.js";
 
-test("Sound sheet opens and reopens while reachability checks follow visibility", (t) => {
+test("Sound settings preview and reachability follow page visibility", (t) => {
   const elements = new Map([
-    "sound-modal", "sound-sheet", "sound-import-input", "sound-revert", "sound-done",
+    "sound-sheet", "sound-import-input", "sound-revert",
   ].map((id) => [id, new EventTarget()]));
   const originalDocument = globalThis.document;
   globalThis.document = { getElementById: (id) => elements.get(id) };
@@ -13,29 +13,39 @@ test("Sound sheet opens and reopens while reachability checks follow visibility"
     else globalThis.document = originalDocument;
   });
   const settings = Object.assign(new EventTarget(), { engine: "residfp", u64Host: "" });
-  const modal = elements.get("sound-modal");
-  let presentations = 0, pings = 0;
-  modal.present = () => { presentations++; };
+  let pings = 0;
+  const adjusting = [];
   const sheet = new SoundSheet(settings);
   sheet.render = () => {};
   sheet.startPinging = () => { pings++; };
+  sheet.addEventListener("adjusting", e => adjusting.push(e.detail));
 
-  sheet.open();
-  assert.equal(presentations, 1);
   settings.u64Host = "192.168.1.64";
   settings.dispatchEvent(new Event("change"));
   assert.equal(pings, 0);
 
-  modal.dispatchEvent(new Event("didPresent"));
+  sheet.open();
   assert.equal(pings, 1);
+  assert.equal(sheet.isOpen, true);
+  assert.deepEqual(adjusting, [true]);
+  sheet.open(); // A sync refresh must not restart preview or reachability checks.
+  assert.equal(pings, 1);
+  assert.deepEqual(adjusting, [true]);
+
   settings.u64Host = "192.168.1.65";
   settings.dispatchEvent(new Event("change"));
   assert.equal(pings, 2);
 
-  modal.dispatchEvent(new Event("willDismiss"));
+  sheet.close();
+  assert.equal(sheet.isOpen, false);
+  assert.deepEqual(adjusting, [true, false]);
   settings.u64Host = "192.168.1.66";
   settings.dispatchEvent(new Event("change"));
   assert.equal(pings, 2);
+  sheet.close();
+  assert.deepEqual(adjusting, [true, false]);
   sheet.open();
-  assert.equal(presentations, 2);
+  assert.equal(pings, 3);
+  assert.deepEqual(adjusting, [true, false, true]);
+  sheet.close();
 });

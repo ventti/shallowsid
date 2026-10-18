@@ -747,7 +747,20 @@ ion-app > .np {
   --background: var(--ion-background-color);
 }
 
-/* ---- Sound sheet ------------------------------------------------------------ */
+/* ---- Settings --------------------------------------------------------------- */
+
+.settings-container {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
+@media (min-width: 768px) {
+  .sound-content ion-list.settings-menu[inset] ion-item {
+    --min-height: 64px;
+    --background: transparent;
+  }
+}
 
 .sound-content {
   --background: var(--ion-background-color);

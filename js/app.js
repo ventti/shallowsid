@@ -102,7 +102,7 @@ applySound();
 const tags = new TagService();
 const tagSheet = new TagSheet(tags);
 const sync = new SyncService({ store, sound, curation: tags });
-const syncSheet = sync.configured ? new SyncSheet(sync) : null;
+const syncSheet = sync.configured ? new SyncSheet(sync, { onOpen: () => go("#/settings/sync") }) : null;
 const liveShare = new LiveShare({ store });
 liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
 // Remote changes landed: show them. Folders and search results only show
@@ -140,12 +140,11 @@ const nowPlaying = new NowPlaying(player, {
   onOpenComposer: (credit) => go(composerHref(composerName(credit))),
   isFavorite: (item) => store.isFavorite(item),
   onToggleFavorite: (item) => toggleFavorite(item),
-  onOpenSound: () => soundSheet.open(),
   tags,
   onOpenTag: (id) => go(tagHref(id)),
   onEditTags: (item) => tagSheet.open(item),
 });
-// Curators and admins get a tab right of Playlists: "Admin" for admins,
+// Curators and admins get a tab right of Settings: "Admin" for admins,
 // "Curation" for curators (also once turned off, to see why).
 function showCurationTab() {
   const tab = document.querySelector('ion-tab-button[tab="curation"]');   // Ionic replaces tab buttons' ids
@@ -706,12 +705,41 @@ function renderBrowse(dir) {
   $("play-all")?.addEventListener("click", () => items.length && player.setQueue(items, 0));
 }
 
+function renderSettingsPage(page) {
+  if (page !== "sound" && (page !== "sync" || !syncSheet)) return renderSettings();
+  setChrome({ title: page === "sound" ? "Sound" : "Playlist cloud sync", tab: "settings", back: "#/settings" });
+  dom.infinite.disabled = true;
+  dom.view.hidden = true;
+  if (page === "sound") {
+    soundSheet.root.hidden = false;
+    dom.actions.appendChild(soundSheet.revertButton);
+    soundSheet.open();
+  } else {
+    syncSheet.root.hidden = false;
+    syncSheet.render();
+  }
+}
+
+function renderSettings() {
+  setChrome({ title: "Settings", tab: "settings" });
+  dom.infinite.disabled = true;
+  dom.view.innerHTML = `<div class="settings-container sound-content"><ion-list inset class="settings-menu">
+    ${syncSheet ? `<ion-item button detail="true" id="sync-open" href="#/settings/sync" lines="full">
+      <ion-icon slot="start" name="${syncIcon()}"></ion-icon>
+      <ion-label>Playlist cloud sync</ion-label>
+    </ion-item>` : ""}
+    <ion-item button detail="true" id="sound-open" href="#/settings/sound" lines="none">
+      <ion-icon slot="start" name="options-outline"></ion-icon>
+      <ion-label>Sound</ion-label>
+    </ion-item>
+  </ion-list></div>`;
+}
+
 function renderPlaylists() {
   setChrome({
     title: "Playlists",
     tab: "playlists",
-    actions: `${syncSheet ? `<ion-button id="sync-open" aria-label="Sync"><ion-icon slot="icon-only" name="${syncIcon()}"></ion-icon></ion-button>` : ""}
-              <ion-button id="import-pl" aria-label="Import .m3u8"><ion-icon slot="icon-only" name="document-attach-outline"></ion-icon></ion-button>
+    actions: `<ion-button id="import-pl" aria-label="Import .m3u8"><ion-icon slot="icon-only" name="document-attach-outline"></ion-icon></ion-button>
               <ion-button id="new-pl" aria-label="New playlist"><ion-icon slot="icon-only" name="add"></ion-icon></ion-button>`,
   });
   dom.infinite.disabled = true;
@@ -741,7 +769,6 @@ function renderPlaylists() {
     { text: "Import User Data…", icon: "download-outline", handler: () => $("user-data-input").click() },
     { text: "Export User Data…", icon: "archive-outline", handler: () => exportUserData() },
   ]));
-  $("sync-open")?.addEventListener("click", () => syncSheet.open());
 }
 
 function renderPlaylist(id) {
@@ -1097,7 +1124,7 @@ async function renderCuration(arg) {
       <p class="composer-meta">${role
         ? `Tag tunes with <strong>Tag</strong> in Now Playing, <strong>Edit Tags…</strong> in a tune's <strong>⋯</strong> menu, or the <strong>T</strong> key.`
         : "An admin has turned your curator rights off. They can turn them back on."}</p>
-      ${sync.enabled || !role ? "" : `<p class="composer-meta">Turn on Sync (the cloud on <strong>Playlists</strong>) to tag from your other devices too.</p>`}
+      ${sync.enabled || !role ? "" : `<p class="composer-meta">Turn on Sync in <strong>Settings</strong> to tag from your other devices too.</p>`}
       <div class="playlist-head composer-actions">
         <ion-button id="my-edits" fill="outline" href="#/curation/${esc(tags.cid)}">Your Edits</ion-button>
         <ion-button id="leave-curation" fill="clear" color="medium">Stop Curating Here…</ion-button>
@@ -1202,9 +1229,9 @@ async function acceptInvite() {
   }
   await (sync.hasKey ? sync.resume() : sync.turnOn());
   if (sync.status === "error") {
-    toast(`${you} Sync couldn't start: ${sync.error} Turn it on from the cloud on Playlists.`, { color: "warning", duration: 8000 });
+    toast(`${you} Sync couldn't start: ${sync.error} Turn it on from Settings → Playlist cloud sync.`, { color: "warning", duration: 8000 });
   } else {
-    toast(`${you} Sync is on, so your rights are kept. To curate on another device, use this sync key there (the cloud on Playlists).`, { duration: 8000 });
+    toast(`${you} Sync is on, so your rights are kept. To curate on another device, use this sync key there (Settings → Playlist cloud sync).`, { duration: 8000 });
   }
   render();
 }
@@ -1349,9 +1376,14 @@ function render() {
   if (!index) return;
   const { name, arg } = currentRoute();
   dom.content.scrollToTop?.();
+  if (name !== "settings" || arg !== "sound") soundSheet.close();
+  dom.view.hidden = false;
+  soundSheet.root.hidden = true;
+  if (syncSheet) syncSheet.root.hidden = true;
   switch (name) {
     case "browse": return renderBrowse(arg);
     case "playlists": return renderPlaylists();
+    case "settings": return renderSettingsPage(arg);
     case "playlist": return renderPlaylist(arg);
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);
@@ -1371,10 +1403,10 @@ function render() {
 }
 
 // A scanned sync QR code opens #/sync/<key>. Drop the key from the address
-// (and history) right away, then let the Sync sheet ask before joining.
+// (and history) right away, then ask before joining sync.
 function joinSyncLink(key) {
-  history.replaceState(null, "", "#/playlists");
-  renderPlaylists();
+  history.replaceState(null, "", "#/settings");
+  renderSettings();
   if (syncSheet) syncSheet.joinFromLink(key);
   else toast("Sync isn't available here", { color: "warning" });
 }

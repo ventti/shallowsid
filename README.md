@@ -28,7 +28,7 @@ Written for my own use, so beware of peculiarities.
 - **Waveform**: drag to scrub (you hear it), release to seek. Grey bars are rendered audio; the flat line is still being rendered.
 - **Subtune**: pick one from the Now Playing view.
 
-Sound (the **Sound** button in Now Playing):
+Sound (**Settings → Sound**):
 
 - **Engine** picks what plays the tunes. It's kept per device and isn't synced.
   - **reSIDfp** (the default) is cycle-exact, and the presets below tune its filter.
@@ -44,10 +44,10 @@ Sound (the **Sound** button in Now Playing):
   - Changes play from where the tune is. Adjusting a built-in preset creates an edited copy. **Save as 6581/8580 Preset…** keeps it. Your own presets save automatically.
   - Presets export and import as `ShallowSID - Sound - <name>.json`.
   - CheeseCutter/VICE-style chip profiles (6581R3 4885, …) use the older reSID-fp filter model, so they don't carry over.
-- While the sheet is open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you close the sheet, the tune pre-renders again with the new sound.
+- While Sound settings are open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you leave Sound settings, the tune pre-renders again with the new sound.
 - **Pre-render tunes** (on by default) renders the whole tune ahead for instant seeking and audible scrubbing. With it off, seeking waits for the engine to fast-forward, and nothing is kept in memory.
 
-Sync (the cloud icon on **Playlists**, optional and off by default):
+Sync (**Settings → Playlist cloud sync**, optional and off by default):
 
 - **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites, sound presets and play history (**Recently played**, **Your most played**) then stay the same everywhere. Play counts add up across devices.
 - There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
@@ -63,7 +63,7 @@ Tags:
 - Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
 - Tunes can show a tempo first in Now Playing. **~124 BPM** is an estimate from the sound (see [BPM estimates](#bpm-estimates-experimental)); **124 BPM** was set by a curator.
 - Curators set it in the same sheet, as a whole BPM from 20 to 300, for the whole tune or one subtune. A subtune's own wins, then the whole tune's, then the estimate. Empty the field to fall back to the one underneath, shown greyed out. **0** means no BPM, which also hides a wrong estimate.
-- Curators join with a one-time invite link from an admin, valid for two weeks. Accepting turns on Sync if it's off, since the rights live in your synced data. They then get a **Curation** tab right of **Playlists**, with their edits. Use the same sync key on your other devices to curate there too.
+- Curators join with a one-time invite link from an admin, valid for two weeks. Accepting turns on Sync if it's off, since the rights live in your synced data. They then get a **Curation** tab right of **Settings**, with their edits. Use the same sync key on your other devices to curate there too.
 - Admins get an **Admin** tab there instead. It also invites curators, shows their edits and has an on/off switch per curator. An invite nobody has used yet can be expired early with **Expire**. A curator that's off can't tag; their tags stay. Who tagged what is shown only to that curator and to admins.
 - Others see new tags after the next deploy, which runs daily. Curators see them at once.
 

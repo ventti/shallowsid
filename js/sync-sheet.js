@@ -1,4 +1,4 @@
-// The "Sync" sheet: turn end-to-end encrypted sync on/off, show or enter the
+// The cloud sync settings page: turn end-to-end encrypted sync on/off, show or enter the
 // sync key, delete the synced copy. Laid out like iOS Settings.
 
 import { parseKey } from "./sync-crypto.js";
@@ -40,12 +40,10 @@ function deviceRow(d, self, last) {
 }
 
 export class SyncSheet {
-  constructor(sync) {
+  constructor(sync, { onOpen }) {
     this.sync = sync;
-    this.modal = document.getElementById("sync-modal");
+    this.onOpen = onOpen;
     this.root = document.getElementById("sync-sheet");
-    document.getElementById("sync-done").addEventListener("click", () => this.modal.dismiss());
-    this.modal.addEventListener("willPresent", () => this.render());
     sync.addEventListener("status", () => this.render());
     this.root.addEventListener("click", (e) => this.onClick(e));
     this.root.addEventListener("ionChange", (e) => {
@@ -54,7 +52,7 @@ export class SyncSheet {
   }
 
   open() {
-    this.modal.present();
+    this.onOpen();
   }
 
   statusText() {
@@ -95,7 +93,7 @@ export class SyncSheet {
         ${intro}`;
       return;
     }
-    // One status row whether on or paused, so toggling doesn't resize the sheet.
+    // One status row whether on or paused, so toggling doesn't resize the page.
     const error = s.enabled && s.status === "error";
     const icon = !s.enabled ? "pause-circle-outline" : error ? "alert-circle-outline" : "cloud-done-outline";
     this.root.innerHTML = `

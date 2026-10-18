@@ -62,6 +62,8 @@
         </ion-header>
 
         <ion-content id="content">
+          <div id="sound-sheet" class="sound-content settings-container" hidden></div>
+          <div id="sync-sheet" class="sound-content settings-container" hidden></div>
           <div id="view"><div class="empty"><ion-spinner></ion-spinner><p>Loading the HVSC index…</p></div></div>
           <ion-infinite-scroll id="infinite" threshold="400px" disabled>
             <ion-infinite-scroll-content></ion-infinite-scroll-content>
@@ -90,6 +92,7 @@
             <ion-tab-button tab="home"><ion-icon name="home"></ion-icon><ion-label>Home</ion-label></ion-tab-button>
             <ion-tab-button tab="browse"><ion-icon name="folder-open"></ion-icon><ion-label>Browse</ion-label></ion-tab-button>
             <ion-tab-button tab="playlists"><ion-icon name="library"></ion-icon><ion-label>Playlists</ion-label></ion-tab-button>
+            <ion-tab-button tab="settings"><ion-icon name="settings-outline"></ion-icon><ion-label>Settings</ion-label></ion-tab-button>
             <ion-tab-button tab="curation" hidden><ion-icon name="pricetags"></ion-icon><ion-label>Curation</ion-label></ion-tab-button>
           </ion-tab-bar>
         </ion-footer>
@@ -102,27 +105,8 @@
       <ion-content><div id="np-host"></div></ion-content>
     </ion-modal>
 
-    <ion-modal id="sound-modal" class="sound-modal">
-      <ion-header>
-        <ion-toolbar>
-          <ion-buttons slot="start"><ion-button id="sound-revert" hidden>Revert</ion-button></ion-buttons>
-          <ion-title>Sound</ion-title>
-          <ion-buttons slot="end"><ion-button id="sound-done" strong="true">Done</ion-button></ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content class="sound-content"><div id="sound-sheet"></div></ion-content>
-    </ion-modal>
+    <div hidden><ion-button id="sound-revert" hidden>Revert</ion-button></div>
     <input type="file" id="sound-import-input" accept=".json,application/json" hidden>
-
-    <ion-modal id="sync-modal" class="sound-modal">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>Sync</ion-title>
-          <ion-buttons slot="end"><ion-button id="sync-done" strong="true">Done</ion-button></ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content class="sound-content"><div id="sync-sheet"></div></ion-content>
-    </ion-modal>
 
     <ion-modal id="tag-modal" class="sound-modal">
       <ion-header>
@@ -168,7 +152,6 @@
         <ion-select id="np-subtune" interface="action-sheet" label="Subtune" label-placement="stacked" hidden></ion-select>
         <ion-button fill="clear" size="small" id="np-add"><ion-icon slot="start" name="add-circle-outline"></ion-icon>Playlist</ion-button>
         <ion-button fill="clear" size="small" id="np-folder"><ion-icon slot="start" name="folder-open-outline"></ion-icon>Folder</ion-button>
-        <ion-button fill="clear" size="small" id="np-sound"><ion-icon slot="start" name="options-outline"></ion-icon>Sound</ion-button>
       </div>
       <ion-list id="np-queue" class="np-queue" lines="none"></ion-list>
     </section>

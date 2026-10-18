@@ -1,4 +1,4 @@
-// The "Sound" sheet: pick the engine (or an Ultimate 64), the chip and machine,
+// The Sound settings page: pick the engine (or an Ultimate 64), the chip and machine,
 // a 6581 and an 8580 preset, adjust reSIDfp's knobs, and save, export or import
 // your own variants. Laid out like iOS Settings.
 
@@ -22,42 +22,27 @@ const segment = (key, value, options, chip = "", off = "") => `
     ${options.map(([v, text]) => `<ion-segment-button value="${esc(v)}"><ion-label>${esc(text)}</ion-label></ion-segment-button>`).join("")}
   </ion-segment>`;
 
-const PING_INTERVAL_MS = 5000;        // how often the Ultimate is checked while the sheet is open
+const PING_INTERVAL_MS = 5000;        // how often the Ultimate is checked while the page is open
 const U64_STATUS = { checking: "Checking…", up: "Reachable", down: "Not reachable", none: "No address" };
 
 const U64_NOTE = "Plays on an Ultimate 64 or II+ on your network, always from a tune's start. Turn off its network password. On https only Chrome reaches it.";
 
 const PREVIEW_INTERVAL_MS = 80;   // live slider updates while dragging
 
-// Events: "adjusting" {detail: bool} when the sheet opens/closes,
+// Events: "adjusting" {detail: bool} when the page opens/closes,
 //         "preview" {detail: {chip, knobs}} while a slider is dragged.
 export class SoundSheet extends EventTarget {
   constructor(settings) {
     super();
     this.settings = settings;
     this.lastPreview = 0;
-    this.modal = document.getElementById("sound-modal");
     this.root = document.getElementById("sound-sheet");
     this.importInput = document.getElementById("sound-import-input");
     this.revertButton = document.getElementById("sound-revert");
     this.revertButton.addEventListener("click", () => this.settings.revert());
-    document.getElementById("sound-done").addEventListener("click", () => this.modal.dismiss());
     this.u64Status = "checking";
     this.pingTimer = 0;
     this.isOpen = false;
-    this.modal.addEventListener("didPresent", () => {
-      this.isOpen = true;
-      this.startPinging();
-    });
-    this.modal.addEventListener("willDismiss", () => {
-      this.isOpen = false;
-      clearInterval(this.pingTimer);
-    });
-    this.modal.addEventListener("willPresent", () => {
-      this.render();
-      this.dispatchEvent(new CustomEvent("adjusting", { detail: true }));
-    });
-    this.modal.addEventListener("didDismiss", () => this.dispatchEvent(new CustomEvent("adjusting", { detail: false })));
     let host = settings.u64Host, engine = settings.engine;
     settings.addEventListener("change", () => {
       const moved = host !== settings.u64Host || engine !== settings.engine;
@@ -70,7 +55,18 @@ export class SoundSheet extends EventTarget {
   }
 
   open() {
-    this.modal.present();
+    if (this.isOpen) return;
+    this.isOpen = true;
+    this.render();
+    this.dispatchEvent(new CustomEvent("adjusting", { detail: true }));
+    this.startPinging();
+  }
+
+  close() {
+    if (!this.isOpen) return;
+    this.isOpen = false;
+    clearInterval(this.pingTimer);
+    this.dispatchEvent(new CustomEvent("adjusting", { detail: false }));
   }
 
   presetRow(p, off) {
@@ -132,7 +128,7 @@ export class SoundSheet extends EventTarget {
       ${engine === "u64" ? `<p class="sound-note">${U64_NOTE}</p>` : ""}`;
   }
 
-  // Check the Ultimate now and every few seconds while the sheet is open.
+  // Check the Ultimate now and every few seconds while the page is open.
   startPinging() {
     clearInterval(this.pingTimer);
     if (this.settings.engine !== "u64") return;
@@ -175,7 +171,7 @@ export class SoundSheet extends EventTarget {
       <ion-list inset>
         <ion-item lines="none"><ion-toggle id="sound-prerender" ${this.settings.prerender ? "checked" : ""}>Pre-render tunes</ion-toggle></ion-item>
       </ion-list>
-      <p class="sound-note">Renders the whole tune ahead for instant seeking and scrubbing. Paused while this sheet is open. Turn off to save memory and battery.</p>
+      <p class="sound-note">Renders the whole tune ahead for instant seeking and scrubbing. Paused while Sound settings are open. Turn off to save memory and battery.</p>
 
       <ion-list inset>
         ${mine.length ? `<ion-item button detail="false" id="sound-export">
