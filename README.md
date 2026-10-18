@@ -372,7 +372,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 
 - Rendering on older phones may only be a few times faster than realtime, so the first seconds after a far forward seek can buffer.
 - Tunes longer than ~10 minutes keep a sliding window of audio. Seeking far back re-renders from that point.
-- No C64 ROMs are shipped. libsidplayfp's built-in fallbacks play most RSID tunes, but some BASIC-driven tunes may be silent.
+- No C64 ROMs are shipped. Add your own under **Settings → C64 ROMs**, using **Choose file** or **Load from URL** for each ROM: BASIC and KERNAL (8,192 bytes each), and Character ROM (4,096 bytes). BASIC tunes need BASIC and KERNAL; some tunes also need the Character ROM. ROMs are saved in this browser for offline use, outside cloud sync and exports. URL sources must allow cross-origin browser downloads. Changing ROMs restarts the current local tune.
 - On iOS, the audio unlocks only after the first tap. Before Safari 17, the mute switch silences Web Audio.
 - Playback uses the CI-maintained Firebase mirror, with the official HVSC download URL and a local copy as fallbacks. If neither remote source is available, use a local HVSC copy (see above).
 - Needs a browser with WebAssembly exception handling (Safari 18+, recent Chrome/Firefox).
@@ -381,7 +381,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 ## Acknowledgements
 
 - [HVSC](https://www.hvsc.c64.org/) and its team, for the collection and `Songlengths.md5`.
-- [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and reSIDfp, and [libsidplayfp-wasm](https://github.com/chrisgleissner/libsidplayfp-wasm) for the WebAssembly build ([corresponding source](https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/complete-source.tar.gz)).
+- [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and reSIDfp, and [libsidplayfp-wasm](https://github.com/chrisgleissner/libsidplayfp-wasm) for the WebAssembly build ([corresponding source](https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.1.0/dist/complete-source.tar.gz)).
 - [DeepSID](https://github.com/Chordian/deepsid) by Chordian, for showing how it's done.
 - [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [DiceBear](https://www.dicebear.com/), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
 

@@ -18,7 +18,7 @@
 // Messages: worklet-port, load {role, engine, token, gen, parkable, freshCacheGen, ...}, sound {token, sound},
 // park {token, parkable, freshCacheGen}, peaks {token, peaks}, stop.
 
-import loadLibsidplayfp, { SidAudioEngine } from "https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.0.1/dist/index.js";
+import loadLibsidplayfp, { SidAudioEngine } from "https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.1.0/dist/index.js";
 import { filterFor } from "../sound-profile.js";
 
 const ROLES = {
@@ -96,9 +96,14 @@ async function render(j) {
   const role = ROLES[j.role];
   const engine = new SidAudioEngine({ module, sampleRate: j.sampleRate, stereo: j.channels === 2 });
   j.engine = engine;
+  const roms = j.roms || {};
+  await engine.setSystemROMs(roms.kernal?.bytes, roms.basic?.bytes, roms.chargen?.bytes);
+  if (j.cancelled) return;
   await engine.loadSidBuffer(new Uint8Array(j.bytes), j.song);
   if (j.sound) await applySound(engine, j.sound);
   if (j.cancelled) return;
+  const romStatus = engine.getRomStatus();
+  if (romStatus.requested && !romStatus.active) throw new Error("Could not use the saved C64 ROMs. Check Settings → C64 ROMs.");
 
   const framesPerBucket = Math.round(j.sampleRate / PEAK_BUCKETS_PER_SECOND);
   let frame = j.startFrame;               // next frame to send

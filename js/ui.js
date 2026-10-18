@@ -68,8 +68,8 @@ export function actionSheet(header, buttons, { subHeader } = {}) {
   return present("ion-action-sheet", { header, subHeader, buttons: [...started, { text: "Cancel", role: "cancel" }] });
 }
 
-export function toast(message, { color, duration = 2200 } = {}) {
-  return present("ion-toast", { message, duration, color, position: "top" });
+export function toast(message, { color, duration = 2200, buttons } = {}) {
+  return present("ion-toast", { message, duration, color, buttons, position: "top" });
 }
 
 // Resolves with the entered text, or null when cancelled.

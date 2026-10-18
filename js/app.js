@@ -8,6 +8,8 @@ import { decodeShare, encodeShare, nameFromFileName, parseM3U8, safeFileName, to
 import { PlaylistStore } from "./playlists.js";
 import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
+import { RomStore } from "./roms.js";
+import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
@@ -59,6 +61,9 @@ const sound = new SoundSettings();
 const player = new Player({
   sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender, engine: sound.engine, u64Host: sound.u64Host,
 });
+const romStore = new RomStore();
+player.romsReady = romStore.load().then((entries) => { player.roms = entries; }).catch(() => {});
+const romSheet = new RomSheet(romStore, (entries) => player.setRoms(entries));
 connectMediaSession(player);
 const soundSheet = new SoundSheet(sound);
 // Hand the engine a new setup only when it really changes.
@@ -706,6 +711,13 @@ function renderBrowse(dir) {
 }
 
 function renderSettingsPage(page) {
+  if (page === "roms") {
+    setChrome({ title: "C64 ROMs", tab: "settings", back: "#/settings" });
+    dom.infinite.disabled = true;
+    dom.view.hidden = true;
+    romSheet.open();
+    return;
+  }
   if (page !== "sound" && (page !== "sync" || !syncSheet)) return renderSettings();
   setChrome({ title: page === "sound" ? "Sound" : "Playlist cloud sync", tab: "settings", back: "#/settings" });
   dom.infinite.disabled = true;
@@ -728,9 +740,13 @@ function renderSettings() {
       <ion-icon slot="start" name="${syncIcon()}"></ion-icon>
       <ion-label>Playlist cloud sync</ion-label>
     </ion-item>` : ""}
-    <ion-item button detail="true" id="sound-open" href="#/settings/sound" lines="none">
+    <ion-item button detail="true" id="sound-open" href="#/settings/sound" lines="full">
       <ion-icon slot="start" name="options-outline"></ion-icon>
       <ion-label>Sound</ion-label>
+    </ion-item>
+    <ion-item button detail="true" href="#/settings/roms" lines="none">
+      <ion-icon slot="start" name="hardware-chip-outline"></ion-icon>
+      <ion-label>C64 ROMs</ion-label>
     </ion-item>
   </ion-list></div>`;
 }
@@ -1379,6 +1395,7 @@ function render() {
   if (name !== "settings" || arg !== "sound") soundSheet.close();
   dom.view.hidden = false;
   soundSheet.root.hidden = true;
+  romSheet.root.hidden = true;
   if (syncSheet) syncSheet.root.hidden = true;
   switch (name) {
     case "browse": return renderBrowse(arg);
@@ -1674,6 +1691,15 @@ player.addEventListener("time", ({ detail: { position, duration } }) => {
   }
 });
 player.addEventListener("track", ({ detail: { item } }) => {
+  const token = player.token;
+  player.romsReady.then(() => {
+    if (token !== player.token || player.u64 || !sidFeatures(item, item.song)?.basic) return;
+    if (player.roms?.basic && player.roms?.kernal) return;
+    toast("This BASIC tune needs C64 ROMs.", {
+      duration: 6000,
+      buttons: [{ text: "Add C64 ROMs", handler: () => go("#/settings/roms") }],
+    });
+  });
   // Curators see others' edits at once; everyone else reads the deployed index,
   // so playing tunes still doesn't talk to Firestore.
   if (tags.canTag) tags.refresh(item).catch((err) => console.error("tags:", err));

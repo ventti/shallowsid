@@ -216,7 +216,7 @@ export class Player extends EventTarget {
     this.emit("queue", { queue: this.queue, index });
     this.emitTime();
     try {
-      const [bytes] = await Promise.all([this.fetchSid(item), audioReady]);
+      const [bytes] = await Promise.all([this.fetchSid(item), audioReady, this.romsReady]);
       if (token !== this.token) return;
       this.bytes = bytes;
       if (this.u64) return await this.playRemote();
@@ -260,7 +260,7 @@ export class Player extends EventTarget {
     worker.postMessage({
       type: "load", role, token: this.token, gen: ++this.gen, bytes: copy, song: this.current.song - 1,
       engine: this.engine, sampleRate, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
-      sound: this.sound, peaks, parkable: role === "live" && this.livePark, freshCacheGen: this.freshCacheGen,
+      roms: this.roms, sound: this.sound, peaks, parkable: role === "live" && this.livePark, freshCacheGen: this.freshCacheGen,
     }, [copy]);
   }
 
@@ -285,6 +285,29 @@ export class Player extends EventTarget {
   stopCache() {
     this.speedRun = null;
     this.cacheWorker?.postMessage({ type: "stop" });
+  }
+
+  // A ROM change starts fresh: neither worker nor the worklet may keep old audio.
+  setRoms(roms) {
+    this.roms = roms;
+    if (!this.node || !this.current || !this.bytes || this.u64) return;
+    const playing = this.state !== "paused" && this.state !== "idle";
+    this.token++;
+    this.liveWorker.postMessage({ type: "stop" });
+    this.stopCache();
+    this.position = this.buffered = this.bufferedFrom = 0;
+    this.cacheBase = this.cacheEnd = this.liveEnd = 0;
+    this.freshCacheGen = Infinity;
+    this.resetPeaks();
+    this.node.port.postMessage({
+      type: "reset", token: this.token, channels: this.channels(), startFrame: 0,
+      stopFrame: Math.round(this.duration * this.ctx.sampleRate),
+    });
+    this.startLive(0);
+    this.cacheDirty = this.prerender;
+    if (this.prerender && !this.adjusting) this.startCache(0);
+    this.node.port.postMessage({ type: playing ? "play" : "pause" });
+    this.emitTime();
   }
 
   // Apply a new chip/filter setup. The live engine picks it up immediately; the
