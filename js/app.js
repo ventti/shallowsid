@@ -1661,6 +1661,7 @@ player.addEventListener("error", ({ detail }) => {
 window.addEventListener("hashchange", render);
 
 document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.target.closest?.("input, textarea, ion-searchbar, ion-input, ion-alert")) return;
   if (e.code === "Space") { e.preventDefault(); player.toggle(); }
   else if (e.key === "ArrowRight" && e.shiftKey) player.next();
