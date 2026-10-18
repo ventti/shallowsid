@@ -20,7 +20,7 @@ import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-cor
 import { SyncSheet } from "./sync-sheet.js";
 import { TagService } from "./tags.js";
 import { TagSheet } from "./tag-sheet.js";
-import { WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
+import { definitionId, WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
 import { playlistArtStyle } from "./artwork.js";
 import { composerName } from "./composer-colors.js";
 import { paintAvatars } from "./avatars.js";
@@ -1105,7 +1105,7 @@ async function renderCuration(arg) {
     </section>`);
   }
   if (tags.isAdmin) {
-    sections.push(`<h2 class="section-title">Curators</h2>
+    sections.push(`<div class="playlist-head"><ion-button id="manage-tags">Manage Tags</ion-button></div><section id="tag-management" hidden></section><h2 class="section-title">Curators</h2>
       <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
       <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
   }
@@ -1118,8 +1118,43 @@ async function renderCuration(arg) {
     tags.leave();
     render();
   });
+  $("manage-tags")?.addEventListener("click", () => manageTags(stale));
   $("new-invite")?.addEventListener("click", newInvite);
   if (tags.isAdmin) fillCurators(stale);
+}
+
+async function manageTags(stale, refresh = false) {
+  const panel = $("tag-management");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  try {
+    const definitions = await tags.definitions(refresh);
+    if (stale()) return;
+    panel.innerHTML = `<h2 class="section-title">Manage Tags</h2>
+      <div class="playlist-head"><ion-button id="refresh-tag-definitions" fill="outline">Refresh</ion-button></div>
+      <form id="add-tag-form" class="composer-head tag-definition-form">
+        <label>Name <input name="label" required maxlength="80"></label>
+        <label>Tag ID <input name="id" readonly></label>
+        <label>Category <select name="group">${["Style", "Mood", "Use", "Sound"].map(g => `<option>${g}</option>`).join("")}</select></label>
+        <label>Description <textarea name="description" required maxlength="500"></textarea></label>
+        <button type="submit">Add Tag</button><p id="add-tag-error" role="alert"></p>
+      </form>
+      <ion-list>${definitions.slice().sort((a,b) => a.label.localeCompare(b.label)).map(d => `<ion-item><ion-label><h3>${esc(d.label)} · ${esc(d.group)}</h3><p>${esc(d.description)}</p><p>${tags.vocab.byId.has(d.id) ? "Published" : "Pending"} · ${esc(d.id)}</p></ion-label></ion-item>`).join("")}</ion-list>`;
+    $("refresh-tag-definitions").onclick = () => manageTags(stale, true);
+    $("add-tag-form").elements.label.oninput = event => { $("add-tag-form").elements.id.value = definitionId(event.target.value); };
+    $("add-tag-form").onsubmit = async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        await tags.addDefinition(form.elements.label.value, form.elements.group.value, form.elements.description.value);
+        if (!stale()) await manageTags(stale);
+      } catch (err) { if (!stale()) $("add-tag-error").textContent = err.message; }
+      finally { button.disabled = false; }
+    };
+  } catch (err) { if (!stale()) panel.innerHTML = `<p role="alert">${esc(err.message)}</p><ion-button id="retry-tag-definitions">Refresh</ion-button>`; $("retry-tag-definitions")?.addEventListener("click", () => manageTags(stale, true)); }
 }
 
 async function inviteCard(secret) {

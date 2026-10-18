@@ -388,3 +388,37 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 ## License
 
 GPL-2.0-or-later, because the player engine is. See [LICENSE](LICENSE).
+
+### Adding tag names
+
+Admins can open **Admin → Manage Tags** and add a name, category and description.
+The ID comes from the name and cannot change. Existing and retired IDs cannot be
+reused. A new tag stays **Pending** until it has been published in
+`js/tags-vocab.json`; it cannot be assigned to tunes before then.
+
+Definitions live in the immutable `tagDefinitions` Firestore collection. Only an
+active admin's proof-chain batch can create them. The collection is publicly
+readable (like tune tags); it contains no credentials or private notes. The app
+fetches it only when an admin opens management, once per session, or selects
+**Refresh**. Everyone else continues using the static vocabulary only.
+
+The **Publish tag definitions** workflow runs nightly and can be run manually.
+It reads the definitions collection once (paginated), validates additions and
+updates one `automation/tag-vocabulary` PR. It waits for vocabulary safety and
+the Firebase unit/emulator checks before merging. The normal main deployment
+then publishes generated rules before the site. Empty exports make no change.
+
+Repository setup:
+
+- Keep the existing `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`
+  variables; their read access must include `tagDefinitions`. No database write
+  permission is needed for the exporter.
+- Add `GH_PAT_PR_READWRITE`, a fine-grained GitHub token scoped to this repository
+  with Contents and Pull requests read/write. It must belong to a user allowed
+  to create PRs and squash-merge them under the repository's branch rules.
+  A dedicated token is necessary so PR checks and the merged main deployment
+  run; `GITHUB_TOKEN` suppresses those events.
+- Allow squash merging in repository settings. Keep branch protection checks
+  enabled where configured; this workflow does not bypass them.
+
+Run exporter tests with `python3 -m unittest discover -s tests -p test_tag_vocab.py`.

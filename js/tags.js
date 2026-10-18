@@ -13,7 +13,7 @@
 import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import {
-  WHOLE_TUNE, chainStep, claimWrites, cleanBpm, cleanTags, curatorId, decodeCurator, decodeInvite, decodeBpmIndex, decodeTagDoc, decodeTagIndex,
+  definitionId, definitionWrite, fieldString, validDefinition, WHOLE_TUNE, chainStep, claimWrites, cleanBpm, cleanTags, curatorId, decodeCurator, decodeInvite, decodeBpmIndex, decodeTagDoc, decodeTagIndex,
   inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, expireInviteWrite, str, tagDocId, tagKey, tagWrite,
 } from "./tags-core.js";
 
@@ -156,6 +156,41 @@ export class TagService extends EventTarget {
     }
     this.dispatchEvent(new Event("change"));
     return this.curator;
+  }
+
+  // Definitions are fetched only when an admin opens management, then cached.
+  async definitions(refresh = false) {
+    if (!this.isAdmin) throw new Error("Only admins can manage tags");
+    if (this.definitionCache && !refresh) return this.definitionCache;
+    if (this.definitionLoading) return this.definitionLoading;
+    this.definitionLoading = (async () => {
+      const rows = [];
+      let pageToken = "";
+      do {
+        const url = this.url("/tagDefinitions") + "&pageSize=300" + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+        const res = await firestoreFetch(this.config, url);
+        if (!res.ok) throw new Error(await errorText(res));
+        const data = await res.json();
+        for (const doc of data.documents ?? []) {
+          const d = { id: doc.name.split("/").pop(), label: fieldString(doc.fields?.label), group: fieldString(doc.fields?.group), description: fieldString(doc.fields?.description) };
+          if (validDefinition(d)) rows.push(d);
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+      return this.definitionCache = rows;
+    })();
+    try { return await this.definitionLoading; } finally { this.definitionLoading = null; }
+  }
+
+  async addDefinition(label, group, description) {
+    if (!this.isAdmin) throw new Error("Only admins can manage tags");
+    const d = { id: definitionId(label), label: label.trim(), group, description: description.trim() };
+    if (!validDefinition(d)) throw new Error("Enter a name, category and description");
+    const definitions = await this.definitions();
+    if (this.vocab.byId.has(d.id) || this.vocab.retired.has(d.id) || definitions.some(t => t.id === d.id)) throw new Error("This tag ID already exists");
+    await this.step(async () => [definitionWrite(this.name, this.cid, d)]);
+    this.definitionCache.push(d);
+    return d;
   }
 
   // ---- invites -------------------------------------------------------------------

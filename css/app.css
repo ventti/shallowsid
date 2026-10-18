@@ -1142,3 +1142,17 @@ ion-tab-button[hidden] {
 .u64-status[data-status="down"] {
   color: var(--ion-color-danger);
 }
+
+.tag-definition-form { display: grid; gap: 12px; text-align: left; }
+.tag-definition-form label { display: grid; gap: 5px; }
+.tag-definition-form input, .tag-definition-form select, .tag-definition-form textarea {
+  width: 100%; padding: 10px; color: inherit; background: var(--ion-item-background, transparent);
+  border: 1px solid var(--ion-color-medium); border-radius: 6px; font: inherit;
+}
+.tag-definition-form textarea { min-height: 80px; resize: vertical; }
+.tag-definition-form button {
+  justify-self: start; padding: 10px 18px; border: 0; border-radius: 6px;
+  color: var(--ion-color-primary-contrast); background: var(--ion-color-primary); font: inherit; cursor: pointer;
+}
+.tag-definition-form button:disabled { opacity: .5; cursor: default; }
+.tag-definition-form [role="alert"]:empty { display: none; }

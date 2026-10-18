@@ -187,6 +187,22 @@ service cloud.firestore {
         && adminStepped(request.resource.data.cancelledBy);
     }
 
+    // Immutable additions; publication into the static vocabulary is separate.
+    match /tagDefinitions/{id} {
+      allow get, list: if true;
+      allow update, delete: if false;
+      allow create: if id.matches('^[a-z0-9-]{1,24}$') && !(id in tagIds())
+        && request.resource.data.keys().hasAll(['label', 'group', 'description', 'by', 'at'])
+        && request.resource.data.keys().hasOnly(['label', 'group', 'description', 'by', 'at'])
+        && request.resource.data.label is string && request.resource.data.label.size() >= 1 && request.resource.data.label.size() <= 80
+        && request.resource.data.label.matches('^[^ \\t\\n\\r]([\\s\\S]*[^ \\t\\n\\r])?$')
+        && request.resource.data.group in ['Style', 'Mood', 'Use', 'Sound']
+        && request.resource.data.description is string && request.resource.data.description.size() >= 1 && request.resource.data.description.size() <= 500
+        && request.resource.data.description.matches('^[^ \\t\\n\\r]([\\s\\S]*[^ \\t\\n\\r])?$')
+        && request.resource.data.at == request.time
+        && adminStepped(request.resource.data.by);
+    }
+
     // tags/<sha256("path#s")>: s = 0 is the whole tune, s >= 1 a subtune.
     // b, if there, is the tempo in whole BPM (js/tags-core.js MIN_BPM..MAX_BPM),
     // or 0 for "no tempo", which hides the estimate.

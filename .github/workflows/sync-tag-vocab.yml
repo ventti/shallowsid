@@ -1,0 +1,67 @@
+name: Publish tag definitions
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '13 4 * * *'
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: tag-vocabulary-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # A dedicated fine-grained token triggers PR checks and the merged main
+      # deployment. GITHUB_TOKEN would suppress those workflow events.
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.GH_PAT_PR_READWRITE }}
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      - name: Check configuration
+        env:
+          TOKEN: ${{ secrets.GH_PAT_PR_READWRITE }}
+        run: test -n "$TOKEN"
+      - uses: google-github-actions/auth@v3
+        id: gcp
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+      - name: Read definitions and update vocabulary
+        run: python3 tools/sync_tag_vocab.py
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+      - name: Create or update sync PR
+        uses: peter-evans/create-pull-request@v8
+        id: pr
+        with:
+          token: ${{ secrets.GH_PAT_PR_READWRITE }}
+          branch: automation/tag-vocabulary
+          add-paths: js/tags-vocab.json
+          commit-message: Add approved tag definitions
+          title: Add approved tag definitions
+          body: Adds immutable admin tag definitions to the published vocabulary. Automated checks verify additions only and test the generated Firestore rules before merging.
+          delete-branch: true
+      - name: Wait for checks and merge
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_PR_READWRITE }}
+          PR: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          # Explicitly wait for both required checks: auto-merge alone can merge
+          # immediately in repositories without branch protection.
+          for _ in $(seq 1 90); do
+            sha=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
+            state=$(gh pr view "$PR" --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.name == "check" or .name == "safety") | select(.status == "COMPLETED" and .conclusion == "SUCCESS")] | length')
+            if [ "$state" = 2 ]; then
+              gh pr merge "$PR" --squash --match-head-commit "$sha" --delete-branch
+              exit 0
+            fi
+            sleep 20
+          done
+          echo 'Checks did not pass; leaving the PR open.'
+          exit 1

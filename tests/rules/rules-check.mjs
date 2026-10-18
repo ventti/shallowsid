@@ -83,5 +83,28 @@ await expect("anyone reads tags", svc("r").refresh({ path: TUNE, song: 1, songs:
 // The whole tune, subtune 2 and subtune 3 (its BPM of 0).
 await expect("admin lists a curator's edits", admin.editsBy(cur.cid).then((e) => assert.equal(e.length, 3)), true);
 await expect("an admin can't be turned off in the app", (async () => { await invite("admin", "9".repeat(32), DAY); const admin2 = svc("a2"); await admin2.init(); await admin2.claim("9".repeat(32)); return rawCommit([await core.chainStep(name, admin2.state, await curDoc(admin2)), core.activeWrite(name, admin2.cid, admin.cid, false)]); })(), false);
+// Definition writes need an active admin and a fresh chain step.
+const definition = { id: "new-wave-test", label: "New Wave Test", group: "Style", description: "Bright synth melodies." };
+const writeDefinition = (service, d = definition) => core.definitionWrite(name, service.cid, d);
+await expect("admin creates definition", admin.addDefinition(definition.label, definition.group, definition.description), true);
+await expect("definition stays pending", Promise.resolve().then(() => assert.equal(admin.vocab.byId.has(definition.id), false)), true);
+await expect("duplicate definition refused", admin.addDefinition(definition.label, definition.group, definition.description), false);
+await expect("existing static ID refused", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), writeDefinition(admin, { ...definition, id: "acid" })]))(), false);
+await expect("definition without chain refused", rawCommit([writeDefinition(admin, { ...definition, id: "no-proof" })]), false);
+await expect("inactive curator definition refused", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), writeDefinition(cur, { ...definition, id: "curator-test" })]))(), false);
+await expect("admin reactivates curator for definition test", admin.setActive(cur.cid, true), true);
+await expect("active curator definition refused", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), writeDefinition(cur, { ...definition, id: "curator-test" })]))(), false);
+for (const [field, value] of [["group", "Other"], ["description", ""], ["description", " "], ["label", " "]]) {
+  await expect("invalid definition " + field + JSON.stringify(value), (async () => {
+    const w = writeDefinition(admin, { ...definition, id: "invalid-test" });
+    w.update.fields[field] = core.str(value);
+    return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]);
+  })(), false);
+}
+await expect("definition immutable", (async () => {
+  const w = writeDefinition(admin); delete w.currentDocument;
+  return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]);
+})(), false);
+await expect("pending ID cannot tag tunes", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), await core.tagWrite(name, admin.cid, TUNE, 0, [definition.id])]))(), false);
 for (const [l, r] of results) console.log((r.startsWith("PASS") ? "ok   " : "FAIL ") + l + " -> " + r);
 process.exit(results.some(([, r]) => !r.startsWith("PASS")) ? 1 : 0);

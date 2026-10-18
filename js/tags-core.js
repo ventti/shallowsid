@@ -46,7 +46,7 @@ export function parseVocab(data) {
     }
     if (tags.length) groups.push({ name: String(group.name ?? ""), tags });
   }
-  return { groups, byId };
+  return { groups, byId, retired: new Set(data?.retired ?? []) };
 }
 
 // Known ids only, each once, in vocabulary order, at most MAX_TAGS.
@@ -247,4 +247,20 @@ export function parseInviteLink(text) {
   if (isInviteSecret(input)) return input;
   const match = input.match(/#\/?curate\/([0-9a-f]{32})$/);
   return match ? match[1] : null;
+}
+
+
+export const TAG_GROUPS = ["Style", "Mood", "Use", "Sound"];
+export function definitionId(label) {
+  return String(label).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24).replace(/-$/, "");
+}
+export function validDefinition(d) {
+  return TAG_ID.test(d?.id ?? "") && TAG_GROUPS.includes(d.group)
+    && typeof d.label === "string" && d.label.length >= 1 && d.label.length <= 80 && d.label.trim() === d.label
+    && typeof d.description === "string" && d.description.length >= 1 && d.description.length <= 500 && d.description.trim() === d.description;
+}
+export function definitionWrite(name, cid, d) {
+  if (!validDefinition(d)) throw new Error("Enter a name, category and description");
+  return { update: { name: name("tagDefinitions", d.id), fields: { label: str(d.label), group: str(d.group), description: str(d.description), by: str(cid) } },
+    currentDocument: { exists: false }, updateTransforms: [{ fieldPath: "at", setToServerValue: "REQUEST_TIME" }] };
 }
