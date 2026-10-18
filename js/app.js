@@ -1649,7 +1649,15 @@ player.addEventListener("track", ({ detail: { item } }) => {
   store.addRecent(item);
   refreshRowMarks();
 });
-player.addEventListener("error", ({ detail }) => toast(detail.message, { color: "danger" }));
+player.addEventListener("error", ({ detail }) => {
+  if (/memory access out of bounds/i.test(detail.message)) {
+    console.error("Playback engine failed:", detail.message);
+    const action = install.installed ? "restart the app" : "reload the page";
+    toast(`Oops! Something went wrong. Please ${action}.`, { color: "danger", duration: 6000 });
+  } else {
+    toast(detail.message, { color: "danger" });
+  }
+});
 window.addEventListener("hashchange", render);
 
 document.addEventListener("keydown", (e) => {
