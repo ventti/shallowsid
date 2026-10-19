@@ -1,0 +1,26 @@
+# Start GitHub Actions workflows by hand. They run on main unless you pass
+# --ref <branch>; extra arguments go to `gh workflow run`.
+
+[tasks."ci:pages"]
+description = "Build and deploy the site to GitHub Pages (also exports the latest tune tags)"
+run = "gh workflow run pages.yml"
+
+[tasks."ci:tag-vocab"]
+description = "Publish pending admin tag definitions into js/tags-vocab.json"
+run = "gh workflow run sync-tag-vocab.yml"
+
+[tasks."ci:rules-check"]
+description = "Check the Firebase rules and show the diff, without releasing"
+run = "gh workflow run deploy-firebase.yaml -f dry_run=true"
+
+[tasks."ci:rules-deploy"]
+description = "Check and release the Firebase rules"
+run = "gh workflow run deploy-firebase.yaml -f dry_run=false"
+
+[tasks."ci:hvsc"]
+description = "Fetch HVSC and deploy it to Firebase Hosting"
+run = "gh workflow run deploy-hvsc.yml"
+
+[tasks."ci:watch"]
+description = "Watch the latest workflow run"
+run = "gh run watch"
