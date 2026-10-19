@@ -60,14 +60,19 @@ export class RomSheet {
   }
 
   render(error = "") {
-    this.root.innerHTML = `<p class="sound-note">Saved in this browser only. BASIC tunes need BASIC and KERNAL ROMs. Changing ROMs restarts the current tune.</p>
-      <ion-list inset>${Object.entries(ROM_TYPES).map(([type, spec]) => `<ion-item>
-        <ion-label><h2>${spec.label}</h2><p>${esc(this.entries[type]?.name || "Not added")} · ${spec.size / 1024} KB</p>
-          <ion-button fill="clear" size="small" data-rom-action="file" data-type="${type}" ${this.busy ? "disabled" : ""}>Choose file</ion-button>
-          <ion-button fill="clear" size="small" data-rom-action="url" data-type="${type}" ${this.busy ? "disabled" : ""}>Load from URL</ion-button>
-          ${this.entries[type] ? `<ion-button fill="clear" size="small" color="danger" data-rom-action="remove" data-type="${type}" ${this.busy ? "disabled" : ""}>Remove</ion-button>` : ""}
-        </ion-label></ion-item>`).join("")}</ion-list>
+    const off = this.busy ? " disabled" : "";
+    this.root.innerHTML = `${Object.entries(ROM_TYPES).map(([type, spec]) => `
+      <h3 class="sound-section">${spec.label}</h3>
+      <ion-list inset>
+        <ion-item lines="none">
+          <ion-label><h3>${esc(this.entries[type]?.name || "Not added")}</h3><p>${spec.size / 1024} KB</p></ion-label>
+          <ion-button slot="end" fill="clear" data-rom-action="file" data-type="${type}" aria-label="Browse for ${spec.label}"${off}><ion-icon slot="icon-only" name="folder-open-outline"></ion-icon></ion-button>
+          <ion-button slot="end" fill="clear" data-rom-action="url" data-type="${type}" aria-label="${spec.label} from URL"${off}><ion-icon slot="icon-only" name="link-outline"></ion-icon></ion-button>
+          ${this.entries[type] ? `<ion-button slot="end" fill="clear" color="danger" data-rom-action="remove" data-type="${type}" aria-label="Remove ${spec.label}"${off}><ion-icon slot="icon-only" name="trash-outline"></ion-icon></ion-button>` : ""}
+        </ion-item>
+      </ion-list>`).join("")}
       ${error ? `<p class="sound-note" role="alert">${esc(error)}</p>` : ""}
+      <p class="sound-note">ShallowSID does not supply ROMs and does not encourage the use of copyrighted material. ShallowSID takes no responsibility for material added by the user. ROMs are stored in this browser only. Provide only ROMs you have the right to use.</p>
       <input type="file" hidden>`;
   }
 }
