@@ -70,6 +70,8 @@ test('catalog lists published and pending tags; edits stay pending until publish
   assert.deepEqual([by.funk.published, by.funk.pending], [true, false]);
   assert.deepEqual([by.new.published, by.new.pending], [false, true]);
   assert.equal(tagCatalog(vocab, []).every(t => !t.pending), true);
+  const sorted = tagCatalog(vocab, [{ id: 'aaa', label: 'Aaa', group: 'Sound', description: '' }, { id: 'zzz', label: 'Zzz', group: 'Style', description: '' }]);
+  assert.deepEqual(sorted.map(t => t.id), ['acid', 'funk', 'zzz', 'aaa']);
 });
 
 test('admin edits published and pending tags', async () => {

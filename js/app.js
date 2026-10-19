@@ -1199,12 +1199,18 @@ async function manageTags(stale, refresh = true) {
         <label>Description <textarea name="description" maxlength="500" placeholder="Optional"></textarea></label>
         <button type="submit">Add Tag</button><button type="button" id="cancel-tag-edit" hidden>Cancel</button><p id="add-tag-error" role="alert"></p>
       </form>
-      <p class="composer-meta">${rows.length} tags, ${rows.filter(t => t.pending).length} pending</p>
-      <ion-list id="tag-definition-list">${rows.map(t => `<ion-item><ion-label><h3>${esc(t.label)} (${esc(t.group)})</h3><p>${esc(t.description)}</p><p>${status(t)}: ${esc(t.id)}${author(t)}</p></ion-label><ion-button slot="end" fill="clear" data-edit-tag="${esc(t.id)}">Edit</ion-button></ion-item>`).join("")}</ion-list>`;
+      <p class="composer-meta">${rows.length} tags, ${rows.filter(t => t.pending).length} pending (dashed). Tap a tag to edit it.</p>
+      <div id="tag-definition-list">${TAG_GROUPS.map(g => [g, rows.filter(t => t.group === g)]).filter(([, list]) => list.length).map(([g, list]) => `
+        <h3 class="sound-section">${esc(g)}</h3>
+        <div class="chips tag-chips">${list.map(t => `<ion-chip data-edit-tag="${esc(t.id)}" class="tag-toggle${t.pending ? " is-pending" : ""}"
+            title="${esc([t.description, `${status(t)}: ${t.id}${author(t)}`].filter(Boolean).join("\n"))}">
+          ${t.pending ? `<ion-icon name="time-outline" aria-label="${status(t)}"></ion-icon>` : ""}<ion-label>${esc(t.label)}</ion-label>
+        </ion-chip>`).join("")}</div>`).join("")}</div>`;
     const form = $("add-tag-form");
     let editing = null;
     const setMode = (tag) => {
       editing = tag?.id ?? null;
+      for (const chip of panel.querySelectorAll("[data-edit-tag]")) chip.classList.toggle("is-on", chip.dataset.editTag === editing);
       $("tag-form-title").textContent = tag ? "Edit Tag" : "Add Tag";
       form.querySelector("button[type=submit]").textContent = tag ? "Save Tag" : "Add Tag";
       $("cancel-tag-edit").hidden = !tag;

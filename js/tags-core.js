@@ -270,6 +270,7 @@ export function definitionWrite(name, cid, d, exists = false) {
 // Every tag for the admin list: published ones and database definitions.
 // A definition shows over its published tag, and stays pending until the
 // published vocabulary has the same name, category and description.
+// Sorted by category (TAG_GROUPS order), then by name.
 export function tagCatalog(vocab, definitions) {
   const rows = new Map();
   for (const t of vocab.byId.values()) rows.set(t.id, { ...t, published: true, pending: false });
@@ -278,5 +279,6 @@ export function tagCatalog(vocab, definitions) {
     const same = p && p.label === d.label && p.group === d.group && p.description === d.description;
     rows.set(d.id, { ...d, published: !!p, pending: !same });
   }
-  return [...rows.values()].sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+  const rank = (t) => TAG_GROUPS.indexOf(t.group);
+  return [...rows.values()].sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }

@@ -1036,6 +1036,11 @@ ion-tab-button[hidden] {
   border-color: var(--ion-color-primary);
 }
 
+.tag-toggle.is-pending {
+  border-style: dashed;
+  border-color: var(--ion-color-warning);
+}
+
 .tag-toggle.is-inherited {
   opacity: 0.55;
 }
