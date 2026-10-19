@@ -81,18 +81,16 @@ export class SoundSheet extends EventTarget {
     </ion-item>`;
   }
 
-  // One chip's presets and knobs. Grayed out while the other chip is forced;
-  // with SIDLite, which has no filter settings, the presets are too.
+  // One chip's reSIDfp presets and knobs. Grayed out while the other chip is forced.
   chipSection(chip) {
     const { builtin, mine } = this.settings.presetsFor(chip);
     const k = this.settings.knobs(chip);
-    const lite = this.settings.engine === "sidlite" ? " disabled" : "";
-    const off = lite || (this.settings.chip !== "auto" && this.settings.chip !== chip ? " disabled" : "");
+    const off = this.settings.chip !== "auto" && this.settings.chip !== chip ? " disabled" : "";
     return `
       <h3 class="sound-section">${chip} presets</h3>
       <ion-list inset>
-        ${[...builtin, ...mine].map((p) => this.presetRow(p, lite)).join("")}
-        <ion-item button detail="false" data-save-new="${chip}" lines="none"${lite}>
+        ${[...builtin, ...mine].map((p) => this.presetRow(p, "")).join("")}
+        <ion-item button detail="false" data-save-new="${chip}" lines="none">
           <ion-icon slot="start" name="add-circle-outline" color="primary"></ion-icon>
           <ion-label color="primary">Save as ${chip} Preset…</ion-label>
         </ion-item>
@@ -149,7 +147,8 @@ export class SoundSheet extends EventTarget {
   }
 
   render() {
-    this.revertButton.hidden = !this.settings.anyEdited;
+    const tunable = this.settings.engine === "residfp";
+    this.revertButton.hidden = !tunable || !this.settings.anyEdited;
     if (this.settings.engine === "u64") {     // the device has its own chips
       this.root.innerHTML = this.engineSection();
       return;
@@ -163,9 +162,9 @@ export class SoundSheet extends EventTarget {
         <ion-item><ion-label>Chip</ion-label>${segment("chip", this.settings.chip, [["auto", "Auto"], ["6581", "6581"], ["8580", "8580"]])}</ion-item>
         <ion-item lines="none"><ion-label>Machine</ion-label>${segment("machine", this.settings.machine, [["auto", "Auto"], ["PAL", "PAL"], ["NTSC", "NTSC"]])}</ion-item>
       </ion-list>
-      <p class="sound-note">Auto plays each tune on the chip and machine it was written for, using the preset selected for that chip.</p>
+      <p class="sound-note">Auto plays each tune on the chip and machine it was written for${tunable ? ", using the preset selected for that chip" : ""}.</p>
 
-      ${PRESET_CHIPS.map((chip) => this.chipSection(chip)).join("")}
+      ${tunable ? PRESET_CHIPS.map((chip) => this.chipSection(chip)).join("") : ""}
 
       <h3 class="sound-section">Playback</h3>
       <ion-list inset>
@@ -173,14 +172,14 @@ export class SoundSheet extends EventTarget {
       </ion-list>
       <p class="sound-note">Renders the whole tune ahead for instant seeking and scrubbing. Paused while Sound settings are open. Turn off to save memory and battery.</p>
 
-      <ion-list inset>
+      ${tunable ? `<ion-list inset>
         ${mine.length ? `<ion-item button detail="false" id="sound-export">
           <ion-icon slot="start" name="share-outline" color="primary"></ion-icon><ion-label>Export my presets…</ion-label>
         </ion-item>` : ""}
         <ion-item button detail="false" id="sound-import" lines="none">
           <ion-icon slot="start" name="cloud-upload-outline" color="primary"></ion-icon><ion-label>Import presets…</ion-label>
         </ion-item>
-      </ion-list>`;
+      </ion-list>` : ""}`;
   }
 
   bind() {

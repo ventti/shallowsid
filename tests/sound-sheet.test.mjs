@@ -49,3 +49,41 @@ test("Sound settings preview and reachability follow page visibility", (t) => {
   assert.deepEqual(adjusting, [true, false, true]);
   sheet.close();
 });
+
+test("engine changes hide irrelevant settings and preserve reSIDfp edits", () => {
+  const settings = {
+    engine: "residfp", chip: "auto", machine: "auto", prerender: true,
+    anyEdited: true, presets: [{ id: "mine" }],
+    presetsFor: () => ({ builtin: [], mine: [] }),
+    knobs: () => ({ filter6581Curve: 0.5, filter6581Range: 0.5, filter8580Curve: 0.5 }),
+  };
+  const sheet = Object.assign(Object.create(SoundSheet.prototype), {
+    settings, root: {}, revertButton: {},
+  });
+  sheet.render();
+  assert.match(sheet.root.innerHTML, /Combined waveforms/);
+  assert.match(sheet.root.innerHTML, /sound-import/);
+  assert.match(sheet.root.innerHTML, /sound-export/);
+  assert.equal(sheet.revertButton.hidden, false);
+
+  settings.engine = "sidlite";
+  sheet.render();
+  assert.doesNotMatch(sheet.root.innerHTML, /Combined waveforms|Filter curve|Filter range|Old capacitors|Digi boost|presets|Preset|sound-import|sound-export/);
+  for (const control of ['data-setting="engine"', 'data-setting="chip"', 'data-setting="machine"', 'id="sound-prerender"']) {
+    assert.ok(sheet.root.innerHTML.includes(control), control);
+  }
+  assert.equal(sheet.revertButton.hidden, true);
+
+  settings.engine = "u64";
+  sheet.render();
+  assert.match(sheet.root.innerHTML, /sound-u64-host/);
+  assert.doesNotMatch(sheet.root.innerHTML, /Combined waveforms|data-setting="chip"|sound-prerender/);
+  assert.equal(sheet.revertButton.hidden, true);
+
+  settings.engine = "residfp";
+  sheet.render();
+  assert.match(sheet.root.innerHTML, /Combined waveforms/);
+  assert.match(sheet.root.innerHTML, /sound-import/);
+  assert.equal(sheet.revertButton.hidden, false);
+  assert.equal(settings.anyEdited, true);
+});
