@@ -27,12 +27,30 @@ test("durations", () => {
 });
 
 test("a notice is checked as it's read", () => {
-  assert.deepEqual(notice, { id: "n", from: FROM, until: Date.parse("2026-11-01T00:00:00Z"), times: 3, every: 7 * DAY, canHide: false, title: "News", html: "<p>Hello\n{icon:library} there</p>" });
+  assert.deepEqual(notice, { id: "n", from: FROM, until: Date.parse("2026-11-01T00:00:00Z"), times: 3, every: 7 * DAY, canHide: false, newUsers: false, image: null, title: "News", html: "<p>Hello\n{icon:library} there</p>" });
   assert.equal(parseNotice({ ...raw, schedule: { ...raw.schedule, times: 1, every: undefined } }).every, 0);
   for (const schedule of [{ ...raw.schedule, from: "soon" }, { ...raw.schedule, until: raw.schedule.from }, { ...raw.schedule, times: 0 }, { ...raw.schedule, every: "0d" }]) {
     assert.throws(() => parseNotice({ ...raw, schedule }));
   }
   assert.throws(() => parseNotice({ ...raw, id: "" }));
+  assert.throws(() => parseNotice({ ...raw, image: "" }));
+});
+
+test("without until, a notice never expires", () => {
+  const { until, ...schedule } = raw.schedule;
+  const forever = parseNotice({ ...raw, schedule: { ...schedule, times: 1 } });
+  assert.equal(forever.until, Infinity);
+  assert.ok(isDue(forever, undefined, FROM + 9999 * DAY));
+  assert.ok(!isDue(forever, { used: 1 }, FROM + 9999 * DAY));   // once only
+  assert.throws(() => parseNotice({ ...raw, schedule: { ...raw.schedule, until: "never" } }));
+});
+
+test("a notice for new users is shown to them only", () => {
+  const welcome = parseNotice({ ...raw, id: "w", schedule: { ...raw.schedule, newUsers: true } });
+  const returning = new Notices({ notices: [welcome], storage: memoryStorage(), now: () => FROM });
+  assert.equal(returning.due(), null);
+  assert.equal(returning.upcoming(), null);
+  assert.equal(new Notices({ notices: [welcome], newUser: true, storage: memoryStorage(), now: () => FROM }).due(), welcome);
 });
 
 test("a broken notice is left out, not the rest", (t) => {
@@ -64,6 +82,14 @@ test("nothing before from, nothing from until on", () => {
   const short = parseNotice({ ...raw, schedule: { ...raw.schedule, until: "2026-10-10T00:00:00Z" } });
   assert.equal(nextShowing(short, { used: 1 }), FROM + 7 * DAY);
   assert.equal(nextShowing(short, { used: 2 }), null);   // day 14 is past until
+  assert.ok(!isDue(short, undefined, short.until));     // never seen: still nothing once until has passed
+  assert.ok(!isDue(short, { used: 1 }, short.until + DAY));
+});
+
+test("after until, nothing is due or upcoming, also for a new user", () => {
+  const notices = new Notices({ notices: [notice], storage: memoryStorage(), now: () => notice.until });
+  assert.equal(notices.due(), null);
+  assert.equal(notices.upcoming(), null);
 });
 
 test("showings missed while away are shown once, the next at its usual moment", () => {

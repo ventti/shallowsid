@@ -1080,6 +1080,14 @@ ion-tab-button[hidden] {
   overflow-y: auto;
 }
 
+/* The app icon over a welcome title; the icon has its own rounded corners */
+.notice-logo {
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 16px;
+}
+
 .notice-title {
   margin: 0 0 16px;
   font-size: 28px;
@@ -1106,6 +1114,12 @@ ion-tab-button[hidden] {
 
 .notice ol {
   padding-inline-start: 1.4em;
+}
+
+/* A short tour: each line starts with the icon of its tab */
+.notice ul.notice-tour {
+  padding: 0;
+  list-style: none;
 }
 
 .notice li + li {

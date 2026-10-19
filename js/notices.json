@@ -15,5 +15,28 @@
       "{widget:sync https://sid.extend.fi/}",
       "{widget:data https://sid.extend.fi/}"
     ]
+  },
+  {
+    "id": "welcome",
+    "schedule": {
+      "from": "2026-10-19T00:00:00+03:00",
+      "times": 1,
+      "canHide": false,
+      "newUsers": true
+    },
+    "image": "icons/icon-192.png",
+    "title": "Welcome to ShallowSID",
+    "html": [
+      "<p>The whole High Voltage SID Collection of C64 music, played right in your browser.</p>",
+      "<ul class=\"notice-tour\">",
+      "<li>{icon:home} <strong>Home</strong>: search by title, composer, group or year. What you play shows up here.</li>",
+      "<li>{icon:folder-open} <strong>Browse</strong>: walk the HVSC folders.</li>",
+      "<li>{icon:library} <strong>Playlists</strong>: favorites and your own lists, also as links to share.</li>",
+      "<li>{icon:settings-outline} <strong>Settings</strong>: tune SID settings, select player backend, sync between your devices, and export your playlists.</li>",
+      "</ul>",
+      "<p>Used ShallowSID before? Bring your playlists and favorites along, or turn on sync to keep them in the cloud.</p>",
+      "{widget:sync}",
+      "{widget:data}"
+    ]
   }
 ]

@@ -49,6 +49,14 @@ const PLAY_COUNT_SECONDS = 30;   // heard this long (or half of a shorter tune) 
 const SORT_KEYS = { search: "shallowsid.searchSort", list: "shallowsid.listSort" };
 
 const $ = (id) => document.getElementById(id);
+// Read before anything here saves to localStorage: no ShallowSID data yet means a new user.
+const newUser = (() => {
+  try {
+    return !Object.keys(localStorage).some((key) => key.startsWith("shallowsid."));
+  } catch {
+    return false;   // storage blocked: don't welcome on every visit
+  }
+})();
 const dom = {
   title: $("title"), back: $("back"), actions: $("toolbar-actions"), searchToolbar: $("search-toolbar"),
   searchbar: $("searchbar"), content: $("content"), view: $("view"), infinite: $("infinite"),
@@ -132,6 +140,7 @@ $("install-app").addEventListener("click", (e) => {
 });
 registerServiceWorker();
 const notices = new Notices({
+  newUser,
   widgets: {
     sync: syncWidget(sync, syncSheet),
     data: dataWidget({ exportData: () => exportUserData(), importData: () => $("user-data-input").click() }),

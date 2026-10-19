@@ -1,12 +1,16 @@
 // Notices: news shown in a sheet a set number of times, within a time window.
 // The notices themselves are data, in notices.json:
 //
-//   { id, schedule: { from, until, times, every, canHide }, title, html }
+//   { id, schedule: { from, until, times, every, canHide, newUsers }, image, title, html }
 //   * id        never changes once released
 //   * from      first showing (ISO date); never shown at or after `until`
+//   * until     optional: without it, the notice never expires
 //   * times     showings at from, from + every, … from + (times - 1) × every
 //   * every     time between showings: "30m", "12h", "7d", "2w"
 //   * canHide   offer "Don't Show Again", which ends the remaining showings
+//   * newUsers  only for a browser that had no ShallowSID data when the app
+//               opened (`newUser` below)
+//   * image     optional: a picture above the title (path from the page)
 //   * title, html  all that's shown, so they say nothing of the schedule (no
 //               dates, counts or intervals). `html` is trusted markup, as one
 //               string or a list of lines; {icon:name} puts in an app icon,
@@ -33,15 +37,16 @@ export function parseDuration(text) {
 // One notice from notices.json, checked and with its times in ms; throws
 // on anything malformed.
 export function parseNotice(raw) {
-  const { id, schedule: s = {}, title, html } = raw ?? {};
+  const { id, schedule: s = {}, image, title, html } = raw ?? {};
   if (typeof id !== "string" || !id) throw new Error("a notice needs an id");
-  const from = Date.parse(s.from), until = Date.parse(s.until);
+  const from = Date.parse(s.from), until = s.until === undefined ? Infinity : Date.parse(s.until);
   if (!(from < until)) throw new Error(`${id}: from and until must be dates, from first`);
   if (!Number.isInteger(s.times) || s.times < 1) throw new Error(`${id}: times must be 1 or more`);
   const every = s.times > 1 ? parseDuration(s.every) : 0;
   if (s.times > 1 && every <= 0) throw new Error(`${id}: every must be longer than zero`);
   if (typeof title !== "string" || !(typeof html === "string" || Array.isArray(html))) throw new Error(`${id}: needs a title and html`);
-  return { id, from, until, times: s.times, every, canHide: s.canHide === true, title, html: [html].flat().join("\n") };
+  if (image !== undefined && (typeof image !== "string" || !image)) throw new Error(`${id}: image must be a path`);
+  return { id, from, until, times: s.times, every, canHide: s.canHide === true, newUsers: s.newUsers === true, image: image ?? null, title, html: [html].flat().join("\n") };
 }
 
 // Every well-formed notice; a broken one is left out (and logged), not the rest.
@@ -66,15 +71,16 @@ export const renderHtml = (html) => html
   .replace(/\{widget:([a-z0-9-]+)(?:\s+([^}]*))?\}/g, (_, name, arg = "") => `<div class="notice-widget" data-widget="${name}" data-arg="${escapeAttr(arg.trim())}"></div>`);
 
 // When `notice` is next shown (ms), given `record` ({ used, hidden } or
-// undefined), or null when it won't be again.
-export function nextShowing(notice, record = { used: 0 }) {
-  if (record.hidden || record.used >= notice.times) return null;
+// undefined), or null when it won't be again. From `until` on (by `now`)
+// nothing is shown, also to someone who never saw it.
+export function nextShowing(notice, record = { used: 0 }, now = -Infinity) {
+  if (record.hidden || record.used >= notice.times || now >= notice.until) return null;
   const at = notice.from + record.used * notice.every;
   return at < notice.until ? at : null;
 }
 
 export const isDue = (notice, record, now) => {
-  const at = nextShowing(notice, record);
+  const at = nextShowing(notice, record, now);
   return at !== null && at <= now;
 };
 
@@ -85,9 +91,11 @@ export const usedBy = (notice, now) =>
 
 export class Notices {
   // widgets: { name: (element, arg) => cleanup function or nothing }
-  constructor({ notices = [], widgets = {}, storage = globalThis.localStorage, now = Date.now } = {}) {
+  // newUser: this browser had no ShallowSID data when the app opened
+  constructor({ notices = [], widgets = {}, newUser = false, storage = globalThis.localStorage, now = Date.now } = {}) {
     this.notices = notices;
     this.widgets = widgets;
+    this.newUser = newUser;
     this.storage = storage;
     this.now = now;
     this.records = {};
@@ -112,15 +120,21 @@ export class Notices {
     }
   }
 
+  // The notices for this user: those for new users only to a new user.
+  forUser() {
+    return this.notices.filter((n) => !n.newUsers || this.newUser);
+  }
+
   // The first notice due now, or null.
   due() {
     const now = this.now();
-    return this.notices.find((n) => isDue(n, this.records[n.id], now)) ?? null;
+    return this.forUser().find((n) => isDue(n, this.records[n.id], now)) ?? null;
   }
 
   // The earliest upcoming showing (ms), or null.
   upcoming() {
-    const times = this.notices.map((n) => nextShowing(n, this.records[n.id])).filter((t) => t !== null);
+    const now = this.now();
+    const times = this.forUser().map((n) => nextShowing(n, this.records[n.id], now)).filter((t) => t !== null);
     return times.length ? Math.min(...times) : null;
   }
 
@@ -173,6 +187,7 @@ export class Notices {
     modal.innerHTML = `
       <div class="ion-page">
         <div class="notice">
+          ${notice.image ? `<img class="notice-logo" src="${escapeAttr(notice.image)}" alt="" width="88" height="88">` : ""}
           <h1 class="notice-title"></h1>
           ${renderHtml(notice.html)}
         </div>
