@@ -210,6 +210,11 @@
           "label": "Oriental"
         },
         {
+          "id": "parody",
+          "label": "Parody",
+          "description": "Parody of a style or a particular tune."
+        },
+        {
           "id": "phonk",
           "label": "Phonk"
         },
@@ -330,6 +335,11 @@
           "label": "Catchy"
         },
         {
+          "id": "clumsy",
+          "label": "Clumsy",
+          "description": "Clumsy, unintentional stumbling"
+        },
+        {
           "id": "cool",
           "label": "Cool"
         },
@@ -404,6 +414,11 @@
         {
           "id": "uptempo",
           "label": "Uptempo"
+        },
+        {
+          "id": "wonky",
+          "label": "Wonky",
+          "description": "Wonky"
         }
       ]
     },
@@ -483,6 +498,11 @@
           "id": "multispeed",
           "label": "Multispeed",
           "description": "Player called more than once a frame"
+        },
+        {
+          "id": "out-of-tune",
+          "label": "Out of tune",
+          "description": "Out of tune"
         },
         {
           "id": "remix-classic",
