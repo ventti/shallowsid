@@ -257,10 +257,26 @@ export function definitionId(label) {
 export function validDefinition(d) {
   return TAG_ID.test(d?.id ?? "") && TAG_GROUPS.includes(d.group)
     && typeof d.label === "string" && d.label.length >= 1 && d.label.length <= 80 && d.label.trim() === d.label
-    && typeof d.description === "string" && d.description.length >= 1 && d.description.length <= 500 && d.description.trim() === d.description;
+    && typeof d.description === "string" && d.description.length <= 500 && d.description.trim() === d.description;
 }
-export function definitionWrite(name, cid, d) {
-  if (!validDefinition(d)) throw new Error("Enter a name, category and description");
+// A new definition, or (exists) an edit of one already in the database. An
+// edit of a published tag with no definition yet creates one.
+export function definitionWrite(name, cid, d, exists = false) {
+  if (!validDefinition(d)) throw new Error("Enter a name and a category");
   return { update: { name: name("tagDefinitions", d.id), fields: { label: str(d.label), group: str(d.group), description: str(d.description), by: str(cid) } },
-    currentDocument: { exists: false }, updateTransforms: [{ fieldPath: "at", setToServerValue: "REQUEST_TIME" }] };
+    currentDocument: { exists }, updateTransforms: [{ fieldPath: "at", setToServerValue: "REQUEST_TIME" }] };
+}
+
+// Every tag for the admin list: published ones and database definitions.
+// A definition shows over its published tag, and stays pending until the
+// published vocabulary has the same name, category and description.
+export function tagCatalog(vocab, definitions) {
+  const rows = new Map();
+  for (const t of vocab.byId.values()) rows.set(t.id, { ...t, published: true, pending: false });
+  for (const d of definitions) {
+    const p = vocab.byId.get(d.id);
+    const same = p && p.label === d.label && p.group === d.group && p.description === d.description;
+    rows.set(d.id, { ...d, published: !!p, pending: !same });
+  }
+  return [...rows.values()].sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 }

@@ -20,7 +20,7 @@ jobs:
           python-version: '3.x'
       - name: Export validation tests
         run: python3 -m unittest discover -s tests -p test_tag_vocab.py
-      - name: Sync PR contains only vocabulary additions
+      - name: Sync PR only adds or edits vocabulary tags
         if: github.head_ref == 'automation/tag-vocabulary'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

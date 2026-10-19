@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { definitionId, definitionWrite, parseVocab } from '../js/tags-core.js';
+import { definitionId, definitionWrite, parseVocab, tagCatalog } from '../js/tags-core.js';
 import { TagService } from '../js/tags.js';
 
 globalThis.localStorage = { getItem: () => null };
@@ -54,5 +54,42 @@ test('admin definition reads cache and manual refresh reads again', async () => 
     await assert.rejects(s.addDefinition('New Sound', 'Sound', 'Again.'), /already exists/);
     s.vocab = parseVocab({ retired: ['retired'], groups: [] });
     await assert.rejects(s.addDefinition('Retired', 'Style', 'Again.'), /already exists/);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test('catalog lists published and pending tags; edits stay pending until published', () => {
+  const vocab = parseVocab({ groups: [{ name: 'Style', tags: [{ id: 'acid', label: 'Acid' }, { id: 'funk', label: 'Funk', description: 'Groovy.' }] }] });
+  const rows = tagCatalog(vocab, [
+    { id: 'funk', label: 'Funk', group: 'Style', description: 'Groovy.' },
+    { id: 'acid', label: 'Acid', group: 'Style', description: 'Squelchy.' },
+    { id: 'new', label: 'New', group: 'Mood', description: 'Fresh.' },
+  ]);
+  const by = Object.fromEntries(rows.map(t => [t.id, t]));
+  assert.deepEqual(rows.map(t => t.id), ['acid', 'funk', 'new']);
+  assert.deepEqual([by.acid.published, by.acid.pending, by.acid.description], [true, true, 'Squelchy.']);
+  assert.deepEqual([by.funk.published, by.funk.pending], [true, false]);
+  assert.deepEqual([by.new.published, by.new.pending], [false, true]);
+  assert.equal(tagCatalog(vocab, []).every(t => !t.pending), true);
+});
+
+test('admin edits published and pending tags', async () => {
+  const s = service('admin');
+  s.vocab = parseVocab({ groups: [{ name: 'Style', tags: [{ id: 'acid', label: 'Acid' }] }] });
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ documents: [] }));
+  const writes = [];
+  s.step = async (w) => writes.push(...await w());
+  try {
+    await s.editDefinition('acid', 'Acid ', 'Sound', 'Squelchy.');
+    assert.deepEqual(writes[0].currentDocument, { exists: false });
+    await s.editDefinition('acid', 'Acid', 'Style', 'Squelchier.');
+    assert.deepEqual(writes[1].currentDocument, { exists: true });
+    assert.equal((await s.definitions()).length, 1);
+    assert.equal((await s.definitions())[0].description, 'Squelchier.');
+    await s.editDefinition('acid', 'Acid', 'Style', '');
+    assert.equal((await s.definitions())[0].description, '');
+    const added = await s.addDefinition('No Words', 'Mood', ' ');
+    assert.equal(added.description, '');
+    await assert.rejects(s.editDefinition('missing', 'Missing', 'Style', 'No.'), /doesn't exist/);
   } finally { globalThis.fetch = oldFetch; }
 });

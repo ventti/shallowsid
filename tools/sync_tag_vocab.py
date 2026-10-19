@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add immutable Firestore tag definitions to the published vocabulary."""
+"""Publish Firestore tag definitions (additions and edits) into the vocabulary."""
 import argparse
 import copy
 import json
@@ -32,42 +32,46 @@ def merge(vocab, documents):
         if not TAG_ID.fullmatch(tag_id) or tag_id in seen or d['group'] not in GROUPS:
             raise ValueError('Invalid or duplicate definition ID/category')
         seen.add(tag_id)
-        for key, maximum in (('label', 80), ('description', 500)):
-            if not isinstance(d[key], str) or not 1 <= len(d[key]) <= maximum or d[key].strip() != d[key]:
+        for key, minimum, maximum in (('label', 1, 80), ('description', 0, 500)):
+            if not isinstance(d[key], str) or not minimum <= len(d[key]) <= maximum or d[key].strip() != d[key]:
                 raise ValueError('Invalid definition text')
-        tag = {'id': tag_id, 'label': d['label'], 'description': d['description']}
+        # An empty description is left out, as in the rest of the vocabulary.
+        tag = {'id': tag_id, 'label': d['label'], **({'description': d['description']} if d['description'] else {})}
         if tag_id in result.get('retired', []):
             raise ValueError('Retired ID cannot be reused')
         if tag_id in existing:
-            if existing[tag_id] != (d['group'], tag):
-                raise ValueError('Existing tag cannot change')
-            continue
+            group, old = existing[tag_id]
+            if (group, old) == (d['group'], tag):
+                continue
+            # An edit: the ID stays, the name, description and category change.
+            groups[group]['tags'].remove(old)
         groups[d['group']]['tags'].append(tag)
     for group in result['groups']:
         group['tags'].sort(key=lambda tag: (tag['label'].casefold(), tag['id']))
     return result
 
 
-def check_additions(before, after):
-    """Reject edits, removals, retired changes, and unexpected metadata."""
+def check_changes(before, after):
+    """Allow additions and edits. Reject removals, retired changes, and unexpected metadata."""
     accepted_ids(before)
     accepted_ids(after)
     if {k: v for k, v in before.items() if k != 'groups'} != {k: v for k, v in after.items() if k != 'groups'}:
         raise ValueError('Vocabulary metadata changed')
     if [g['name'] for g in before['groups']] != [g['name'] for g in after['groups']]:
         raise ValueError('Categories changed')
+    old_tags = {(g['name'], t['id']): t for g in before['groups'] for t in g['tags']}
     for old, new in zip(before['groups'], after['groups']):
         if new['tags'] != sorted(new['tags'], key=lambda t: (t['label'].casefold(), t['id'])):
             raise ValueError('Tags must be alphabetical')
         if {k: v for k, v in old.items() if k != 'tags'} != {k: v for k, v in new.items() if k != 'tags'}:
             raise ValueError('Category metadata changed')
-        by_id = {t['id']: t for t in new['tags']}
-        if any(by_id.get(t['id']) != t for t in old['tags']):
-            raise ValueError('Existing tags changed')
         for tag in new['tags']:
-            if tag['id'] not in {t['id'] for t in old['tags']}:
-                if set(tag) != {'id', 'label', 'description'} or not all(isinstance(tag[k], str) and tag[k].strip() and len(tag[k]) <= n for k,n in [('label',80),('description',500)]):
-                    raise ValueError('Invalid new tag')
+            if old_tags.get((new['name'], tag['id'])) != tag:
+                if set(tag) not in ({'id', 'label'}, {'id', 'label', 'description'}) or not all(isinstance(tag[k], str) and tag[k].strip() and len(tag[k]) <= n for k,n in [('label',80),('description',500)] if k in tag):
+                    raise ValueError('Invalid new or edited tag')
+    after_ids = {t['id'] for g in after['groups'] for t in g['tags']}
+    if any(i not in after_ids for _, i in old_tags):
+        raise ValueError('Existing tags removed')
 
 
 def main():
@@ -78,10 +82,10 @@ def main():
     path = Path(args.vocab)
     before = json.loads(path.read_text())
     if args.before:
-        check_additions(json.loads(Path(args.before).read_text()), before)
+        check_changes(json.loads(Path(args.before).read_text()), before)
         return
     after = merge(before, Firestore().list('tagDefinitions'))
-    check_additions(before, after)
+    check_changes(before, after)
     if after != before:
         path.write_text(json.dumps(after, ensure_ascii=False, indent=2) + '\n')
 

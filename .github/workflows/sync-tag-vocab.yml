@@ -44,7 +44,7 @@ jobs:
           add-paths: js/tags-vocab.json
           commit-message: Add approved tag definitions
           title: Add approved tag definitions
-          body: Adds immutable admin tag definitions to the published vocabulary. Automated checks verify additions only and test the generated Firestore rules before merging.
+          body: Publishes admin tag additions and edits into the vocabulary. Automated checks reject removed tags and test the generated Firestore rules before merging.
           delete-branch: true
       - name: Wait for checks and merge
         if: steps.pr.outputs.pull-request-number != ''

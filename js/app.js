@@ -22,7 +22,7 @@ import { parsePlaylistLink, sanitizeItems, sanitizeName } from "./live-share-cor
 import { SyncSheet } from "./sync-sheet.js";
 import { TagService } from "./tags.js";
 import { TagSheet } from "./tag-sheet.js";
-import { definitionId, WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
+import { definitionId, tagCatalog, TAG_GROUPS, WHOLE_TUNE, isCuratorId, isInviteSecret } from "./tags-core.js";
 import { playlistArtStyle } from "./artwork.js";
 import { composerName } from "./composer-colors.js";
 import { paintAvatars } from "./avatars.js";
@@ -1175,7 +1175,9 @@ async function renderCuration(arg) {
   if (tags.isAdmin) fillCurators(stale);
 }
 
-async function manageTags(stale, refresh = false) {
+// All tags, published and pending, from any admin. Opening the panel reads
+// the definitions again, so other admins' changes show.
+async function manageTags(stale, refresh = true) {
   const panel = $("tag-management");
   if (!panel) return;
   panel.hidden = false;
@@ -1183,26 +1185,54 @@ async function manageTags(stale, refresh = false) {
   try {
     const definitions = await tags.definitions(refresh);
     if (stale()) return;
+    const rows = tagCatalog(tags.vocab, definitions);
+    const byId = new Map(rows.map(t => [t.id, t]));
+    const status = t => t.pending ? (t.published ? "Pending update" : "Pending") : "Published";
+    const author = t => t.by ? (t.by === tags.cid ? ", by you" : ", by another admin") : "";
     panel.innerHTML = `<h2 class="section-title">Manage Tags</h2>
       <div class="playlist-head"><ion-button id="refresh-tag-definitions" fill="outline">Refresh</ion-button></div>
       <form id="add-tag-form" class="composer-head tag-definition-form">
+        <h3 id="tag-form-title">Add Tag</h3>
         <label>Name <input name="label" required maxlength="80"></label>
         <label>Tag ID <input name="id" readonly></label>
-        <label>Category <select name="group">${["Style", "Mood", "Use", "Sound"].map(g => `<option>${g}</option>`).join("")}</select></label>
-        <label>Description <textarea name="description" required maxlength="500"></textarea></label>
-        <button type="submit">Add Tag</button><p id="add-tag-error" role="alert"></p>
+        <label>Category <select name="group">${TAG_GROUPS.map(g => `<option>${g}</option>`).join("")}</select></label>
+        <label>Description <textarea name="description" maxlength="500" placeholder="Optional"></textarea></label>
+        <button type="submit">Add Tag</button><button type="button" id="cancel-tag-edit" hidden>Cancel</button><p id="add-tag-error" role="alert"></p>
       </form>
-      <ion-list>${definitions.slice().sort((a,b) => a.label.localeCompare(b.label)).map(d => `<ion-item><ion-label><h3>${esc(d.label)} · ${esc(d.group)}</h3><p>${esc(d.description)}</p><p>${tags.vocab.byId.has(d.id) ? "Published" : "Pending"} · ${esc(d.id)}</p></ion-label></ion-item>`).join("")}</ion-list>`;
+      <p class="composer-meta">${rows.length} tags, ${rows.filter(t => t.pending).length} pending</p>
+      <ion-list id="tag-definition-list">${rows.map(t => `<ion-item><ion-label><h3>${esc(t.label)} (${esc(t.group)})</h3><p>${esc(t.description)}</p><p>${status(t)}: ${esc(t.id)}${author(t)}</p></ion-label><ion-button slot="end" fill="clear" data-edit-tag="${esc(t.id)}">Edit</ion-button></ion-item>`).join("")}</ion-list>`;
+    const form = $("add-tag-form");
+    let editing = null;
+    const setMode = (tag) => {
+      editing = tag?.id ?? null;
+      $("tag-form-title").textContent = tag ? "Edit Tag" : "Add Tag";
+      form.querySelector("button[type=submit]").textContent = tag ? "Save Tag" : "Add Tag";
+      $("cancel-tag-edit").hidden = !tag;
+      $("add-tag-error").textContent = "";
+      form.elements.label.value = tag?.label ?? "";
+      form.elements.id.value = tag?.id ?? "";
+      form.elements.group.value = tag?.group ?? TAG_GROUPS[0];
+      form.elements.description.value = tag?.description ?? "";
+    };
     $("refresh-tag-definitions").onclick = () => manageTags(stale, true);
-    $("add-tag-form").elements.label.oninput = event => { $("add-tag-form").elements.id.value = definitionId(event.target.value); };
-    $("add-tag-form").onsubmit = async event => {
+    $("cancel-tag-edit").onclick = () => setMode(null);
+    $("tag-definition-list").onclick = event => {
+      const tag = byId.get(event.target.closest("[data-edit-tag]")?.dataset.editTag);
+      if (!tag) return;
+      setMode(tag);
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
+      form.elements.label.focus();
+    };
+    form.elements.label.oninput = event => { if (!editing) form.elements.id.value = definitionId(event.target.value); };
+    form.onsubmit = async event => {
       event.preventDefault();
-      const form = event.currentTarget;
-      const button = form.querySelector("button");
+      const button = form.querySelector("button[type=submit]");
+      const { label, group, description } = form.elements;
       button.disabled = true;
       try {
-        await tags.addDefinition(form.elements.label.value, form.elements.group.value, form.elements.description.value);
-        if (!stale()) await manageTags(stale);
+        if (editing) await tags.editDefinition(editing, label.value, group.value, description.value);
+        else await tags.addDefinition(label.value, group.value, description.value);
+        if (!stale()) await manageTags(stale, false);
       } catch (err) { if (!stale()) $("add-tag-error").textContent = err.message; }
       finally { button.disabled = false; }
     };

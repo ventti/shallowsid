@@ -6,7 +6,7 @@ description = "Build and deploy the site to GitHub Pages (also exports the lates
 run = "gh workflow run pages.yml"
 
 [tasks."ci:tag-vocab"]
-description = "Publish pending admin tag definitions into js/tags-vocab.json"
+description = "Publish pending admin tag additions and edits into js/tags-vocab.json"
 run = "gh workflow run sync-tag-vocab.yml"
 
 [tasks."ci:rules-check"]

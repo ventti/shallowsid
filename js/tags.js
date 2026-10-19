@@ -172,7 +172,7 @@ export class TagService extends EventTarget {
         if (!res.ok) throw new Error(await errorText(res));
         const data = await res.json();
         for (const doc of data.documents ?? []) {
-          const d = { id: doc.name.split("/").pop(), label: fieldString(doc.fields?.label), group: fieldString(doc.fields?.group), description: fieldString(doc.fields?.description) };
+          const d = { id: doc.name.split("/").pop(), label: fieldString(doc.fields?.label), group: fieldString(doc.fields?.group), description: fieldString(doc.fields?.description), by: fieldString(doc.fields?.by) };
           if (validDefinition(d)) rows.push(d);
         }
         pageToken = data.nextPageToken;
@@ -185,12 +185,27 @@ export class TagService extends EventTarget {
   async addDefinition(label, group, description) {
     if (!this.isAdmin) throw new Error("Only admins can manage tags");
     const d = { id: definitionId(label), label: label.trim(), group, description: description.trim() };
-    if (!validDefinition(d)) throw new Error("Enter a name, category and description");
+    if (!validDefinition(d)) throw new Error("Enter a name and a category");
     const definitions = await this.definitions();
     if (this.vocab.byId.has(d.id) || this.vocab.retired.has(d.id) || definitions.some(t => t.id === d.id)) throw new Error("This tag ID already exists");
     await this.step(async () => [definitionWrite(this.name, this.cid, d)]);
-    this.definitionCache.push(d);
+    this.definitionCache.push({ ...d, by: this.cid });
     return d;
+  }
+
+  // Changes a published or pending tag. The ID stays. The change is pending
+  // until the vocabulary sync publishes it.
+  async editDefinition(id, label, group, description) {
+    if (!this.isAdmin) throw new Error("Only admins can manage tags");
+    const d = { id, label: label.trim(), group, description: description.trim() };
+    if (!validDefinition(d)) throw new Error("Enter a name and a category");
+    const definitions = await this.definitions();
+    const index = definitions.findIndex(t => t.id === id);
+    if (index < 0 && !this.vocab.byId.has(id)) throw new Error("This tag doesn't exist");
+    await this.step(async () => [definitionWrite(this.name, this.cid, d, index >= 0)]);
+    const row = { ...d, by: this.cid };
+    if (index >= 0) definitions[index] = row; else definitions.push(row);
+    return row;
   }
 
   // ---- invites -------------------------------------------------------------------
