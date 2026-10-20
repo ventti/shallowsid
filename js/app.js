@@ -1258,12 +1258,27 @@ const LIST_HELP = {
   groups: "A music group or label as it shows in the released credit, for the group mixes.",
   "hot-tunes": "An HVSC path, to add to the Hot tunes mix or take out of it. Only the changes to the generated list show here.",
 };
-let listAuthors = null;
-function listKeyError(list, key) {
-  if (list === "composers") {
-    listAuthors ??= new Set(index.tunes.map((t) => t.author));
-    return listAuthors.has(key) ? "" : "No tune is credited to this composer";
+// Tunes per HVSC credit, for checks and suggestions.
+let authorCounts = null;
+function tunesByAuthor() {
+  if (!authorCounts) {
+    authorCounts = new Map();
+    for (const t of index.tunes) authorCounts.set(t.author, (authorCounts.get(t.author) ?? 0) + 1);
   }
+  return authorCounts;
+}
+// The credits that match `text`, best first: a match at the start of a word
+// before one inside a word, then the most tunes.
+const SUGGESTIONS = 8;
+function composerSuggestions(text) {
+  const q = text.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const rank = (name) => { const i = name.toLowerCase().indexOf(q); return i < 0 ? -1 : i === 0 || /\W/.test(name[i - 1]) ? 0 : 1; };
+  return [...tunesByAuthor()].map(([name, count]) => ({ name, count, rank: rank(name) })).filter((c) => c.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || b.count - a.count || a.name.localeCompare(b.name)).slice(0, SUGGESTIONS);
+}
+function listKeyError(list, key) {
+  if (list === "composers") return tunesByAuthor().has(key) ? "" : "No tune is credited to this composer";
   if (list === "groups") {
     const pattern = groupPattern(key);
     return index.tunes.some((t) => pattern.test(t.released ?? "")) ? "" : "No tune is released by this group";
@@ -1293,8 +1308,8 @@ async function manageLists(stale, list = "composers", refresh = true) {
       <form id="add-list-item-form" class="composer-head tag-definition-form">
         <h3>Add to ${esc(LIST_NAMES[list])}</h3>
         <p class="composer-meta">${esc(LIST_HELP[list])}</p>
-        <label>${list === "hot-tunes" ? "HVSC path" : "Name"} <input name="key" required maxlength="200"${list === "composers" ? ` list="list-authors"` : ""}></label>
-        ${list === "composers" ? `<datalist id="list-authors">${[...(listAuthors ??= new Set(index.tunes.map((t) => t.author)))].sort().map((a) => `<option value="${esc(a)}">`).join("")}</datalist>` : ""}
+        <label>${list === "hot-tunes" ? "HVSC path" : "Name"} <input name="key" required maxlength="200" autocomplete="off" spellcheck="false"></label>
+        ${list === "composers" ? `<ion-list id="list-suggestions" class="list-suggestions" lines="full" hidden></ion-list>` : ""}
         <button type="submit">Add</button><p id="add-list-item-error" role="alert"></p>
       </form>
       <p class="composer-meta">${rows.filter((r) => !r.hidden).length} shown, ${rows.filter((r) => r.pending).length} pending (dashed). Tap an item to take it out or to put it back.</p>
@@ -1318,6 +1333,26 @@ async function manageLists(stale, list = "composers", refresh = true) {
       } catch (err) { if (!stale()) toast(err.message); }
     };
     const form = $("add-list-item-form");
+    const suggestions = $("list-suggestions");
+    if (suggestions) {
+      const hide = () => { suggestions.hidden = true; suggestions.innerHTML = ""; };
+      form.elements.key.oninput = (event) => {
+        const found = composerSuggestions(event.target.value);
+        suggestions.hidden = !found.length;
+        suggestions.innerHTML = found.map((c) => `<ion-item button detail="false" data-suggest="${esc(c.name)}">
+          <ion-label>${esc(c.name)}<p>${c.count === 1 ? "1 tune" : `${c.count.toLocaleString()} tunes`}${byKey.get(c.name) && !byKey.get(c.name).hidden ? ", in the list" : ""}</p></ion-label>
+        </ion-item>`).join("");
+      };
+      form.elements.key.onkeydown = (event) => { if (event.key === "Escape") hide(); };
+      suggestions.onclick = (event) => {
+        const name = event.target.closest("[data-suggest]")?.dataset.suggest;
+        if (!name) return;
+        form.elements.key.value = name;
+        $("add-list-item-error").textContent = "";
+        hide();
+        form.elements.key.focus();
+      };
+    }
     form.onsubmit = async (event) => {
       event.preventDefault();
       const button = form.querySelector("button[type=submit]");
