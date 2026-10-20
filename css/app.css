@@ -1047,6 +1047,12 @@ ion-tab-button[hidden] {
   border-color: var(--ion-color-warning);
 }
 
+/* A curated list item that is taken out, or will be. */
+.tag-toggle.is-hidden ion-label {
+  text-decoration: line-through;
+  opacity: .7;
+}
+
 .tag-toggle.is-inherited {
   opacity: 0.55;
 }
@@ -1194,3 +1200,7 @@ ion-tab-button[hidden] {
 }
 .tag-definition-form button:disabled { opacity: .5; cursor: default; }
 .tag-definition-form [role="alert"]:empty { display: none; }
+/* Inline suggestions under a form field, as an inset list. */
+.list-suggestions { margin: -6px 0 0; padding: 0; border-radius: 10px; overflow: hidden; background: var(--app-surface); }
+.list-suggestions ion-item { --background: var(--app-surface); --min-height: 48px; }
+.list-suggestions ion-label p { color: var(--ion-color-medium); }

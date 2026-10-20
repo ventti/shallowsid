@@ -16,6 +16,7 @@ import {
   definitionId, definitionWrite, fieldString, validDefinition, WHOLE_TUNE, chainStep, claimWrites, cleanBpm, cleanTags, curatorId, decodeCurator, decodeInvite, decodeBpmIndex, decodeTagDoc, decodeTagIndex,
   inviteHash, inviteWrite, isCuratorId, newCuratorSeed, newInviteSecret, parseVocab, activeWrite, expireInviteWrite, str, tagDocId, tagKey, tagWrite,
 } from "./tags-core.js";
+import { LISTS, listItemId, listItemWrite, validListItem } from "./curated-core.js";
 
 const STORAGE_KEY = "shallowsid.curation";
 const VOCAB_URL = new URL("./tags-vocab.json", import.meta.url).href;
@@ -165,21 +166,60 @@ export class TagService extends EventTarget {
     if (this.definitionLoading) return this.definitionLoading;
     this.definitionLoading = (async () => {
       const rows = [];
-      let pageToken = "";
-      do {
-        const url = this.url("/tagDefinitions") + "&pageSize=300" + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
-        const res = await firestoreFetch(this.config, url);
-        if (!res.ok) throw new Error(await errorText(res));
-        const data = await res.json();
-        for (const doc of data.documents ?? []) {
-          const d = { id: doc.name.split("/").pop(), label: fieldString(doc.fields?.label), group: fieldString(doc.fields?.group), description: fieldString(doc.fields?.description), by: fieldString(doc.fields?.by) };
-          if (validDefinition(d)) rows.push(d);
-        }
-        pageToken = data.nextPageToken;
-      } while (pageToken);
+      for (const doc of await this.listAll("tagDefinitions")) {
+        const d = { id: doc.name.split("/").pop(), label: fieldString(doc.fields?.label), group: fieldString(doc.fields?.group), description: fieldString(doc.fields?.description), by: fieldString(doc.fields?.by) };
+        if (validDefinition(d)) rows.push(d);
+      }
       return this.definitionCache = rows;
     })();
     try { return await this.definitionLoading; } finally { this.definitionLoading = null; }
+  }
+
+  // Every document of a collection, page by page.
+  async listAll(collection) {
+    const docs = [];
+    let pageToken = "";
+    do {
+      const url = this.url(`/${collection}`) + "&pageSize=300" + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+      const res = await firestoreFetch(this.config, url);
+      if (!res.ok) throw new Error(await errorText(res));
+      const data = await res.json();
+      docs.push(...(data.documents ?? []));
+      pageToken = data.nextPageToken;
+    } while (pageToken);
+    return docs;
+  }
+
+  // ---- curated lists -------------------------------------------------------------
+
+  // The database items of a curated list, {id, key, hidden, by}: fetched
+  // when an admin opens the list, then cached.
+  async listItems(list, refresh = false) {
+    if (!this.isAdmin) throw new Error("Only admins can manage lists");
+    if (!LISTS.includes(list)) throw new Error("Unknown list");
+    this.listCache ??= new Map();
+    if (this.listCache.has(list) && !refresh) return this.listCache.get(list);
+    const rows = [];
+    for (const doc of await this.listAll(`curatedLists/${list}/items`)) {
+      const item = { id: doc.name.split("/").pop(), key: fieldString(doc.fields?.key), hidden: doc.fields?.hidden?.booleanValue, by: fieldString(doc.fields?.by) };
+      if (validListItem(list, item.key) && typeof item.hidden === "boolean") rows.push(item);
+    }
+    this.listCache.set(list, rows);
+    return rows;
+  }
+
+  // Adds `key` to a curated list (hidden = false) or removes it (hidden =
+  // true). The change is pending until the list sync publishes it.
+  async setListItem(list, key, hidden) {
+    if (!this.isAdmin) throw new Error("Only admins can manage lists");
+    key = String(key).trim();
+    const id = await listItemId(key);
+    const items = await this.listItems(list);
+    const index = items.findIndex((item) => item.id === id);
+    await this.step(async () => [listItemWrite(this.name, this.cid, list, id, key, hidden, index >= 0)]);
+    const row = { id, key, hidden, by: this.cid };
+    if (index >= 0) items[index] = row; else items.push(row);
+    return row;
   }
 
   async addDefinition(label, group, description) {

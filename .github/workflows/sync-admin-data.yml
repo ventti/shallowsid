@@ -1,4 +1,7 @@
-name: Publish tag definitions
+name: Publish admin changes
+# Publishes what admins changed in the app: tag definitions into
+# js/tags-vocab.json and curated list items into js/curated-lists.json. One
+# bot PR holds both files; it merges when its checks pass.
 on:
   workflow_dispatch:
   schedule:
@@ -7,7 +10,7 @@ permissions:
   contents: read
   id-token: write
 concurrency:
-  group: tag-vocabulary-sync
+  group: admin-data-sync
   cancel-in-progress: false
 jobs:
   sync:
@@ -31,8 +34,12 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
           token_format: access_token
-      - name: Read definitions and update vocabulary
+      - name: Read tag definitions and update the vocabulary
         run: python3 tools/sync_tag_vocab.py
+        env:
+          GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+      - name: Read curated list items and update the lists
+        run: python3 tools/sync_curated_lists.py
         env:
           GOOGLE_OAUTH_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
       - name: Create or update sync PR
@@ -40,28 +47,16 @@ jobs:
         id: pr
         with:
           token: ${{ secrets.GH_PAT_PR_READWRITE }}
-          branch: automation/tag-vocabulary
-          add-paths: js/tags-vocab.json
-          commit-message: Add approved tag definitions
-          title: Add approved tag definitions
-          body: Publishes admin tag additions and edits into the vocabulary. Automated checks reject removed tags and test the generated Firestore rules before merging.
+          branch: automation/admin-data
+          add-paths: |
+            js/tags-vocab.json
+            js/curated-lists.json
+          commit-message: Publish admin changes
+          title: Publish admin changes
+          body: Publishes admin tag additions and edits into the vocabulary, and curated list changes into js/curated-lists.json. Automated checks reject removed tags and invalid lists, and test the generated Firestore rules before merging.
           delete-branch: true
       - name: Wait for checks and merge
         if: steps.pr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT_PR_READWRITE }}
-          PR: ${{ steps.pr.outputs.pull-request-number }}
-        run: |
-          # Explicitly wait for both required checks: auto-merge alone can merge
-          # immediately in repositories without branch protection.
-          for _ in $(seq 1 90); do
-            sha=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
-            state=$(gh pr view "$PR" --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.name == "check" or .name == "safety") | select(.status == "COMPLETED" and .conclusion == "SUCCESS")] | length')
-            if [ "$state" = 2 ]; then
-              gh pr merge "$PR" --squash --match-head-commit "$sha" --delete-branch
-              exit 0
-            fi
-            sleep 20
-          done
-          echo 'Checks did not pass; leaving the PR open.'
-          exit 1
+        run: tools/merge_when_green.sh "${{ steps.pr.outputs.pull-request-number }}" check safety

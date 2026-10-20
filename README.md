@@ -111,6 +111,13 @@ For a faster build, index only part of HVSC:
 tools/dev.sh 8000 --subset MUSICIANS/H
 ```
 
+To test as a user, a curator or an admin, add `?role=` to the address:
+
+- <http://127.0.0.1:8000/?role=admin> (or `user`, `curator`).
+- `tools/dev.sh` starts a local Firestore emulator for these test profiles. On `127.0.0.1` the app uses only the emulator.
+- <http://localhost:8000> keeps your own profile and the real Firestore. A `?role=` address there goes to `127.0.0.1`.
+- The emulator needs Java 11+. It keeps no data after it stops. `tools/dev.sh --no-emulator 8000` turns it off.
+
 Run the tests:
 
 ```sh
@@ -402,17 +409,22 @@ readable (like tune tags); it contains no credentials or private notes. The app
 fetches it only when an admin opens management, once per session, or selects
 **Refresh**. Everyone else continues using the static vocabulary only.
 
-The **Publish tag definitions** workflow runs nightly and can be run manually.
-It reads the definitions collection once (paginated), validates additions and
-updates one `automation/tag-vocabulary` PR. It waits for vocabulary safety and
-the Firebase unit/emulator checks before merging. The normal main deployment
-then publishes generated rules before the site. Empty exports make no change.
+The **Publish admin changes** workflow (`sync-admin-data.yml`) runs nightly.
+You can also start it by hand with `mise run ci:admin-data`. It publishes the
+tag definitions and the [curated lists](#curated-lists) in one job:
+
+1. It reads the definitions collection once (paginated) and validates the additions.
+2. It updates one `automation/admin-data` PR.
+3. It merges the PR when the **safety** and **check** (Firebase unit and emulator) checks pass.
+
+The normal main deployment then publishes generated rules before the site.
+Empty exports make no change.
 
 Repository setup:
 
 - Keep the existing `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`
-  variables; their read access must include `tagDefinitions`. No database write
-  permission is needed for the exporter.
+  variables; their read access must include `tagDefinitions` and `curatedLists`.
+  No database write permission is needed for the exporter.
 - Add `GH_PAT_PR_READWRITE`, a fine-grained GitHub token scoped to this repository
   with Contents and Pull requests read/write. It must belong to a user allowed
   to create PRs and squash-merge them under the repository's branch rules.
@@ -422,3 +434,31 @@ Repository setup:
   enabled where configured; this workflow does not bypass them.
 
 Run exporter tests with `python3 -m unittest discover -s tests -p test_tag_vocab.py`.
+
+### Curated lists
+
+Admins choose some of what Home shows. The lists are in `js/curated-lists.json`:
+
+- `composers`: the **Popular composers** chips, and the composers that can get a mix. Use the HVSC credit, for example `Markus Klein (LMan)`.
+- `groups`: the music groups and labels that can get a mix. Use the name as it shows in the released credit. The app finds it as whole words, without case.
+- `hotTunes`: changes to the generated Hot tunes (`js/hot-tunes.js`, from `tools/top_to_m3u8.py`). `add` puts a tune in and `remove` takes one out.
+
+Each list is sorted, with no duplicates. The app fetches the file, so a broken file can't stop the app: the lists are then empty.
+
+To change a list in the app:
+
+1. Open **Admin → Manage Lists** and pick **Composers**, **Groups** or **Hot tunes**.
+2. Search, then tap **⊕** to add a match or **⊖** to remove it. For a Hot tune, you can also use **Add to Hot Tunes** or **Remove from Hot Tunes** in the tune's **⋯** menu.
+3. The change stays **Pending** until the nightly **Publish admin changes** workflow writes it into the file.
+
+Each change is an item at `curatedLists/<list>/items/<sha256(key)>`: `{key, hidden, by, at}`. A removal sets `hidden`; items are never deleted. Only an active admin's proof-chain batch can write them.
+
+To change a list by hand, edit `js/curated-lists.json` and check it before you commit:
+
+```sh
+python3 tools/sync_curated_lists.py --check
+```
+
+The **safety** check runs this on every PR that changes the file. If you remove by hand an item that an admin added in the app, the nightly sync adds it back. Remove it in the app instead.
+
+Run the tests with `python3 -m unittest discover -s tests -p test_curated_lists.py`.
