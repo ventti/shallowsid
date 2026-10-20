@@ -26,6 +26,11 @@
           "label": "Ambient"
         },
         {
+          "id": "anthem",
+          "label": "Anthem",
+          "description": "An anthem is a musical composition of celebration, usually used as a symbol for a distinct group, particularly the national anthems of countries."
+        },
+        {
           "id": "arabic",
           "label": "Arabic"
         },
@@ -186,6 +191,11 @@
           "label": "Mariachi"
         },
         {
+          "id": "medley",
+          "label": "Medley",
+          "description": "Medley is a piece composed from parts of existing pieces played one after another. Also: potpourri, megamix."
+        },
+        {
           "id": "metal",
           "label": "Metal"
         },
@@ -196,6 +206,11 @@
         {
           "id": "muzak",
           "label": "Muzak"
+        },
+        {
+          "id": "new-wave",
+          "label": "New Wave",
+          "description": "\"New wave” most commonly refers to a pop‑oriented rock genre that emerged in the U.S. and U.K. in the mid‑to‑late 1970s, evolving from punk and peaking commercially in the early–mid 1980s."
         },
         {
           "id": "noise",
@@ -323,6 +338,11 @@
           "label": "Aggressive"
         },
         {
+          "id": "bombastic",
+          "label": "Bombastic",
+          "description": "Forceful and confident in a way that is intended to be very powerful and impressive."
+        },
+        {
           "id": "bouncy",
           "label": "Bouncy"
         },
@@ -384,6 +404,11 @@
           "label": "Happy"
         },
         {
+          "id": "heroic",
+          "label": "Heroic",
+          "description": "In music, \"heroic\" refers to compositions or passages that convey courage, nobility, and grandeur, often evoking the qualities of a hero through musical expression."
+        },
+        {
           "id": "hypnotic",
           "label": "Hypnotic"
         },
@@ -394,6 +419,11 @@
         {
           "id": "melodic",
           "label": "Melodic"
+        },
+        {
+          "id": "menacing",
+          "label": "Menacing",
+          "description": "Suggesting the presence of danger"
         },
         {
           "id": "mysterious",
@@ -414,6 +444,11 @@
         {
           "id": "uptempo",
           "label": "Uptempo"
+        },
+        {
+          "id": "weary",
+          "label": "Weary",
+          "description": "Very tired or lacking energy and enthusiasm."
         },
         {
           "id": "wonky",
