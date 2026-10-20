@@ -114,5 +114,22 @@ for (const [field, value] of [["group", "Other"], ["description", " "], ["label"
 await expect("definition can't be deleted", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), { delete: name("tagDefinitions", definition.id) }]))(), false);
 await expect("curator can't edit definition", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), core.definitionWrite(name, cur.cid, definition, true)]))(), false);
 await expect("pending ID cannot tag tunes", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), await core.tagWrite(name, admin.cid, TUNE, 0, [definition.id])]))(), false);
+// Curated list items need an active admin, a fresh chain step and id = sha256(key).
+const curated = await import(REPO + "/js/curated-core.js");
+const itemWrite = async (service, list, key, hidden = false, id) => curated.listItemWrite(name, service.cid, list, id ?? await curated.listItemId(key), key, hidden);
+await expect("admin adds a composer", admin.setListItem("composers", "Test Composer (Tester)", false), true);
+await expect("admin hides the composer again", admin.setListItem("composers", "Test Composer (Tester)", true), true);
+await expect("admin adds a Hot tune", admin.setListItem("hot-tunes", TUNE, false), true);
+await expect("admin hides a group", admin.setListItem("groups", "Side B", true), true);
+await expect("another admin sees the items", (async () => { const other = svc("a4"); await other.init(); await invite("admin", "6".repeat(32), DAY); await other.claim("6".repeat(32)); const items = await other.listItems("composers", true); assert.equal(items.find((i) => i.key === "Test Composer (Tester)")?.hidden, true); })(), true);
+await expect("anyone reads list items", fetch(DOCS + "/curatedLists/groups/items?key=x").then((r) => assert.ok(r.ok)), true);
+await expect("list item without chain refused", (async () => rawCommit([await itemWrite(admin, "composers", "No Proof")]))(), false);
+await expect("curator can't add a list item", (async () => rawCommit([await core.chainStep(name, cur.state, await curDoc(cur)), await itemWrite(cur, "composers", "Curator Pick")]))(), false);
+await expect("list item id must be sha256(key)", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), await itemWrite(admin, "composers", "Wrong Id", false, "0".repeat(64))]))(), false);
+await expect("unknown list refused", (async () => { const w = await itemWrite(admin, "composers", "Elsewhere"); w.update.name = name("curatedLists/other/items", await curated.listItemId("Elsewhere")); return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]); })(), false);
+await expect("Hot tune must be an HVSC path", (async () => { const w = await itemWrite(admin, "composers", "Commando"); w.update.name = name("curatedLists/hot-tunes/items", await curated.listItemId("Commando")); return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]); })(), false);
+await expect("list item key with spaces around refused", (async () => { const w = await itemWrite(admin, "composers", "Spaces"); w.update.fields.key = core.str(" Spaces"); w.update.name = name("curatedLists/composers/items", await curated.listItemId(" Spaces")); return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]); })(), false);
+await expect("list item hidden must be a bool", (async () => { const w = await itemWrite(admin, "composers", "Bool Test"); w.update.fields.hidden = core.str("yes"); return rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), w]); })(), false);
+await expect("list item can't be deleted", (async () => rawCommit([await core.chainStep(name, admin.state, await curDoc(admin)), { delete: name("curatedLists/composers/items", await curated.listItemId("Test Composer (Tester)")) }]))(), false);
 for (const [l, r] of results) console.log((r.startsWith("PASS") ? "ok   " : "FAIL ") + l + " -> " + r);
 process.exit(results.some(([, r]) => !r.startsWith("PASS")) ? 1 : 0);
