@@ -1140,6 +1140,7 @@ async function renderCuration(arg) {
     dom.view.innerHTML = `<div class="empty"><p>Tagging isn't set up on this site.</p></div>`;
     return;
   }
+  if (arg === "hot-tunes") return renderHotTunesAdmin(stale);
   if (arg) return renderEdits(arg, stale);
   dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
   const sections = [];
@@ -1329,6 +1330,10 @@ async function manageLists(stale, list = "composers", refresh = true) {
       <ion-list id="list-suggestions" class="list-suggestions" lines="full" hidden></ion-list>
       <p id="list-error" role="alert"></p>
     </section>
+    ${list === "hot-tunes" ? `<ion-list inset lines="none"><ion-item button href="#/curation/hot-tunes" detail="true">
+      <ion-icon slot="start" name="flame-outline" color="primary"></ion-icon>
+      <ion-label>Hot tunes<p>${curated.hot.size.toLocaleString()} tunes, with the pending changes</p></ion-label>
+    </ion-item></ion-list>` : ""}
     <p class="composer-meta" id="list-summary"></p>
     <div id="list-item-chips" class="chips tag-chips"></div>`;
 
@@ -1387,6 +1392,62 @@ async function manageLists(stale, list = "composers", refresh = true) {
       : await confirmDialog("Take it out?", `${label} leaves ${LIST_NAMES[list]} after the next sync.`, "Take Out");
     if (ok && !stale()) toggle(row.key);
   };
+}
+
+// Whether `path` is in the Hot tunes, with the pending changes this admin
+// has read (the published set until the list is loaded).
+function hotTuneOn(path) {
+  const item = tags.listCache?.get("hot-tunes")?.find((i) => i.key === path);
+  return item ? !item.hidden : curated.hot.has(path);
+}
+
+async function toggleHotTune(item) {
+  const on = hotTuneOn(item.path);
+  try {
+    await tags.setListItem("hot-tunes", item.path, on);
+    toast(on ? "Removed from Hot Tunes after the next sync" : "Added to Hot Tunes after the next sync");
+    if (currentRoute().name === "curation" && currentRoute().arg === "hot-tunes") render();
+  } catch (err) { toast(err.message, { color: "danger" }); }
+}
+
+// The Hot tunes as a playlist, for admins: pending additions and removals
+// first, then the list. A tune's ⋯ menu adds or removes it.
+async function renderHotTunesAdmin(stale) {
+  setChrome({ title: "Hot tunes", back: "#/curation", tab: "curation" });
+  if (!tags.isAdmin) return go("#/curation");
+  dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  let changes;
+  try {
+    changes = await tags.listItems("hot-tunes");
+  } catch (err) {
+    if (!stale()) dom.view.innerHTML = `<div class="empty"><p>${esc(err.message)}</p></div>`;
+    return;
+  }
+  if (stale()) return;
+  const rows = listCatalog("hot-tunes", curated.lists, changes, HOT_TUNES).filter((r) => r.pending);
+  const adding = rows.filter((r) => !r.hidden).map((r) => r.key);
+  const removing = new Set(rows.filter((r) => r.hidden).map((r) => r.key));
+  const listed = [...curated.hot].filter((path) => !removing.has(path));
+  const toItems = (paths) => paths.map((path) => index.get(path)).filter(Boolean).map((t) => asItem(t));
+  const groups = [["Pending additions", toItems(adding)], ["Pending removals", toItems([...removing])], ["Hot tunes", toItems(listed)]];
+  const sections = [];
+  const items = [];
+  for (const [title, list] of groups) {
+    if (!list.length) continue;
+    if (groups.some(([, l], i) => i < 2 && l.length)) sections.push({ start: items.length, title });
+    items.push(...list);
+  }
+  const playable = [...toItems(adding), ...toItems(listed)];
+  dom.view.innerHTML = `
+    <div class="playlist-head">
+      <ion-button id="hot-play" ${playable.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+      <ion-button id="hot-shuffle" fill="outline" ${playable.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+    </div>
+    <p class="result-count">${tuneCount(playable.length)}${rows.length ? `, ${rows.length} pending until the next sync` : ""}. Add or remove a tune with <strong>⋯</strong>.</p>
+    <div id="hot-list"></div>`;
+  showList($("hot-list"), items, { sections });
+  $("hot-play").addEventListener("click", () => player.setQueue(playable, 0));
+  $("hot-shuffle").addEventListener("click", () => player.setQueue(shuffle(playable), 0));
 }
 
 async function inviteCard(secret) {
@@ -1669,6 +1730,9 @@ function rowMenu(item, position) {
       { text: "Go to folder", icon: "folder-open-outline", handler: () => go(`#/browse/${encodeURIComponent(item.dir)}`) },
       { text: "Share…", icon: "share-outline", handler: () => shareTune(item) },
       ...(tags.canTag ? [{ text: "Edit Tags…", icon: "pricetags-outline", handler: () => tagSheet.open(item) }] : []),
+      ...(tags.isAdmin ? [hotTuneOn(item.path)
+        ? { text: "Remove from Hot Tunes", icon: "flame-outline", handler: () => toggleHotTune(item) }
+        : { text: "Add to Hot Tunes", icon: "flame", handler: () => toggleHotTune(item) }] : []),
     );
   }
   if (listOptions.playlistId) {
