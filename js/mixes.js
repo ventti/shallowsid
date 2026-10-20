@@ -3,8 +3,9 @@
 // Which mixes show can change on every visit; a mix's tunes are seeded by the
 // week (weekSeed), so they stay put for a week and then change. Pure, so it
 // runs under `node --test`.
-
-import { HOT_TUNES } from "./hot-tunes.js";
+//
+// `lists` holds the curated lists (js/curated.js): {composers: credits,
+// groups: [[name, pattern]], hot: the Hot tunes paths}.
 
 export const MIX_SIZE = 50;
 const MIN_TUNES = 60;         // a year or composer needs this many to make a mix
@@ -16,7 +17,7 @@ const ALWAYS_MIX = "hot";     // shown on every visit, first
 const lengthOf = (t) => t.lengths?.[t.start - 1] ?? 0;
 const yearOf = (t) => /^(\d{4})/.exec(t.released ?? "")?.[1];
 
-// Themes: [id, title, note, icon, filter]
+// Themes: [id, title, note, icon, filter(tune, lists)]
 const THEMES = [
   ["multi-sid", "Multi-SID", "Tunes for two or three SID chips", "layers-outline", (t) => t.multiSid],
   ["games", "Game music", "From the GAMES folders", "game-controller-outline", (t) => t.dir.startsWith("GAMES/")],
@@ -25,20 +26,12 @@ const THEMES = [
   ["ntsc", "NTSC", "Tunes timed for American machines", "globe-outline", (t) => t.clock === "NTSC"],
   ["epic", "Epic length", "Six minutes or more", "hourglass-outline", (t) => lengthOf(t) >= 360],
   ["short", "Short and sweet", "Half a minute to a minute and a half", "flash-outline", (t) => lengthOf(t) >= 30 && lengthOf(t) <= 90],
-  ["hot", "Hot tunes", "From the community's top 1000 list", "flame-outline", (t) => HOT_TUNES.has(t.path)],
+  ["hot", "Hot tunes", "From the community's top 1000 list", "flame-outline", (t, lists) => lists.hot.has(t.path)],
   ["random", "Random songs", "Anything from the whole collection", "shuffle", () => true],
 ];
 
-// Music groups and labels, matched in the "released" credit (year, then
-// groups joined by "/"): [name, pattern]
-const GROUPS = [
-  ["Maniacs of Noise", /\bManiacs of Noise\b/i],
-  ["Vibrants", /\bVibrants\b/i],
-  ["Blues Muz'", /\bBlues Muz'/i],
-  ["Artline Designs", /\bArtline Designs\b/i],
-  ["MultiStyle Labs", /\bMultiStyle Labs\b/i],
-  ["Side B", /\bSide B\b/i],
-];
+// Music groups and labels (lists.groups) are matched in the "released" credit
+// (year, then groups joined by "/").
 const groupOf = (t) => (t.released ?? "").replace(/^\S+\s*/, "");   // the credit after the year
 
 // The week of `date` (local time) as a seed; weeks start on Monday.
@@ -71,7 +64,7 @@ function sample(list, count, rand) {
 
 // A mix by id ("year-1987", "composer-<credit>", "group-<name>", or a theme
 // id), or null.
-export function mixDefinition(id) {
+export function mixDefinition(id, lists) {
   const year = /^year-(\d{4})$/.exec(id)?.[1];
   if (year) return { id, title: `${year} mix`, note: `Released in ${year}`, label: year, icon: "calendar-outline", filter: (t) => yearOf(t) === year };
   if (id.startsWith("composer-")) {
@@ -79,7 +72,7 @@ export function mixDefinition(id) {
     const name = credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit;   // the handle, as on the composer chips
     return { id, title: `${name} mix`, note: `Tunes by ${credit}`, label: name, icon: "person-outline", composer: credit, filter: (t) => t.author === credit };
   }
-  const group = id.startsWith("group-") && GROUPS.find(([name]) => `group-${name}` === id);
+  const group = id.startsWith("group-") && lists.groups.find(([name]) => `group-${name}` === id);
   if (group) {
     const [name, pattern] = group;
     return { id, title: `${name} mix`, note: `Released by ${name}`, label: name, icon: "people-outline", filter: (t) => pattern.test(groupOf(t)) };
@@ -87,18 +80,18 @@ export function mixDefinition(id) {
   const theme = THEMES.find(([themeId]) => themeId === id);
   if (!theme) return null;
   const [, title, note, icon, filter] = theme;
-  return { id, title, note, label: title, icon, filter };
+  return { id, title, note, label: title, icon, filter: (t) => filter(t, lists) };
 }
 
 // The tunes of mix `id` for `seed`: a random sample, or [] for an unknown mix.
-export function mixTunes(id, tunes, seed) {
-  const def = mixDefinition(id);
+export function mixTunes(id, tunes, seed, lists) {
+  const def = mixDefinition(id, lists);
   return def ? sample(tunes.filter(def.filter), MIX_SIZE, seededRandom(`${seed}:${id}`)) : [];
 }
 
-// The mixes to show for `seed`: Hot tunes, year mixes, a composer from
-// `composers` (credits), then themes and groups, each with enough tunes.
-export function pickMixes(tunes, composers, seed) {
+// The mixes to show for `seed`: Hot tunes, year mixes, a curated composer,
+// then themes and groups, each with enough tunes.
+export function pickMixes(tunes, lists, seed) {
   const rand = seededRandom(seed);
   const perYear = new Map();
   const perAuthor = new Map();
@@ -108,9 +101,9 @@ export function pickMixes(tunes, composers, seed) {
     perAuthor.set(t.author, (perAuthor.get(t.author) ?? 0) + 1);
   }
   const years = [...perYear].filter(([, n]) => n >= MIN_TUNES).map(([y]) => `year-${y}`);
-  const credits = composers.filter((c) => (perAuthor.get(c) ?? 0) >= MIN_TUNES).map((c) => `composer-${c}`);
-  const groups = GROUPS.filter(([, pattern]) => tunes.filter((t) => pattern.test(groupOf(t))).length >= MIN_GROUP_TUNES).map(([name]) => `group-${name}`);
+  const credits = lists.composers.filter((c) => (perAuthor.get(c) ?? 0) >= MIN_TUNES).map((c) => `composer-${c}`);
+  const groups = lists.groups.filter(([, pattern]) => tunes.filter((t) => pattern.test(groupOf(t))).length >= MIN_GROUP_TUNES).map(([name]) => `group-${name}`);
   const themes = THEMES.map(([id]) => id).filter((id) => id !== ALWAYS_MIX);
-  const always = tunes.some(mixDefinition(ALWAYS_MIX).filter) ? [ALWAYS_MIX] : [];
-  return [...always, ...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample([...groups, ...themes], THEME_MIXES, rand)].map(mixDefinition);
+  const always = tunes.some(mixDefinition(ALWAYS_MIX, lists).filter) ? [ALWAYS_MIX] : [];
+  return [...always, ...sample(years, YEAR_MIXES, rand), ...sample(credits, 1, rand), ...sample([...groups, ...themes], THEME_MIXES, rand)].map((id) => mixDefinition(id, lists));
 }

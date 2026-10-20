@@ -11,7 +11,8 @@ import { SoundSettings } from "./sound-settings.js";
 import { RomStore } from "./roms.js";
 import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
-import { COMPOSERS, COMPOSER_ALIASES } from "./suggestions.js";
+import { COMPOSER_ALIASES } from "./suggestions.js";
+import { curated, loadCurated } from "./curated.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
 import { FIELDS, describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
@@ -335,7 +336,8 @@ function composerChip(credit) {
   const alias = COMPOSER_ALIASES[credit];
   return alias ? [alias, alias] : [credit.match(/\(([^)]+)\)\s*$/)?.[1] ?? credit, credit];
 }
-const suggestions = shuffle(COMPOSERS).slice(0, SUGGESTION_COUNT).map(composerChip);
+let suggestions = null;
+const popularComposers = () => suggestions ??= shuffle(curated.composers).slice(0, SUGGESTION_COUNT).map(composerChip);
 const chips = (list) => `<div class="chips">${list.map(([label, name]) => `<ion-chip data-open-composer="${esc(name)}">${esc(label)}</ion-chip>`).join("")}</div>`;
 
 const playedWhere = () => (sync.enabled ? "on your devices" : "on this device");
@@ -365,7 +367,7 @@ const MIX_PICK_SEED = Math.random().toString(36).slice(2);
 const mixCache = new Map();
 
 function mixItems(id) {
-  if (!mixCache.has(id)) mixCache.set(id, mixTunes(id, index.tunes, MIX_SEED).map((t) => asItem(t)));
+  if (!mixCache.has(id)) mixCache.set(id, mixTunes(id, index.tunes, MIX_SEED, curated).map((t) => asItem(t)));
   return mixCache.get(id);
 }
 
@@ -375,7 +377,7 @@ function mixItems(id) {
 const MIX_GRADIENTS = 6;
 let mixes = null;
 function mixCards() {
-  mixes ??= pickMixes(index.tunes, COMPOSERS, MIX_PICK_SEED);
+  mixes ??= pickMixes(index.tunes, curated, MIX_PICK_SEED);
   return mixes.map((m, i) => ({
     href: `#/mix/${encodeURIComponent(m.id)}`, name: m.title, sub: m.note,
     art: `mix-art mix-art-${i % MIX_GRADIENTS}`, label: m.label,
@@ -384,7 +386,7 @@ function mixCards() {
 }
 
 function renderMix(id) {
-  const mix = mixDefinition(id);
+  const mix = mixDefinition(id, curated);
   if (!mix) return go("#/home");
   const items = mixItems(id);
   renderGenerated(mix.title, items, `${mix.note} · ${items.length} picked at random`);
@@ -536,7 +538,7 @@ function renderSearch() {
     dom.view.innerHTML = `
       <section class="home">
         <h2 class="section-title">Popular composers</h2>
-        ${chips(suggestions)}
+        ${chips(popularComposers())}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
         ${cards.length ? `<h2 class="section-title">Jump back in</h2>${shelf(cards)}` : ""}
         ${tagChips()}
@@ -1776,8 +1778,9 @@ document.addEventListener("keydown", (e) => {
 try {
   const tagsReady = tags.init();
   const noticesReady = notices.load();
+  const curatedReady = loadCurated();
   index = await loadIndex({ onText: (text) => searchWorker.postMessage({ type: "load", text }) });
-  await tagsReady;
+  await Promise.all([tagsReady, curatedReady]);
   $("hvsc-version").textContent = index.version ? `HVSC #${index.version}` : "HVSC";
   dom.searchbar.placeholder = `Search High Voltage SID Collection ${index.tunes.length.toLocaleString()} tunes, composers, groups, …`;
   // Read before render(): those links drop themselves from the address.
