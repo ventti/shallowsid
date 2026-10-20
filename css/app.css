@@ -485,6 +485,11 @@ body.has-side-panel .mini {
   color: var(--app-muted);
 }
 
+/* Outside a head, which has its own padding, keep the text off the edges. */
+:not(.composer-head) > .composer-meta {
+  margin: 8px 16px 0;
+}
+
 .composer-actions {
   justify-content: center;
 }
@@ -1021,7 +1026,8 @@ ion-tab-button[hidden] {
   padding: 0 12px;
 }
 
-#tag-chips .sound-section {
+/* The negative margin is for cards. Chips need space below the label. */
+.sound-section:has(+ .chips) {
   margin-bottom: 4px;
 }
 
