@@ -5,9 +5,9 @@
 description = "Build and deploy the site to GitHub Pages (also exports the latest tune tags)"
 run = "gh workflow run pages.yml"
 
-[tasks."ci:tag-vocab"]
-description = "Publish pending admin tag additions and edits into js/tags-vocab.json"
-run = "gh workflow run sync-tag-vocab.yml"
+[tasks."ci:admin-data"]
+description = "Publish pending admin changes into js/tags-vocab.json and js/curated-lists.json"
+run = "gh workflow run sync-admin-data.yml"
 
 [tasks."ci:rules-check"]
 description = "Check the Firebase rules and show the diff, without releasing"

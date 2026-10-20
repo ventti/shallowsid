@@ -1,11 +1,19 @@
-name: Tag vocabulary safety
+name: Admin data safety
+# Checks js/tags-vocab.json and js/curated-lists.json on every PR that
+# changes them, hand edits too. The bot PR (sync-admin-data.yml) may change
+# only these two files.
 on:
   pull_request:
     paths:
       - js/tags-vocab.json
+      - js/curated-lists.json
+      - js/hot-tunes.js
       - tools/sync_tag_vocab.py
+      - tools/sync_curated_lists.py
+      - tools/check_admin_pr.sh
       - tests/test_tag_vocab.py
-      - .github/workflows/tag-vocab-safety.yml
+      - tests/test_curated_lists.py
+      - .github/workflows/admin-data-safety.yml
 permissions:
   contents: read
 jobs:
@@ -19,13 +27,11 @@ jobs:
         with:
           python-version: '3.x'
       - name: Export validation tests
-        run: python3 -m unittest discover -s tests -p test_tag_vocab.py
-      - name: Sync PR only adds or edits vocabulary tags
-        if: github.head_ref == 'automation/tag-vocabulary'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          test "$(git diff --name-only "$BASE_SHA...$HEAD_SHA")" = 'js/tags-vocab.json'
-          git show "$BASE_SHA:js/tags-vocab.json" > /tmp/tags-vocab-before.json
-          python3 tools/sync_tag_vocab.py --before /tmp/tags-vocab-before.json
+          python3 -m unittest discover -s tests -p test_tag_vocab.py
+          python3 -m unittest discover -s tests -p test_curated_lists.py
+      - name: Check the curated lists
+        run: python3 tools/sync_curated_lists.py --check
+      - name: Sync PR only adds or edits admin data
+        if: github.head_ref == 'automation/admin-data'
+        run: tools/check_admin_pr.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
