@@ -13,7 +13,7 @@ import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSER_ALIASES } from "./suggestions.js";
 import { curated, loadCurated } from "./curated.js";
-import { LIST_NAMES, LISTS, groupPattern, listCatalog } from "./curated-core.js";
+import { LIST_NAMES, LISTS, listCatalog } from "./curated-core.js";
 import { HOT_TUNES } from "./hot-tunes.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
@@ -1251,39 +1251,53 @@ async function manageTags(stale, refresh = true) {
 }
 
 // The curated lists (js/curated-lists.json): popular composers, groups with
-// a mix and changes to the Hot tunes. An admin adds an item, or hides it to
-// take it out. Changes are pending until the nightly sync publishes them.
+// a mix and changes to the Hot tunes. An admin searches the HVSC index and
+// adds or removes a match. Changes are pending until the nightly sync
+// publishes them.
 const LIST_HELP = {
-  composers: "A composer as HVSC credits them, for the Popular composers chips and the composer mixes.",
-  groups: "A music group or label as it shows in the released credit, for the group mixes.",
-  "hot-tunes": "An HVSC path, to add to the Hot tunes mix or take out of it. Only the changes to the generated list show here.",
+  composers: "Composers as HVSC credits them, for the Popular composers chips and the composer mixes.",
+  groups: "Music groups and labels as they show in the released credit, for the group mixes.",
+  "hot-tunes": "Tunes to add to the Hot tunes mix or to take out of it. Only the changes to the generated list show below.",
 };
-// Tunes per HVSC credit, for checks and suggestions.
-let authorCounts = null;
-function tunesByAuthor() {
-  if (!authorCounts) {
-    authorCounts = new Map();
-    for (const t of index.tunes) authorCounts.set(t.author, (authorCounts.get(t.author) ?? 0) + 1);
-  }
-  return authorCounts;
-}
-// The credits that match `text`, best first: a match at the start of a word
-// before one inside a word, then the most tunes.
+const LIST_SEARCH = { composers: "Search composers", groups: "Search groups", "hot-tunes": "Search tune titles or paths" };
 const SUGGESTIONS = 8;
-function composerSuggestions(text) {
+
+// Tunes per composer credit and per group name, counted once.
+let listCounts = null;
+function listCountsFor(list) {
+  if (!listCounts) {
+    const authors = new Map(), groups = new Map();
+    for (const t of index.tunes) {
+      authors.set(t.author, (authors.get(t.author) ?? 0) + 1);
+      // The released credit is the year, then groups joined by "/".
+      for (const name of new Set((t.released ?? "").replace(/^\S+\s*/, "").split("/").map((g) => g.trim()).filter(Boolean))) {
+        groups.set(name, (groups.get(name) ?? 0) + 1);
+      }
+    }
+    listCounts = { composers: authors, groups };
+  }
+  return listCounts[list];
+}
+
+// What matches `text`, best first: a match at the start of a word before one
+// inside a word, then the most tunes (or the title). Rows: {key, label, note}.
+function listSuggestions(list, text) {
   const q = text.trim().toLowerCase();
   if (q.length < 2) return [];
-  const rank = (name) => { const i = name.toLowerCase().indexOf(q); return i < 0 ? -1 : i === 0 || /\W/.test(name[i - 1]) ? 0 : 1; };
-  return [...tunesByAuthor()].map(([name, count]) => ({ name, count, rank: rank(name) })).filter((c) => c.rank >= 0)
-    .sort((a, b) => a.rank - b.rank || b.count - a.count || a.name.localeCompare(b.name)).slice(0, SUGGESTIONS);
-}
-function listKeyError(list, key) {
-  if (list === "composers") return tunesByAuthor().has(key) ? "" : "No tune is credited to this composer";
-  if (list === "groups") {
-    const pattern = groupPattern(key);
-    return index.tunes.some((t) => pattern.test(t.released ?? "")) ? "" : "No tune is released by this group";
+  const rank = (s) => { const i = s.toLowerCase().indexOf(q); return i < 0 ? -1 : i === 0 || /\W/.test(s[i - 1]) ? 0 : 1; };
+  if (list === "hot-tunes") {
+    const found = [];
+    for (const t of index.tunes) {
+      const r = rank(t.title);
+      const r2 = q.includes("/") && t.path.toLowerCase().includes(q) ? 0 : -1;
+      if (r >= 0 || r2 >= 0) found.push({ t, rank: r2 >= 0 ? r2 : r });
+    }
+    return found.sort((a, b) => a.rank - b.rank || a.t.title.localeCompare(b.t.title)).slice(0, SUGGESTIONS)
+      .map(({ t }) => ({ key: t.path, label: t.title, note: `${composerName(t.author)}, ${t.path}` }));
   }
-  return index.get(key) ? "" : "This tune isn't in the HVSC index";
+  return [...listCountsFor(list)].map(([name, count]) => ({ name, count, rank: rank(name) })).filter((c) => c.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || b.count - a.count || a.name.localeCompare(b.name)).slice(0, SUGGESTIONS)
+    .map((c) => ({ key: c.name, label: c.name, note: tuneCount(c.count) }));
 }
 const listLabel = (list, key) => {
   if (list !== "hot-tunes") return key;
@@ -1296,81 +1310,83 @@ async function manageLists(stale, list = "composers", refresh = true) {
   if (!panel) return;
   panel.hidden = false;
   panel.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  let items;
   try {
-    const items = await tags.listItems(list, refresh);
-    if (stale()) return;
-    const rows = listCatalog(list, curated.lists, items, HOT_TUNES);
-    const byKey = new Map(rows.map((r) => [r.key, r]));
-    const status = (r) => (r.pending ? (r.hidden ? "Pending removal" : "Pending") : r.hidden ? "Removed" : "Published");
-    panel.innerHTML = `<h2 class="section-title">Manage Lists</h2>
-      <ion-segment id="list-choice" value="${list}">${LISTS.map((l) => `<ion-segment-button value="${l}"><ion-label>${LIST_NAMES[l]}</ion-label></ion-segment-button>`).join("")}</ion-segment>
-      <div class="playlist-head"><ion-button id="refresh-list-items" fill="outline">Refresh</ion-button></div>
-      <form id="add-list-item-form" class="composer-head tag-definition-form">
-        <h3>Add to ${esc(LIST_NAMES[list])}</h3>
-        <p class="composer-meta">${esc(LIST_HELP[list])}</p>
-        <label>${list === "hot-tunes" ? "HVSC path" : "Name"} <input name="key" required maxlength="200" autocomplete="off" spellcheck="false"></label>
-        ${list === "composers" ? `<ion-list id="list-suggestions" class="list-suggestions" lines="full" hidden></ion-list>` : ""}
-        <button type="submit">Add</button><p id="add-list-item-error" role="alert"></p>
-      </form>
-      <p class="composer-meta">${rows.filter((r) => !r.hidden).length} shown, ${rows.filter((r) => r.pending).length} pending (dashed). Tap an item to take it out or to put it back.</p>
-      <div id="list-item-chips" class="chips tag-chips">${rows.map((r) => `<ion-chip data-list-key="${esc(r.key)}" class="tag-toggle${r.pending ? " is-pending" : ""}${r.hidden ? " is-hidden" : ""}"
-          title="${esc(`${status(r)}: ${r.key}${r.by ? (r.by === tags.cid ? ", by you" : ", by another admin") : ""}`)}">
-        ${r.pending ? `<ion-icon name="time-outline" aria-label="${status(r)}"></ion-icon>` : ""}<ion-label>${esc(listLabel(list, r.key))}</ion-label>
-      </ion-chip>`).join("")}</div>`;
-    $("list-choice").addEventListener("ionChange", (event) => manageLists(stale, event.detail.value, false));
-    $("refresh-list-items").onclick = () => manageLists(stale, list, true);
-    $("list-item-chips").onclick = async (event) => {
-      const row = byKey.get(event.target.closest("[data-list-key]")?.dataset.listKey);
-      if (!row) return;
-      const label = listLabel(list, row.key);
-      const ok = row.hidden
-        ? await confirmDialog("Put it back?", `${label} goes back into ${LIST_NAMES[list]} after the next sync.`, "Put Back")
-        : await confirmDialog("Take it out?", `${label} leaves ${LIST_NAMES[list]} after the next sync.`, "Take Out");
-      if (!ok || stale()) return;
-      try {
-        await tags.setListItem(list, row.key, !row.hidden);
-        if (!stale()) await manageLists(stale, list, false);
-      } catch (err) { if (!stale()) toast(err.message); }
-    };
-    const form = $("add-list-item-form");
-    const suggestions = $("list-suggestions");
-    if (suggestions) {
-      const hide = () => { suggestions.hidden = true; suggestions.innerHTML = ""; };
-      form.elements.key.oninput = (event) => {
-        const found = composerSuggestions(event.target.value);
-        suggestions.hidden = !found.length;
-        suggestions.innerHTML = found.map((c) => `<ion-item button detail="false" data-suggest="${esc(c.name)}">
-          <ion-label>${esc(c.name)}<p>${c.count === 1 ? "1 tune" : `${c.count.toLocaleString()} tunes`}${byKey.get(c.name) && !byKey.get(c.name).hidden ? ", in the list" : ""}</p></ion-label>
-        </ion-item>`).join("");
-      };
-      form.elements.key.onkeydown = (event) => { if (event.key === "Escape") hide(); };
-      suggestions.onclick = (event) => {
-        const name = event.target.closest("[data-suggest]")?.dataset.suggest;
-        if (!name) return;
-        form.elements.key.value = name;
-        $("add-list-item-error").textContent = "";
-        hide();
-        form.elements.key.focus();
-      };
-    }
-    form.onsubmit = async (event) => {
-      event.preventDefault();
-      const button = form.querySelector("button[type=submit]");
-      const key = form.elements.key.value.trim();
-      const error = listKeyError(list, key) || (byKey.get(key) && !byKey.get(key).hidden ? "This is already in the list" : "");
-      if (error) { $("add-list-item-error").textContent = error; return; }
-      button.disabled = true;
-      try {
-        await tags.setListItem(list, key, false);
-        if (!stale()) await manageLists(stale, list, false);
-      } catch (err) { if (!stale()) $("add-list-item-error").textContent = err.message; }
-      finally { button.disabled = false; }
-    };
+    items = await tags.listItems(list, refresh);
   } catch (err) {
     if (stale()) return;
     panel.innerHTML = `<p role="alert">${esc(err.message)}</p><ion-button id="retry-list-items">Refresh</ion-button>`;
     $("retry-list-items").addEventListener("click", () => manageLists(stale, list, true));
+    return;
   }
+  if (stale()) return;
+  panel.innerHTML = `<h2 class="section-title">Manage Lists</h2>
+    <ion-segment id="list-choice" value="${list}">${LISTS.map((l) => `<ion-segment-button value="${l}"><ion-label>${LIST_NAMES[l]}</ion-label></ion-segment-button>`).join("")}</ion-segment>
+    <div class="playlist-head"><ion-button id="refresh-list-items" fill="outline">Refresh</ion-button></div>
+    <section class="composer-head tag-definition-form">
+      <p class="composer-meta">${esc(LIST_HELP[list])}</p>
+      <input id="list-search" type="search" placeholder="${LIST_SEARCH[list]}" maxlength="200" autocomplete="off" spellcheck="false" aria-label="${LIST_SEARCH[list]}">
+      <ion-list id="list-suggestions" class="list-suggestions" lines="full" hidden></ion-list>
+      <p id="list-error" role="alert"></p>
+    </section>
+    <p class="composer-meta" id="list-summary"></p>
+    <div id="list-item-chips" class="chips tag-chips"></div>`;
+
+  let rows, byKey;
+  // Whether `key` is in the list, with the pending changes.
+  const inList = (key) => { const r = byKey.get(key); return r ? !r.hidden : list === "hot-tunes" && HOT_TUNES.has(key); };
+  const status = (r) => (r.pending ? (r.hidden ? "Pending removal" : "Pending") : r.hidden ? "Removed" : "Published");
+  const search = $("list-search");
+  const suggestions = $("list-suggestions");
+  const paint = () => {
+    rows = listCatalog(list, curated.lists, items, HOT_TUNES);
+    byKey = new Map(rows.map((r) => [r.key, r]));
+    $("list-summary").textContent = `${rows.filter((r) => !r.hidden).length} shown, ${rows.filter((r) => r.pending).length} pending (dashed). Tap an item to take it out or to put it back.`;
+    $("list-item-chips").innerHTML = rows.map((r) => `<ion-chip data-list-key="${esc(r.key)}" class="tag-toggle${r.pending ? " is-pending" : ""}${r.hidden ? " is-hidden" : ""}"
+        title="${esc(`${status(r)}: ${r.key}${r.by ? (r.by === tags.cid ? ", by you" : ", by another admin") : ""}`)}">
+      ${r.pending ? `<ion-icon name="time-outline" aria-label="${status(r)}"></ion-icon>` : ""}<ion-label>${esc(listLabel(list, r.key))}</ion-label>
+    </ion-chip>`).join("");
+    const found = listSuggestions(list, search.value);
+    suggestions.hidden = !found.length;
+    suggestions.innerHTML = found.map((s) => {
+      const on = inList(s.key);
+      const pending = byKey.get(s.key)?.pending;
+      return `<ion-item>
+        <ion-label>${pending ? `<ion-icon name="time-outline" aria-label="Pending"></ion-icon> ` : ""}${esc(s.label)}<p>${esc(s.note)}</p></ion-label>
+        <ion-button slot="end" fill="clear" color="${on ? "danger" : "success"}" data-toggle="${esc(s.key)}" aria-label="${on ? "Remove" : "Add"} ${esc(s.label)}">
+          <ion-icon slot="icon-only" name="${on ? "remove-circle" : "add-circle"}"></ion-icon>
+        </ion-button>
+      </ion-item>`;
+    }).join("");
+  };
+  const toggle = async (key, button) => {
+    if (button) button.disabled = true;
+    $("list-error").textContent = "";
+    try {
+      await tags.setListItem(list, key, inList(key));
+    } catch (err) {
+      if (!stale()) $("list-error").textContent = err.message;
+    }
+    if (!stale()) paint();
+  };
+  paint();
+  search.oninput = paint;
+  search.onkeydown = (event) => { if (event.key === "Escape") { search.value = ""; paint(); } };
+  suggestions.onclick = (event) => {
+    const button = event.target.closest("[data-toggle]");
+    if (button) toggle(button.dataset.toggle, button);
+  };
+  $("list-choice").addEventListener("ionChange", (event) => manageLists(stale, event.detail.value, false));
+  $("refresh-list-items").onclick = () => manageLists(stale, list, true);
+  $("list-item-chips").onclick = async (event) => {
+    const row = byKey.get(event.target.closest("[data-list-key]")?.dataset.listKey);
+    if (!row) return;
+    const label = listLabel(list, row.key);
+    const ok = row.hidden
+      ? await confirmDialog("Put it back?", `${label} goes back into ${LIST_NAMES[list]} after the next sync.`, "Put Back")
+      : await confirmDialog("Take it out?", `${label} leaves ${LIST_NAMES[list]} after the next sync.`, "Take Out");
+    if (ok && !stale()) toggle(row.key);
+  };
 }
 
 async function inviteCard(secret) {
