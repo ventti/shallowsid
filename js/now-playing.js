@@ -180,7 +180,7 @@ export class NowPlaying {
     el.miniTitle.textContent = item.title;
     el.miniAuthor.textContent = item.author;
     el.art.style.backgroundImage = artworkImage(item);
-    el.art.querySelector("span").textContent = "";
+    el.art.querySelector("ion-icon").hidden = true;
     el.title.textContent = item.title;
     el.author.textContent = item.author;
     el.author.classList.toggle("is-link", item.author !== "<?>");
