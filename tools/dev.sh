@@ -1,62 +1,68 @@
 #!/usr/bin/env bash
 # Serve the app with a locally built HVSC catalogue (songs stream from hvsc.c64.org).
-# Usage: tools/dev.sh [--role user|curator|admin] [port] [build_index.py args...]
-#   (e.g. tools/dev.sh 8000 --subset MUSICIANS/H, or tools/dev.sh --role admin 8765)
+# Usage: tools/dev.sh [--no-emulator] [port] [build_index.py args...]
+#   (e.g. tools/dev.sh 8000 --subset MUSICIANS/H)
 #
-# --role starts a Firestore emulator with a test profile in that role. The
-# profile and the emulator apply only to http://127.0.0.1:<port>. On
-# http://localhost:<port> the app stays as it is, with the real Firestore.
-# The emulator needs Java 11+ and keeps no data after it stops.
+# A Firestore emulator starts in the background with test profiles. Open
+# http://127.0.0.1:<port>/?role=user|curator|admin to use one; on that
+# address the app uses only the emulator. http://localhost:<port> stays as
+# it is, with your own profile and the real Firestore. The emulator needs
+# Java 11+ and keeps no data after it stops. --no-emulator turns it off.
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 site="${SHALLOWSID_SITE:-$HOME/.cache/shallowsid/_site}"
-role=""
-if [[ "${1:-}" == "--role" ]]; then
-  role="${2:?--role needs user, curator or admin}"; shift 2
-  [[ "$role" =~ ^(user|curator|admin)$ ]] || { echo "--role must be user, curator or admin" >&2; exit 2; }
-fi
+emulator_on=1
+if [[ "${1:-}" == "--no-emulator" ]]; then emulator_on=0; shift; fi
 port="${1:-8000}"; shift || true
 if [[ ! -f "$site/data/index.json" || $# -gt 0 ]]; then
   python3 "$repo/tools/build_index.py" --out "$site" "$@"
 fi
 for f in index.html favicon.ico privacy.html about.html manifest.webmanifest service-worker.js icons css js; do ln -sfn "$repo/$f" "$site/$f"; done
 
-profile=""
+profiles=""
 emulator_port=8089
-if [[ -n "$role" ]]; then
+if (( emulator_on )); then
   # A broken Java shim (for example jenv) falls back to the newest installed JDK.
   if ! java -version >/dev/null 2>&1 && [[ -x /usr/libexec/java_home ]]; then
     export JAVA_HOME="$(/usr/libexec/java_home)"; export PATH="$JAVA_HOME/bin:$PATH"
   fi
-  python3 "$repo/tools/build_rules.py"
+  python3 "$repo/tools/build_rules.py" >/dev/null
+  profiles="$(node "$repo/tools/dev_profile.mjs")"
   log="$(mktemp -t shallowsid-emulator)"
   (cd "$repo" && exec npx -y firebase-tools@15.31.0 emulators:start --only firestore --project demo-shallowsid) >"$log" 2>&1 &
   emulator=$!
   trap 'kill "$emulator" 2>/dev/null || true' EXIT
+  # Write the test profiles when the emulator is up; the site serves meanwhile.
+  (
+    until curl -s -o /dev/null "http://127.0.0.1:$emulator_port/"; do
+      kill -0 "$emulator" 2>/dev/null || { echo "The Firestore emulator stopped. See $log" >&2; exit 1; }
+      sleep 0.5
+    done
+    node "$repo/tools/dev_profile.mjs" "http://127.0.0.1:$emulator_port" >/dev/null \
+      && echo "emulator ready: http://127.0.0.1:$port/?role=user|curator|admin"
+  ) &
   echo "starting the Firestore emulator (log: $log)"
-  until curl -s -o /dev/null "http://127.0.0.1:$emulator_port/"; do
-    kill -0 "$emulator" 2>/dev/null || { echo "The Firestore emulator stopped. See $log" >&2; exit 1; }
-    sleep 0.5
-  done
-  profile="$(node "$repo/tools/dev_profile.mjs" "$role" "http://127.0.0.1:$emulator_port")"
-  echo "role $role: http://127.0.0.1:$port (emulator), real profile: http://localhost:$port"
 fi
 
 echo "serving $site on http://localhost:$port"
 # Like `python3 -m http.server`, but with no-cache so edited modules reload.
-# With --role, requests to 127.0.0.1 get the emulator config and the test profile.
-python3 - "$port" "$site" "$profile" "$emulator_port" <<'PY'
-import functools, http.server, json, sys
-port, root, profile, emulator_port = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+# Requests to 127.0.0.1 get the emulator config and the test profiles.
+python3 - "$port" "$site" "$profiles" "$emulator_port" <<'PY'
+import functools, http.server, sys
+port, root, profiles, emulator_port = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
 CONFIG = ('export const FIREBASE = { apiKey: "dev", projectId: "demo-shallowsid", '
           f'endpoint: "http://127.0.0.1:{emulator_port}" }};\n')
-PROFILE = ('// tools/dev.sh --role: the test profile for this origin.\n'
-           f'const profile = {profile or "{}"};\n'
+# ?role= picks a profile; with no ?role=, the stored one stays.
+PROFILE = ('// tools/dev.sh: the test profiles for this origin (?role=user|curator|admin).\n'
+           f'const profiles = {profiles};\n'
+           'const role = new URLSearchParams(location.search).get("role");\n'
            'const key = "shallowsid.curation";\n'
-           'let state = {};\n'
-           'try { state = JSON.parse(localStorage.getItem(key)) ?? {}; } catch {}\n'
-           'if (!profile.cid) localStorage.removeItem(key);\n'
-           'else if (state.cid !== profile.cid) localStorage.setItem(key, JSON.stringify(profile));\n')
+           'if (role in profiles) {\n'
+           '  let state = {};\n'
+           '  try { state = JSON.parse(localStorage.getItem(key)) ?? {}; } catch {}\n'
+           '  if (!profiles[role].cid) localStorage.removeItem(key);\n'
+           '  else if (state.cid !== profiles[role].cid) localStorage.setItem(key, JSON.stringify(profiles[role]));\n'
+           '} else if (role) console.warn(`dev.sh: unknown role "${role}"`);\n')
 
 class NoCache(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -72,8 +78,15 @@ class NoCache(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        path = self.path.split("?", 1)[0]
-        if profile and self.headers.get("Host", "").startswith("127.0.0.1"):
+        path, _, query = self.path.partition("?")
+        host = self.headers.get("Host", "")
+        if profiles and path in ("/", "/index.html") and "role=" in query and not host.startswith("127.0.0.1"):
+            # Keep your own profile on localhost: test profiles live on 127.0.0.1.
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{port}{self.path}")
+            self.end_headers()
+            return
+        if profiles and host.startswith("127.0.0.1"):
             if path == "/js/sync-config.js":
                 return self.send_text(CONFIG, "text/javascript")
             if path == "/dev-profile.js":

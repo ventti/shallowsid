@@ -111,15 +111,12 @@ For a faster build, index only part of HVSC:
 tools/dev.sh 8000 --subset MUSICIANS/H
 ```
 
-To test as a user, a curator or an admin, start a local Firestore emulator with a test profile:
+To test as a user, a curator or an admin, add `?role=` to the address:
 
-```sh
-tools/dev.sh --role admin 8000
-```
-
-- `--role` takes `user`, `curator` or `admin`.
-- The test profile applies only to <http://127.0.0.1:8000>. <http://localhost:8000> keeps your own profile and the real Firestore.
-- The emulator needs Java 11+. It keeps no data after it stops.
+- <http://127.0.0.1:8000/?role=admin> (or `user`, `curator`).
+- `tools/dev.sh` starts a local Firestore emulator for these test profiles. On `127.0.0.1` the app uses only the emulator.
+- <http://localhost:8000> keeps your own profile and the real Firestore. A `?role=` address there goes to `127.0.0.1`.
+- The emulator needs Java 11+. It keeps no data after it stops. `tools/dev.sh --no-emulator 8000` turns it off.
 
 Run the tests:
 
