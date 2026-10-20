@@ -13,6 +13,8 @@ import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSER_ALIASES } from "./suggestions.js";
 import { curated, loadCurated } from "./curated.js";
+import { LIST_NAMES, LISTS, groupPattern, listCatalog } from "./curated-core.js";
+import { HOT_TUNES } from "./hot-tunes.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
 import { FIELDS, describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
@@ -1159,7 +1161,7 @@ async function renderCuration(arg) {
     </section>`);
   }
   if (tags.isAdmin) {
-    sections.push(`<div class="playlist-head"><ion-button id="manage-tags">Manage Tags</ion-button></div><section id="tag-management" hidden></section><h2 class="section-title">Curators</h2>
+    sections.push(`<div class="playlist-head"><ion-button id="manage-tags">Manage Tags</ion-button><ion-button id="manage-lists" fill="outline">Manage Lists</ion-button></div><section id="tag-management" hidden></section><section id="list-management" hidden></section><h2 class="section-title">Curators</h2>
       <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
       <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
   }
@@ -1173,6 +1175,7 @@ async function renderCuration(arg) {
     render();
   });
   $("manage-tags")?.addEventListener("click", () => manageTags(stale));
+  $("manage-lists")?.addEventListener("click", () => manageLists(stale));
   $("new-invite")?.addEventListener("click", newInvite);
   if (tags.isAdmin) fillCurators(stale);
 }
@@ -1245,6 +1248,94 @@ async function manageTags(stale, refresh = true) {
       finally { button.disabled = false; }
     };
   } catch (err) { if (!stale()) panel.innerHTML = `<p role="alert">${esc(err.message)}</p><ion-button id="retry-tag-definitions">Refresh</ion-button>`; $("retry-tag-definitions")?.addEventListener("click", () => manageTags(stale, true)); }
+}
+
+// The curated lists (js/curated-lists.json): popular composers, groups with
+// a mix and changes to the Hot tunes. An admin adds an item, or hides it to
+// take it out. Changes are pending until the nightly sync publishes them.
+const LIST_HELP = {
+  composers: "A composer as HVSC credits them, for the Popular composers chips and the composer mixes.",
+  groups: "A music group or label as it shows in the released credit, for the group mixes.",
+  "hot-tunes": "An HVSC path, to add to the Hot tunes mix or take out of it. Only the changes to the generated list show here.",
+};
+let listAuthors = null;
+function listKeyError(list, key) {
+  if (list === "composers") {
+    listAuthors ??= new Set(index.tunes.map((t) => t.author));
+    return listAuthors.has(key) ? "" : "No tune is credited to this composer";
+  }
+  if (list === "groups") {
+    const pattern = groupPattern(key);
+    return index.tunes.some((t) => pattern.test(t.released ?? "")) ? "" : "No tune is released by this group";
+  }
+  return index.get(key) ? "" : "This tune isn't in the HVSC index";
+}
+const listLabel = (list, key) => {
+  if (list !== "hot-tunes") return key;
+  const tune = index.get(key);
+  return tune ? `${tune.title} (${composerName(tune.author)})` : key;
+};
+
+async function manageLists(stale, list = "composers", refresh = true) {
+  const panel = $("list-management");
+  if (!panel) return;
+  panel.hidden = false;
+  panel.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+  try {
+    const items = await tags.listItems(list, refresh);
+    if (stale()) return;
+    const rows = listCatalog(list, curated.lists, items, HOT_TUNES);
+    const byKey = new Map(rows.map((r) => [r.key, r]));
+    const status = (r) => (r.pending ? (r.hidden ? "Pending removal" : "Pending") : r.hidden ? "Removed" : "Published");
+    panel.innerHTML = `<h2 class="section-title">Manage Lists</h2>
+      <ion-segment id="list-choice" value="${list}">${LISTS.map((l) => `<ion-segment-button value="${l}"><ion-label>${LIST_NAMES[l]}</ion-label></ion-segment-button>`).join("")}</ion-segment>
+      <div class="playlist-head"><ion-button id="refresh-list-items" fill="outline">Refresh</ion-button></div>
+      <form id="add-list-item-form" class="composer-head tag-definition-form">
+        <h3>Add to ${esc(LIST_NAMES[list])}</h3>
+        <p class="composer-meta">${esc(LIST_HELP[list])}</p>
+        <label>${list === "hot-tunes" ? "HVSC path" : "Name"} <input name="key" required maxlength="200"${list === "composers" ? ` list="list-authors"` : ""}></label>
+        ${list === "composers" ? `<datalist id="list-authors">${[...(listAuthors ??= new Set(index.tunes.map((t) => t.author)))].sort().map((a) => `<option value="${esc(a)}">`).join("")}</datalist>` : ""}
+        <button type="submit">Add</button><p id="add-list-item-error" role="alert"></p>
+      </form>
+      <p class="composer-meta">${rows.filter((r) => !r.hidden).length} shown, ${rows.filter((r) => r.pending).length} pending (dashed). Tap an item to take it out or to put it back.</p>
+      <div id="list-item-chips" class="chips tag-chips">${rows.map((r) => `<ion-chip data-list-key="${esc(r.key)}" class="tag-toggle${r.pending ? " is-pending" : ""}${r.hidden ? " is-hidden" : ""}"
+          title="${esc(`${status(r)}: ${r.key}${r.by ? (r.by === tags.cid ? ", by you" : ", by another admin") : ""}`)}">
+        ${r.pending ? `<ion-icon name="time-outline" aria-label="${status(r)}"></ion-icon>` : ""}<ion-label>${esc(listLabel(list, r.key))}</ion-label>
+      </ion-chip>`).join("")}</div>`;
+    $("list-choice").addEventListener("ionChange", (event) => manageLists(stale, event.detail.value, false));
+    $("refresh-list-items").onclick = () => manageLists(stale, list, true);
+    $("list-item-chips").onclick = async (event) => {
+      const row = byKey.get(event.target.closest("[data-list-key]")?.dataset.listKey);
+      if (!row) return;
+      const label = listLabel(list, row.key);
+      const ok = row.hidden
+        ? await confirmDialog("Put it back?", `${label} goes back into ${LIST_NAMES[list]} after the next sync.`, "Put Back")
+        : await confirmDialog("Take it out?", `${label} leaves ${LIST_NAMES[list]} after the next sync.`, "Take Out");
+      if (!ok || stale()) return;
+      try {
+        await tags.setListItem(list, row.key, !row.hidden);
+        if (!stale()) await manageLists(stale, list, false);
+      } catch (err) { if (!stale()) toast(err.message); }
+    };
+    const form = $("add-list-item-form");
+    form.onsubmit = async (event) => {
+      event.preventDefault();
+      const button = form.querySelector("button[type=submit]");
+      const key = form.elements.key.value.trim();
+      const error = listKeyError(list, key) || (byKey.get(key) && !byKey.get(key).hidden ? "This is already in the list" : "");
+      if (error) { $("add-list-item-error").textContent = error; return; }
+      button.disabled = true;
+      try {
+        await tags.setListItem(list, key, false);
+        if (!stale()) await manageLists(stale, list, false);
+      } catch (err) { if (!stale()) $("add-list-item-error").textContent = err.message; }
+      finally { button.disabled = false; }
+    };
+  } catch (err) {
+    if (stale()) return;
+    panel.innerHTML = `<p role="alert">${esc(err.message)}</p><ion-button id="retry-list-items">Refresh</ion-button>`;
+    $("retry-list-items").addEventListener("click", () => manageLists(stale, list, true));
+  }
 }
 
 async function inviteCard(secret) {

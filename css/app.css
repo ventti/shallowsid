@@ -1047,6 +1047,12 @@ ion-tab-button[hidden] {
   border-color: var(--ion-color-warning);
 }
 
+/* A curated list item that is taken out, or will be. */
+.tag-toggle.is-hidden ion-label {
+  text-decoration: line-through;
+  opacity: .7;
+}
+
 .tag-toggle.is-inherited {
   opacity: 0.55;
 }
