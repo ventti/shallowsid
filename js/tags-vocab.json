@@ -254,6 +254,10 @@
           "label": "Psychedelic"
         },
         {
+          "id": "punk",
+          "label": "Punk"
+        },
+        {
           "id": "rnb",
           "label": "R&B"
         },
@@ -287,6 +291,11 @@
         {
           "id": "soul",
           "label": "Soul"
+        },
+        {
+          "id": "synth",
+          "label": "Synth",
+          "description": "Electronic music in the vein of Jean-Michael Jarre and similar artists which was packaged sold as \"Synthesizer\" compilations in the '80-90s."
         },
         {
           "id": "synthpop",
