@@ -230,6 +230,11 @@
           "description": "Parody of a style or a particular tune."
         },
         {
+          "id": "pastiche",
+          "label": "Pastiche",
+          "description": "Pastiche in music is a work that imitates the style or elements of other composers’ music, often as homage rather than parody."
+        },
+        {
           "id": "phonk",
           "label": "Phonk"
         },
@@ -470,8 +475,18 @@
       "name": "Use",
       "tags": [
         {
+          "id": "compotune",
+          "label": "Compotune",
+          "description": "Released in a music competition."
+        },
+        {
           "id": "demo",
           "label": "Demo Soundtrack"
+        },
+        {
+          "id": "diskmag",
+          "label": "Diskmag",
+          "description": "First presented in a diskmag."
         },
         {
           "id": "game-complete",
