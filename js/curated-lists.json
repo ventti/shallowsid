@@ -18,6 +18,7 @@
     "Arman Behdad (Intensity)",
     "Attila Szõke (da Blondie)",
     "Ben Daglish",
+    "Benjamin Dibbert (Nordischsound)",
     "Carsten Berggreen (Scarzix)",
     "Charles Deenen",
     "Chris Hülsbeck",
@@ -42,6 +43,7 @@
     "Jonathan Dunn",
     "Jouni Ikonen (Mixer)",
     "Juha-Matti Hilpinen (AMJ)",
+    "Jussi Hannula (Juzdie)",
     "Kai Walter (PVCF)",
     "Kamil Wolnikowski (Jammer)",
     "Kjell Nordbø",
@@ -109,7 +111,20 @@
     "Vibrants"
   ],
   "hotTunes": {
-    "add": [],
+    "add": [
+      "MUSICIANS/Z/Zardax/Anglia_Spirit.sid",
+      "MUSICIANS/Z/Zardax/Elysion_tune_2.sid",
+      "MUSICIANS/Z/Zardax/Elysion_tune_3.sid",
+      "MUSICIANS/Z/Zardax/Esgarraet.sid",
+      "MUSICIANS/Z/Zardax/Hortus_Zoologicus.sid",
+      "MUSICIANS/Z/Zardax/Jingle.sid",
+      "MUSICIANS/Z/Zardax/Llamusic.sid",
+      "MUSICIANS/Z/Zardax/Martinism.sid",
+      "MUSICIANS/Z/Zardax/Odd_One_Out.sid",
+      "MUSICIANS/Z/Zardax/Proven_Futile.sid",
+      "MUSICIANS/Z/Zardax/Retrograd.sid",
+      "MUSICIANS/Z/Zardax/Takeaway_Time.sid"
+    ],
     "remove": []
   }
 }
