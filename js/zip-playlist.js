@@ -4,6 +4,15 @@ const MAX_SID = 1024 * 1024;
 const MAX_TOTAL = 128 * 1024 * 1024;
 
 export async function sidHash(bytes) {
+  // Ignore only the three 32-byte display fields (0x16..0x75).
+  // Playback settings and all music data remain part of the fingerprint.
+  const magic = String.fromCharCode(...bytes.subarray(0, 4));
+  if (bytes.length >= 0x76 && (magic === "PSID" || magic === "RSID")) {
+    const content = new Uint8Array(bytes.length - 96);
+    content.set(bytes.subarray(0, 0x16));
+    content.set(bytes.subarray(0x76), 0x16);
+    bytes = content;
+  }
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-1", bytes));
   return btoa(String.fromCharCode(...digest));
 }

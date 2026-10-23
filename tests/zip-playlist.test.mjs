@@ -54,3 +54,24 @@ test('unsupported compression and oversized archives are rejected', async () => 
   await assert.rejects(matchZip(archive([['test.sid', Buffer.from('x')]], 99), index), /compression/);
   await assert.rejects(matchZip({ size: 129 * 1024 * 1024 }, index), /too large/);
 });
+
+for (const magic of ['PSID', 'RSID']) test(`${magic}: metadata edits match; playback and music edits do not`, async () => {
+  const original = Buffer.alloc(160);
+  original.write(magic);
+  original.writeUInt16BE(0x7c, 6);
+  original.writeUInt16BE(3, 14);
+  const edited = Buffer.from(original);
+  edited.fill(65, 0x16, 0x76);
+  const hash = await sidHash(original);
+  assert.equal(await sidHash(edited), hash);
+  // Hashing must not change the bytes supplied by the caller.
+  assert.equal(edited[0x16], 65);
+  for (const offset of [4, 6, 8, 10, 12, 14, 16, 18, 0x76, 0x7c, 159]) {
+    const changed = Buffer.from(edited);
+    changed[offset] ^= 1;
+    assert.notEqual(await sidHash(changed), hash, `offset ${offset}`);
+  }
+  const index = { tunes: [{ path: 'MUSICIANS/Test/song.sid', start: 2, hash }] };
+  assert.deepEqual(await matchZip(archive([['renamed.sid', edited]]), index),
+    { items: [{ path: 'MUSICIANS/Test/song.sid', song: 2 }], skipped: 0 });
+});

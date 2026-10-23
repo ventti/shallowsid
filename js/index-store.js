@@ -5,7 +5,7 @@
 // three are per subtune and may be missing: bpm the estimated tempo (0 = none;
 // tools/bpm/estimates.tsv), speed the play calls a frame and sid the SID_* bits
 // (tools/sidfeatures/features.tsv; speed 0 = none shown, sid 0 = not analysed).
-// hash is the full SHA-1 of the SID bytes, encoded as base64 for ZIP matching.
+// hash is full SHA-1 excluding title/author/release text, in base64 for ZIP matching.
 
 const FLAG_RSID = 1 << 0;
 const FLAG_MULTI_SID = 1 << 5;

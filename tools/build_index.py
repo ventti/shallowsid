@@ -171,6 +171,17 @@ class Interner:
         return self.index[value]
 
 
+def sid_hash(data):
+    """Full SHA-1, excluding title/author/release text, matching zip-playlist.js."""
+    digest = hashlib.sha1()
+    if len(data) >= 0x76 and data[:4] in (b"PSID", b"RSID"):
+        digest.update(data[:0x16])
+        digest.update(data[0x76:])
+    else:
+        digest.update(data)
+    return base64.b64encode(digest.digest()).decode("ascii")
+
+
 def build_index(music_root, subset, version):
     lengths_file = music_root / "DOCUMENTS" / "Songlengths.md5"
     by_path, by_md5 = parse_songlengths(lengths_file) if lengths_file.exists() else ({}, {})
@@ -202,7 +213,7 @@ def build_index(music_root, subset, version):
             per_song(features.get(rel, {}), header["songs"], lambda f: f[1]),
         ]
         # Full SHA-1 in base64: 28 characters per file, used only for matching.
-        extra.append(base64.b64encode(hashlib.sha1(data).digest()).decode("ascii"))
+        extra.append(sid_hash(data))
         row += extra
         files.append(row)
     index = {
