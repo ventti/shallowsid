@@ -25,3 +25,18 @@ test("allowing duplicates is per playlist and persists", () => {
   reloaded.setAllowDuplicates(a.id, false);
   assert.equal("allowDuplicates" in reloaded.get(a.id), false);
 });
+
+test("setting a subtune updates only that entry, persists, and emits a change", () => {
+  const store = new PlaylistStore();
+  const pl = store.create("Subtunes", [{ path: "MUSICIANS/A/x.sid", song: 1 }, { path: "MUSICIANS/A/x.sid", song: 1 }]);
+  let changes = 0;
+  store.addEventListener("change", () => changes++);
+  store.setSubtune(pl.id, 1, 3);
+  assert.deepEqual(pl.items.map((i) => i.song), [1, 3]);
+  assert.deepEqual(new PlaylistStore().get(pl.id).items, pl.items);
+  assert.equal(changes, 1);
+  for (const song of [0, -1, 1.5, NaN, "2", 3]) store.setSubtune(pl.id, 1, song);
+  store.setSubtune(pl.id, 20, 2);
+  store.setSubtune("missing", 0, 2);
+  assert.equal(changes, 1);
+});

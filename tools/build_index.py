@@ -17,6 +17,7 @@ Usage:
 """
 
 import argparse
+import base64
 import hashlib
 import json
 import re
@@ -194,20 +195,19 @@ def build_index(music_root, subset, version):
             dirs(rel_dir), name, header["title"], authors(header["author"]), header["released"],
             header["songs"], header["start"], header["flags"], lengths,
         ]
-        # Optional trailing columns: the app reads a missing one as []. Empty ones in
-        # between stay as [] to keep the later ones in place.
+        # Keep empty per-subtune columns in place before the file fingerprint.
         extra = [
             bpm_column(estimates.get(rel, {}), header["songs"]),
             per_song(features.get(rel, {}), header["songs"], lambda f: f[0]),
             per_song(features.get(rel, {}), header["songs"], lambda f: f[1]),
         ]
-        while extra and not extra[-1]:
-            extra.pop()
+        # Full SHA-1 in base64: 28 characters per file, used only for matching.
+        extra.append(base64.b64encode(hashlib.sha1(data).digest()).decode("ascii"))
         row += extra
         files.append(row)
     index = {
         "v": version,
-        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths", "bpm", "speed", "sid"],
+        "fields": ["dir", "name", "title", "author", "released", "songs", "start", "flags", "lengths", "bpm", "speed", "sid", "hash"],
         "dirs": dirs.values,
         "authors": authors.values,
         "files": files,

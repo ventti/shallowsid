@@ -94,7 +94,7 @@ export function safeFileName(name, extension = ".m3u8") {
 
 // Playlist name implied by a file name, for files without a #PLAYLIST line.
 export function nameFromFileName(fileName) {
-  const base = fileName.replace(/\.m3u8?$/i, "");
+  const base = fileName.replace(/\.(?:m3u8?|zip)$/i, "");
   return (base.startsWith(FILE_PREFIX) ? base.slice(FILE_PREFIX.length) : base).trim() || "Imported playlist";
 }
 

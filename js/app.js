@@ -1,3 +1,4 @@
+import { matchZip } from "./zip-playlist.js";
 // ShallowSID: hash router + views (Search, Browse, Playlists, Share).
 
 import { loadIndex, sidFeatures } from "./index-store.js";
@@ -33,7 +34,7 @@ import { Install, registerServiceWorker } from "./install.js";
 import { Notices } from "./notices.js";
 import { dataWidget, syncWidget } from "./notice-widgets.js";
 import { fileName as userDataFileName, mergeImport, parseBundle, toBundle } from "./user-data.js";
-import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, thumb, toast, tuneRow } from "./ui.js";
+import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, subtuneDialog, thumb, toast, tuneRow } from "./ui.js";
 
 const PAGE_SIZE = 100;
 // SID files come from the gzip-enabled Firebase mirror, refreshed by CI.
@@ -768,7 +769,7 @@ function renderPlaylists() {
   setChrome({
     title: "Playlists",
     tab: "playlists",
-    actions: `<ion-button id="import-pl" aria-label="Import .m3u8"><ion-icon slot="icon-only" name="document-attach-outline"></ion-icon></ion-button>
+    actions: `<ion-button id="import-pl" aria-label="Import .m3u8 or .zip"><ion-icon slot="icon-only" name="document-attach-outline"></ion-icon></ion-button>
               <ion-button id="new-pl" aria-label="New playlist"><ion-icon slot="icon-only" name="add"></ion-icon></ion-button>`,
   });
   dom.infinite.disabled = true;
@@ -783,7 +784,7 @@ function renderPlaylists() {
           <ion-label><h2>${esc(p.name)}</h2><p>${p.items.length} tune${p.items.length === 1 ? "" : "s"}</p></ion-label>
         </ion-item>`).join("")}</ion-list>`
     : `<div class="empty"><ion-icon name="list" class="empty-icon"></ion-icon>
-        <p>No playlists yet. Star a tune to start your Favorites, add tunes with <strong>⋯</strong>, or import an <code>.m3u8</code>.</p>
+        <p>No playlists yet. Star a tune to start your Favorites, add tunes with <strong>⋯</strong>, or import an <code>.m3u8</code> or <code>.zip</code>.</p>
         <ion-button id="new-pl-empty">New playlist</ion-button></div>`;
   paintAvatars(dom.view);
   const create = async () => {
@@ -1638,10 +1639,16 @@ function showShared(shared, note) {
   });
 }
 
+let renderedRoute = null;
+
 function render() {
   if (!index) return;
   const { name, arg } = currentRoute();
-  dom.content.scrollToTop?.();
+  // Updating the current view (subtune, favorites, removal, sync, etc.)
+  // keeps its scroll position. Only navigation starts at the top.
+  const route = JSON.stringify([name, arg]);
+  if (route !== renderedRoute) dom.content.scrollToTop?.();
+  renderedRoute = route;
   if (name !== "settings" || arg !== "sound") soundSheet.close();
   dom.view.hidden = false;
   soundSheet.root.hidden = true;
@@ -1718,6 +1725,25 @@ async function addToExisting(pl, item) {
   toast(`Added to “${pl.name}”`);
 }
 
+async function setPlaylistSubtune(playlistId, item, position) {
+  const entry = store.get(playlistId)?.items[position];
+  if (!entry) return;
+  const song = await subtuneDialog(item);
+  if (song === null || song === item.song || !Number.isInteger(song) || song < 1 || song > item.songs) return;
+  const pl = store.get(playlistId);
+  // An overlay can outlive a synced update or a playlist deletion.
+  if (pl?.items[position] !== entry) return;
+  if (store.has(pl.id, { path: item.path, song }) && !pl.allowDuplicates) {
+    if (pl.id === store.favorites()?.id) return toast(`Already in “${pl.name}”`);
+    const answer = await duplicateDialog(item.title, pl.name);
+    if (answer === "cancel") return;
+    if (store.get(playlistId)?.items[position] !== entry) return;
+    if (answer === "always") store.setAllowDuplicates(pl.id, true);
+  }
+  store.setSubtune(playlistId, position, song);
+  if (currentRoute().name === "playlist" && currentRoute().arg === playlistId) render();
+}
+
 function rowMenu(item, position) {
   const buttons = [];
   if (!item.missing) {
@@ -1736,6 +1762,11 @@ function rowMenu(item, position) {
     );
   }
   if (listOptions.playlistId) {
+    const playlistId = listOptions.playlistId;
+    if (!item.missing && item.songs > 1) {
+      buttons.push({ text: "Set subtune…", icon: "musical-notes-outline",
+        handler: () => setTimeout(() => setPlaylistSubtune(playlistId, item, position), 300) });
+    }
     buttons.push({ text: "Remove from playlist", role: "destructive", icon: "trash-outline", handler: () => {
       store.removeAt(listOptions.playlistId, position);
       render();
@@ -1856,6 +1887,18 @@ async function importUserData(file) {
 }
 
 async function importFile(file) {
+  if (/\.zip$/i.test(file.name)) {
+    try {
+      const { items, skipped } = await matchZip(file, index);
+      if (!items.length) return toast(`No matching SID files found${skipped ? ` (${skipped} skipped)` : ""}`, { color: "warning" });
+      const pl = store.create(nameFromFileName(file.name), items);
+      toast(`Imported ${items.length} tunes${skipped ? ` (${skipped} not found)` : ""}`);
+      go(`#/playlist/${pl.id}`);
+    } catch (err) {
+      toast(err.message || "Could not import ZIP", { color: "warning" });
+    }
+    return;
+  }
   const parsed = parseM3U8(await file.text(), nameFromFileName(file.name));
   if (!parsed.items.length) return toast("No SID files found in that playlist", { color: "warning" });
   const pl = store.create(parsed.name, parsed.items);

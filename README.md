@@ -87,6 +87,7 @@ Playlists:
   - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
   - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.
 - **Import** (on **Playlists**): **Import File…** opens the system file picker, where the same cloud drives show up. **Open Link…** takes a pasted live or snapshot link and shows the playlist to save. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
+- **ZIP playlists:** import a `.zip` containing SID files, including renamed files or nested folders. Files are matched against the loaded catalogue using full SHA-1 fingerprints stored as Base64. Only matching HVSC paths are saved, using each tune’s default subtune; unmatched files are counted and skipped. ZIP contents stay in the browser, with no song downloads or database lookups for matching. Stored and Deflate ZIPs are supported (128 MB archive limit; 1 MB per SID).
 - **Share** offers two kinds of link:
   - **Live Link:** a short `…/#/p/<id>` link that always shows your latest version. Anyone with it can view; only your devices can change it. The playlist is stored unencrypted for that, until you choose **Stop Sharing**.
   - **Snapshot Link:** the whole playlist compressed into the URL. No server involved.

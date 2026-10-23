@@ -63,9 +63,9 @@ function present(tag, props) {
 
 // Handlers are started, not awaited: Ionic keeps a sheet open until a handler's
 // promise settles, and follow-ups (share dialogs, prompts) can take a while.
-export function actionSheet(header, buttons, { subHeader } = {}) {
+export function actionSheet(header, buttons, { subHeader, cssClass } = {}) {
   const started = buttons.map((b) => (b.handler ? { ...b, handler: () => void b.handler() } : b));
-  return present("ion-action-sheet", { header, subHeader, buttons: [...started, { text: "Cancel", role: "cancel" }] });
+  return present("ion-action-sheet", { header, subHeader, cssClass, buttons: [...started, { text: "Cancel", role: "cancel" }] });
 }
 
 export function toast(message, { color, duration = 2200, buttons } = {}) {
@@ -85,6 +85,23 @@ export function prompt(header, { value = "", placeholder = "", confirm = "Save" 
       ],
     });
     alert.addEventListener("didDismiss", () => resolve(result));
+  });
+}
+
+// The tick marks the saved subtune. Selecting an option applies it immediately.
+export function subtuneDialog(item) {
+  return new Promise((resolve) => {
+    let result = null;
+    const sheet = actionSheet("Set subtune", Array.from({ length: item.songs }, (_, i) => {
+      const song = i + 1;
+      const length = item.lengths?.[i];
+      return {
+        text: `Subtune ${song}${length ? ` · ${formatTime(length)}` : ""}`,
+        ...(song === item.song ? { icon: "checkmark", role: "selected" } : {}),
+        handler: () => { result = song; },
+      };
+    }), { cssClass: "subtune-sheet" });
+    sheet.addEventListener("didDismiss", () => resolve(result));
   });
 }
 

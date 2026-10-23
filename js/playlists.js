@@ -131,6 +131,14 @@ export class PlaylistStore extends EventTarget {
     this.save(p);
   }
 
+  setSubtune(id, index, song) {
+    const p = this.get(id);
+    const item = p?.items[index];
+    if (!item || !Number.isInteger(song) || song < 1 || item.song === song) return;
+    item.song = song;
+    this.save(p);
+  }
+
   removeAt(id, index) {
     const p = this.get(id);
     if (!p) return;

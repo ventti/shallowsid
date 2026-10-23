@@ -910,6 +910,22 @@ ion-action-sheet .sort-current {
   font-weight: 600;
 }
 
+/* Keep labels centered independently of the saved subtune's trailing tick. */
+ion-action-sheet.subtune-sheet .action-sheet-button-inner {
+  position: relative;
+  justify-content: center;
+  padding-inline: 36px;
+  text-align: center;
+}
+
+ion-action-sheet.subtune-sheet .action-sheet-icon {
+  position: absolute;
+  inset-inline-end: 0;
+  margin: 0;
+  font-size: 22px;
+  color: var(--app-accent);
+}
+
 /* "Anyone with the link" row on a shared playlist */
 .visibility-row {
   --background: transparent;
