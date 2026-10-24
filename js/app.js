@@ -816,7 +816,6 @@ function renderPlaylist(id) {
     <div class="playlist-head">
       <ion-button id="pl-play" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
       <ion-button id="pl-shuffle" fill="outline" ${items.length ? "" : "disabled"}><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
-      <ion-button id="pl-edit" fill="clear" ${items.length ? "" : "disabled"}>Edit</ion-button>
     </div>
     ${pl.share ? `<ion-item button detail="false" lines="none" class="visibility-row" id="pl-visibility">
         <ion-icon slot="start" name="link" color="primary"></ion-icon>
@@ -825,37 +824,30 @@ function renderPlaylist(id) {
     ${items.length ? "" : `<div class="empty"><p>Empty. Add tunes with <strong>⋯</strong> on any song.</p></div>`}
     <ion-list id="tune-list"></ion-list>`;
   dom.infinite.disabled = true;
-  const renderRows = (editing) => {
+  const renderRows = () => {
     listItems = items;
     listOptions = { playlistId: id };
     const isCurrent = currentMatcher(items);
     const favorites = favoriteKeys();
     const list = $("tune-list");
-    list.classList.toggle("is-editing", editing);
     list.innerHTML = `<ion-reorder-group id="pl-reorder">${items.map((item, i) => tuneRow(item, i, {
       missing: item.missing,
-      reorder: editing,
+      reorder: true,
       current: isCurrent(item),
       otherSubtune: isOtherSubtune(item),
       favorite: favorites.has(itemKey(item)),
       tags: item.missing ? [] : rowTags(item),
     })).join("")}</ion-reorder-group>`;
     const group = $("pl-reorder");
-    group.disabled = !editing;
+    group.disabled = false;
     group.addEventListener("ionItemReorder", (e) => {
       store.move(id, e.detail.from, e.detail.to);
       items.splice(e.detail.to, 0, items.splice(e.detail.from, 1)[0]);
       e.detail.complete(false);
-      renderRows(true);
+      renderRows();
     });
   };
-  let editing = false;
-  renderRows(editing);
-  $("pl-edit").addEventListener("click", (e) => {
-    editing = !editing;
-    e.target.textContent = editing ? "Done" : "Edit";
-    renderRows(editing);
-  });
+  renderRows();
   const playable = () => items.filter((i) => !i.missing);
   $("pl-play").addEventListener("click", () => {
     store.markPlayed(id);
@@ -1947,7 +1939,7 @@ dom.view.addEventListener("click", (e) => {
   if (tag) return go(tagHref(tag.dataset.openTag));
   if (e.target.closest("[data-all-tags]")) return go("#/tags");
   const row = e.target.closest("[data-play]");
-  if (row && !row.closest(".is-editing")) {
+  if (row && !e.target.closest("ion-reorder")) {
     const pos = Number(row.dataset.play);
     // A list in sections queues just the section played from.
     const section = listOptions.sections?.find((s) => pos >= s.start && pos < s.start + s.count);
