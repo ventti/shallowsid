@@ -178,9 +178,9 @@ export class SyncSheet {
     }
     if (s.key === key) {
       this.open();
-      if (s.enabled) return toast("This device already syncs with that key");
+      if (s.enabled) return;
       await s.resume();
-      return toast("Sync is back on");
+      return;
     }
     const ok = await confirmDialog(
       s.hasKey ? "Switch sync key?" : "Use this sync key?",
@@ -201,7 +201,6 @@ export class SyncSheet {
   async join(key) {
     try {
       await this.sync.useKey(key);
-      if (this.sync.status === "synced") toast("Synced with your other devices");
     } catch (err) {
       toast(err.message, { color: "danger" });
     }
@@ -216,7 +215,6 @@ export class SyncSheet {
       const note = behind.length ? ` ${behind.join(", ")} ${behind.length === 1 ? "hasn't" : "haven't"} synced since this update, so ${behind.length === 1 ? "it needs" : "they need"} the new key entered by hand.` : "";
       if (!(await confirmDialog("Remove this device?", `Sync moves to a new key that this device doesn't get. Your other devices switch over the next time they sync.${note}`, "Remove"))) return;
       await s.removeDevice(device);
-      if (s.status === "synced") toast("Device removed, sync key changed");
       return;
     }
     const id = e.target.closest("ion-item[id], ion-button[id]")?.id;
@@ -238,20 +236,17 @@ export class SyncSheet {
           break;
         case "sync-copy":
           await navigator.clipboard.writeText(s.key);
-          toast("Sync key copied");
           break;
         case "sync-new-key":
           if (await confirmDialog("Generate a new key?",
             "This device starts a new synced copy under a new key. Devices on the old key stop syncing with it until they use the new key too. The old copy stays on the server: delete it first if you no longer need it.",
             "Generate")) {
             await s.turnOn();
-            toast("New sync key ready");
           }
           break;
         case "sync-delete":
           if (await confirmDialog("Delete synced data?", "The encrypted copy is deleted from the server, sync turns off and this device forgets the key. Data on your devices stays.", "Delete")) {
             await s.deleteRemote();
-            toast("Synced data deleted");
           }
           break;
       }

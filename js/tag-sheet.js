@@ -200,7 +200,6 @@ export class TagSheet {
     if (!changes.length) return;
     try {
       await this.tags.save(item.path, changes);
-      toast("Saved", { duration: 1200 });
     } catch (err) {
       toast(`Couldn't save: ${err.message}`, { color: "danger" });
     }

@@ -1400,7 +1400,6 @@ async function toggleHotTune(item) {
   const on = hotTuneOn(item.path);
   try {
     await tags.setListItem("hot-tunes", item.path, on);
-    toast(on ? "Removed from Hot Tunes after the next sync" : "Added to Hot Tunes after the next sync");
     if (currentRoute().name === "curation" && currentRoute().arg === "hot-tunes") render();
   } catch (err) { toast(err.message, { color: "danger" }); }
 }
@@ -1475,24 +1474,19 @@ async function inviteCard(secret) {
 const syncNote = () => (sync.configured && !sync.enabled ? " Accepting also turns on Sync, which keeps your rights on all your devices." : "");
 
 async function acceptInvite() {
-  let role;
   try {
-    role = await tags.claim(pendingInvite);
+    await tags.claim(pendingInvite);
     pendingInvite = null;
   } catch (err) {
     toast(`Couldn't join: ${err.message}`, { color: "danger" });
     return render();
   }
-  const you = `You're ${role === "admin" ? "an admin" : "a curator"} now.`;
   if (!sync.configured || sync.enabled) {
-    toast(you);
     return render();
   }
   await (sync.hasKey ? sync.resume() : sync.turnOn());
   if (sync.status === "error") {
-    toast(`${you} Sync couldn't start: ${sync.error} Turn it on from Settings → Playlist cloud sync.`, { color: "warning", duration: 8000 });
-  } else {
-    toast(`${you} Sync is on, so your rights are kept. To curate on another device, use this sync key there (Settings → Playlist cloud sync).`, { duration: 8000 });
+    toast(`Sync couldn't start: ${sync.error} Turn it on from Settings → Playlist cloud sync.`, { color: "warning", duration: 8000 });
   }
   render();
 }
@@ -1548,7 +1542,6 @@ async function fillCurators(stale) {
     if (!(await confirmDialog("Expire invite?", `The link for ${note} stops working now. You can send a new one later.`, "Expire"))) return;
     try {
       await tags.expireInvite(button.dataset.expireInvite);
-      toast("Invite expired");
     } catch (err) {
       toast(`Couldn't expire the invite: ${err.message}`, { color: "danger" });
     }
@@ -1562,7 +1555,6 @@ async function fillCurators(stale) {
     e.target.disabled = true;
     try {
       await tags.setActive(cid, on);
-      toast(on ? `${note} can tag again` : `${note} is off: can't tag, their tags stay`);
     } catch (err) {
       toast(`Couldn't change ${note}: ${err.message}`, { color: "danger" });
     }
@@ -1608,7 +1600,6 @@ function renderGenerated(title, items, note) {
   $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
   $("top-save").addEventListener("click", () => {
     const pl = store.create(title, items);
-    toast(`Saved “${pl.name}”`);
     go(`#/playlist/${pl.id}`);
   });
 }
@@ -1628,7 +1619,6 @@ function showShared(shared, note) {
   $("share-play").addEventListener("click", () => player.setQueue(items.filter((i) => !i.missing), 0));
   $("share-save").addEventListener("click", () => {
     const pl = store.create(shared.name, shared.items);
-    toast(`Saved “${pl.name}”`);
     go(`#/playlist/${pl.id}`);
   });
 }
@@ -1682,8 +1672,7 @@ function joinSyncLink(key) {
 // ---- actions ----------------------------------------------------------------
 
 function toggleFavorite(item) {
-  const on = store.toggleFavorite(item);
-  toast(on ? "Added to Favorites" : "Removed from Favorites", { duration: 1200 });
+  store.toggleFavorite(item);
   nowPlaying.refreshFavorite();
   const { name, arg } = currentRoute();
   if (name === "playlist" && arg === store.favorites()?.id) render();
@@ -1701,8 +1690,7 @@ function addToPlaylist(item) {
     { text: "New playlist…", icon: "add", handler: async () => {
       const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create", validate: playlistNameError });
       if (name === null) return;
-      const pl = store.create(name, [{ path: item.path, song: item.song }]);
-      toast(`Added to “${pl.name}”`);
+      store.create(name, [{ path: item.path, song: item.song }]);
     } },
     ...store.playlists.map((pl) => ({
       text: pl.name,
@@ -1716,13 +1704,12 @@ function addToPlaylist(item) {
 // duplicates. Favorites hold each tune once.
 async function addToExisting(pl, item) {
   if (store.has(pl.id, item) && !pl.allowDuplicates) {
-    if (pl.id === store.favorites()?.id) return toast(`Already in “${pl.name}”`);
+    if (pl.id === store.favorites()?.id) return;
     const answer = await duplicateDialog(item.title, pl.name);
     if (answer === "cancel") return;
     if (answer === "always") store.setAllowDuplicates(pl.id, true);
   }
   store.add(pl.id, item);
-  toast(`Added to “${pl.name}”`);
 }
 
 async function setPlaylistSubtune(playlistId, item, position) {
@@ -1734,7 +1721,7 @@ async function setPlaylistSubtune(playlistId, item, position) {
   // An overlay can outlive a synced update or a playlist deletion.
   if (pl?.items[position] !== entry) return;
   if (store.has(pl.id, { path: item.path, song }) && !pl.allowDuplicates) {
-    if (pl.id === store.favorites()?.id) return toast(`Already in “${pl.name}”`);
+    if (pl.id === store.favorites()?.id) return;
     const answer = await duplicateDialog(item.title, pl.name);
     if (answer === "cancel") return;
     if (store.get(playlistId)?.items[position] !== entry) return;
@@ -1784,8 +1771,7 @@ async function exportPlaylist(pl) {
     },
   });
   const fileName = safeFileName(pl.name);
-  const outcome = await saveFile(fileName, text, "audio/x-mpegurl", { title: pl.name });
-  if (outcome === "saved" || outcome === "downloaded") toast(`Saved “${fileName}”`);
+  await saveFile(fileName, text, "audio/x-mpegurl", { title: pl.name });
 }
 
 // Share: a shared playlist sends its live link; otherwise choose live or snapshot.
@@ -1816,7 +1802,6 @@ async function stopSharing(pl) {
   if (!(await confirmDialog("Stop sharing?", "The link stops working for everyone who has it. The playlist stays here.", "Stop Sharing"))) return;
   try {
     await liveShare.stop(pl);
-    toast("Link no longer works");
     render();
   } catch (err) {
     toast(`Couldn't stop sharing: ${err.message}`, { color: "danger" });
@@ -1826,7 +1811,7 @@ async function stopSharing(pl) {
 function visibilityMenu(pl) {
   const url = liveShare.link(pl.share);
   actionSheet("Anyone with the link", [
-    { text: "Copy Link", icon: "copy-outline", handler: () => copyText(url, "Link copied") },
+    { text: "Copy Link", icon: "copy-outline", handler: () => copyText(url) },
     { text: "Share…", icon: "share-outline", handler: () => shareUrl(pl.name, url) },
     { text: "Stop Sharing", role: "destructive", icon: "close-circle-outline", handler: () => stopSharing(pl) },
   ], { subHeader: url });
@@ -1842,13 +1827,12 @@ async function shareUrl(title, url, text = `${title} – a C64 playlist on Shall
       // e.g. no user gesture left after a network wait: fall back to copying
     }
   }
-  await copyText(url, "Share link copied");
+  await copyText(url);
 }
 
-async function copyText(text, done) {
+async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    toast(done);
   } catch {
     prompt("Copy this link", { value: text, confirm: "Done" });
   }
@@ -1867,8 +1851,7 @@ async function openPlaylistLink() {
 // All the user's data as one file, and back (see user-data.js).
 async function exportUserData() {
   const text = JSON.stringify(toBundle(sync.snapshot(), searchHistory.items));
-  const result = await saveFile(userDataFileName(), text, "application/json", { title: "ShallowSID data", description: "ShallowSID data", extension: ".json" });
-  if (result !== "cancelled") toast("Data exported. The file isn't encrypted: keep it to yourself.", { duration: 4000 });
+  await saveFile(userDataFileName(), text, "application/json", { title: "ShallowSID data", description: "ShallowSID data (unencrypted; keep this file private)", extension: ".json" });
 }
 
 async function importUserData(file) {
@@ -1883,7 +1866,6 @@ async function importUserData(file) {
   const local = sync.snapshot();
   sync.applyData(mergeImport(local, imported.data), local);
   searchHistory.merge(imported.searches);
-  toast("Data imported");
 }
 
 async function saveImportedPlaylist(name, items, skipped = 0) {
@@ -1897,7 +1879,6 @@ async function saveImportedPlaylist(name, items, skipped = 0) {
   if (!matches.length) return store.create(name, items);
   const identical = matches.find(pl => sameItems(pl.items, items));
   if (identical) {
-    toast("Already imported");
     go(`#/playlist/${identical.id}`);
     return null;
   }
@@ -1922,7 +1903,7 @@ async function importFile(file) {
       if (!items.length) return toast(`No matching SID files found${skipped ? ` (${skipped} skipped)` : ""}`, { color: "warning" });
       const pl = await saveImportedPlaylist(nameFromFileName(file.name), items, skipped);
       if (!pl) return;
-      toast(`Saved ${pl.items.length} tunes${skipped ? ` (${skipped} not found)` : ""}`);
+      if (skipped) toast(`${skipped} SID files not found`, { color: "warning" });
       go(`#/playlist/${pl.id}`);
     } catch (err) {
       toast(err.message || "Could not import ZIP", { color: "warning" });
@@ -1934,7 +1915,7 @@ async function importFile(file) {
   const pl = await saveImportedPlaylist(parsed.name, parsed.items);
   if (!pl) return;
   const missing = resolveItems(pl.items).filter((i) => i.missing).length;
-  toast(`Saved ${pl.items.length} tunes${missing ? ` (${missing} not found)` : ""}`);
+  if (missing) toast(`${missing} SID files not found`, { color: "warning" });
   go(`#/playlist/${pl.id}`);
 }
 

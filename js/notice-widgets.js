@@ -77,7 +77,7 @@ export function syncWidget(sync, sheet) {
           case "join": return await sheet.promptJoin();
           case "copy":
             await navigator.clipboard.writeText(sync.key);
-            return toast("Sync key copied");
+            return;
           case "continue":
             await sync.syncNow();   // the latest changes first
             if (sync.status === "synced") location.assign(new URL(`#/sync/${sync.key}`, site).href);

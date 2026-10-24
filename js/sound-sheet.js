@@ -226,8 +226,7 @@ export class SoundSheet extends EventTarget {
       e.target.value = "";
       if (!file) return;
       try {
-        const added = this.settings.importText(await file.text(), file.name.replace(/\.json$/i, "").replace(/^ShallowSID - (Sound - )?/, ""));
-        toast(added.length === 1 ? `Imported “${added[0].name}”` : `Imported ${added.length} presets`);
+        this.settings.importText(await file.text(), file.name.replace(/\.json$/i, "").replace(/^ShallowSID - (Sound - )?/, ""));
       } catch (err) {
         toast(`Couldn't import: ${err.message}`, { color: "danger" });
       }
@@ -237,7 +236,7 @@ export class SoundSheet extends EventTarget {
   async saveAsNew(chip) {
     const base = this.settings.preset(chip).name;
     const name = await prompt(`Save as ${chip} Preset`, { value: this.settings.isEdited(chip) ? `${base} (edited)` : `${base} copy`, confirm: "Save" });
-    if (name !== null) toast(`Saved “${this.settings.saveAsNew(chip, name).name}”`);
+    if (name !== null) this.settings.saveAsNew(chip, name);
   }
 
   presetMenu(id) {
@@ -259,9 +258,8 @@ export class SoundSheet extends EventTarget {
     if (!ids.length) return;
     const single = ids.length === 1 ? this.settings.find(ids[0]) : null;
     const fileName = safeFileName(`Sound - ${single ? single.name : "My presets"}`, ".json");
-    const outcome = await saveFile(fileName, this.settings.exportText(ids), "application/json", {
+    await saveFile(fileName, this.settings.exportText(ids), "application/json", {
       title: single?.name ?? "ShallowSID sound presets", description: "ShallowSID sound preset", extension: ".json",
     });
-    if (outcome === "saved" || outcome === "downloaded") toast(`Saved “${fileName}”`);
   }
 }
