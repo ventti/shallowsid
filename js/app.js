@@ -863,9 +863,9 @@ function renderPlaylist(id) {
     { text: "Save playlist file…", icon: "download-outline", handler: () => exportPlaylist(pl) },
     { text: "Share…", icon: "share-outline", handler: () => sharePlaylist(pl) },
     ...(pl.share ? [{ text: "Stop Sharing Link", icon: "link-outline", handler: () => stopSharing(pl) }] : []),
-    ...(pl.id === store.favorites()?.id ? [] : [pl.allowDuplicates
-      ? { text: "Ask Before Adding Duplicates", icon: "copy-outline", handler: () => { store.setAllowDuplicates(id, false); toast("Duplicates will be asked about"); } }
-      : { text: "Allow Duplicates", icon: "copy-outline", handler: () => { store.setAllowDuplicates(id, true); toast("Duplicates are added without asking"); } }]),
+    ...(pl.id === store.favorites()?.id ? [] : [{
+      text: "Allow duplicates", toggle: { checked: !!pl.allowDuplicates, onChange: (on) => store.setAllowDuplicates(id, on) },
+    }]),
     { text: "Rename", icon: "create-outline", handler: async () => {
       const name = await prompt("Rename playlist", { value: pl.name });
       if (name !== null) { store.rename(id, name); render(); }

@@ -64,8 +64,23 @@ function present(tag, props) {
 // Handlers are started, not awaited: Ionic keeps a sheet open until a handler's
 // promise settles, and follow-ups (share dialogs, prompts) can take a while.
 export function actionSheet(header, buttons, { subHeader, cssClass } = {}) {
-  const started = buttons.map((b) => (b.handler ? { ...b, handler: () => void b.handler() } : b));
-  return present("ion-action-sheet", { header, subHeader, cssClass, buttons: [...started, { text: "Cancel", role: "cancel" }] });
+  const started = buttons.map(({ toggle, ...b }, i) => {
+    if (!toggle) return b.handler ? { ...b, handler: () => void b.handler() } : b;
+    let checked = !!toggle.checked;
+    return {
+      ...b,
+      cssClass: `sheet-toggle sheet-toggle-${i}`,
+      htmlAttributes: { role: "switch", "aria-checked": String(checked) },
+      handler: () => {
+        checked = !checked;
+        toggle.onChange(checked);
+        sheet.querySelector(`.sheet-toggle-${i}`)?.setAttribute("aria-checked", String(checked));
+        return false;
+      },
+    };
+  });
+  const sheet = present("ion-action-sheet", { header, subHeader, cssClass, buttons: [...started, { text: "Cancel", role: "cancel" }] });
+  return sheet;
 }
 
 export function toast(message, { color, duration = 2200, buttons } = {}) {

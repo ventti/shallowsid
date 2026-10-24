@@ -910,6 +910,27 @@ ion-action-sheet .sort-current {
   font-weight: 600;
 }
 
+ion-action-sheet .sheet-toggle .action-sheet-button-inner {
+  position: relative;
+  justify-content: center;
+  padding-inline: 52px;
+  text-align: center;
+}
+
+ion-action-sheet .sheet-toggle .action-sheet-button-inner::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 0;
+  width: 36px;
+  height: 22px;
+  border-radius: 11px;
+  background: radial-gradient(circle at 11px 11px, var(--ion-color-primary-contrast) 8px, transparent 9px) var(--ion-color-medium);
+}
+
+ion-action-sheet .sheet-toggle[aria-checked="true"] .action-sheet-button-inner::after {
+  background: radial-gradient(circle at 25px 11px, var(--ion-color-primary-contrast) 8px, transparent 9px) var(--app-accent);
+}
+
 /* Keep labels centered independently of the saved subtune's trailing tick. */
 ion-action-sheet.subtune-sheet .action-sheet-button-inner {
   position: relative;
