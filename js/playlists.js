@@ -3,6 +3,7 @@
 // Storage can be unavailable (private mode, blocked site data); everything
 // still works for the session, it just isn't remembered.
 
+import { nameKey, nextPlaylistName } from "./playlist-merge.js";
 import { sanitizeItems, sanitizeName } from "./live-share-core.js";
 import { MAX_PLAYS, MAX_RECENT, mergePlays, mergeRecent } from "./sync-merge.js";
 
@@ -78,8 +79,14 @@ export class PlaylistStore extends EventTarget {
     return this.playlists.find((p) => p.id === id) ?? null;
   }
 
+  nameExists(name, exceptId) {
+    return this.playlists.some(p => p.id !== exceptId && nameKey(p.name) === nameKey(name));
+  }
+
   // Names are sanitised on the way in (typed, imported or from a shared link).
   create(name, items = []) {
+    name = sanitizeName(name, "New playlist");
+    if (this.nameExists(name)) name = nextPlaylistName(name, this.playlists);
     const playlist = { id: crypto.randomUUID().slice(0, 8), name: sanitizeName(name, "New playlist"), items: sanitizeItems(items, undefined, Infinity), created: Date.now() };
     this.playlists.unshift(playlist);
     this.save(playlist);
@@ -89,10 +96,12 @@ export class PlaylistStore extends EventTarget {
   rename(id, name) {
     const p = this.get(id);
     const clean = sanitizeName(name, "");
-    if (p && clean) {
+    if (p && clean && !this.nameExists(clean, id)) {
       p.name = clean;
       this.save(p);
+      return true;
     }
+    return false;
   }
 
   // Unlisted sharing state {id, seed}, or null to stop (see live-share.js).

@@ -88,7 +88,7 @@ export function toast(message, { color, duration = 2200, buttons } = {}) {
 }
 
 // Resolves with the entered text, or null when cancelled.
-export function prompt(header, { value = "", placeholder = "", confirm = "Save" } = {}) {
+export function prompt(header, { value = "", placeholder = "", confirm = "Save", validate } = {}) {
   return new Promise((resolve) => {
     let result = null;
     const alert = present("ion-alert", {
@@ -96,7 +96,11 @@ export function prompt(header, { value = "", placeholder = "", confirm = "Save" 
       inputs: [{ name: "value", type: "text", value, placeholder, attributes: { autocapitalize: "sentences" } }],
       buttons: [
         { text: "Cancel", role: "cancel" },
-        { text: confirm, handler: (data) => (result = data.value) },
+        { text: confirm, handler: (data) => {
+          const error = validate?.(data.value);
+          if (error) { alert.message = error; return false; }
+          result = data.value;
+        } },
       ],
     });
     alert.addEventListener("didDismiss", () => resolve(result));

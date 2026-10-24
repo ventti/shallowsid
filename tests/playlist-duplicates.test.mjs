@@ -40,3 +40,43 @@ test("setting a subtune updates only that entry, persists, and emits a change", 
   store.setSubtune("missing", 0, 2);
   assert.equal(changes, 1);
 });
+
+test("creating playlists never reuses a name, including case and whitespace variants", () => {
+  storage.clear();
+  const store = new PlaylistStore();
+  const original = store.create("Mix");
+  const first = store.create("  MIX  ");
+  const second = store.create("Mix");
+  assert.equal(original.name, "Mix");
+  assert.equal(first.name, "MIX (1)");
+  assert.equal(second.name, "Mix (2)");
+  assert.equal(store.nameExists("  mix  "), true);
+  assert.equal(store.nameExists("Mix", original.id), false);
+});
+
+test("rename refuses another playlist's name but permits changing own case", () => {
+  storage.clear();
+  const store = new PlaylistStore();
+  const a = store.create("Mix"), b = store.create("Other");
+  let changes = 0;
+  store.addEventListener("change", () => changes++);
+  assert.equal(store.rename(b.id, " MIX "), false);
+  assert.equal(b.name, "Other");
+  assert.equal(changes, 0);
+  assert.equal(store.rename(a.id, "MIX"), true);
+  assert.equal(a.name, "MIX");
+  assert.equal(new PlaylistStore().get(b.id).name, "Other");
+});
+
+test("long duplicate names keep their suffix within the saved name limit", () => {
+  storage.clear();
+  const store = new PlaylistStore();
+  const long = "🎵".repeat(80);
+  store.create(long);
+  const copy = store.create(long);
+  const third = store.create(long);
+  assert.ok(copy.name.endsWith(" (1)"));
+  assert.ok(third.name.endsWith(" (2)"));
+  assert.equal([...copy.name].length, 80);
+  assert.equal(new PlaylistStore().get(copy.id).name, copy.name);
+});

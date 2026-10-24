@@ -1,3 +1,5 @@
+import { nameKey, nextPlaylistName, sameItems } from "./playlist-merge.js";
+import { playlistImportSheet } from "./playlist-import-sheet.js";
 import { matchZip } from "./zip-playlist.js";
 // ShallowSID: hash router + views (Search, Browse, Playlists, Share).
 
@@ -788,7 +790,7 @@ function renderPlaylists() {
         <ion-button id="new-pl-empty">New playlist</ion-button></div>`;
   paintAvatars(dom.view);
   const create = async () => {
-    const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create" });
+    const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create", validate: playlistNameError });
     if (name !== null) go(`#/playlist/${store.create(name).id}`);
   };
   $("new-pl").addEventListener("click", create);
@@ -867,7 +869,7 @@ function renderPlaylist(id) {
       text: "Allow duplicates", toggle: { checked: !!pl.allowDuplicates, onChange: (on) => store.setAllowDuplicates(id, on) },
     }]),
     { text: "Rename", icon: "create-outline", handler: async () => {
-      const name = await prompt("Rename playlist", { value: pl.name });
+      const name = await prompt("Rename playlist", { value: pl.name, validate: name => playlistNameError(name, id) });
       if (name !== null) { store.rename(id, name); render(); }
     } },
     { text: "Delete playlist", role: "destructive", icon: "trash-outline", handler: async () => {
@@ -1688,10 +1690,16 @@ function toggleFavorite(item) {
   else refreshRowMarks();
 }
 
+function playlistNameError(name, exceptId) {
+  const clean = sanitizeName(name, "");
+  if (!clean) return "Enter a playlist name.";
+  return store.nameExists(clean, exceptId) ? "A playlist with this name already exists. Choose another name." : null;
+}
+
 function addToPlaylist(item) {
   actionSheet("Add to playlist", [
     { text: "New playlist…", icon: "add", handler: async () => {
-      const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create" });
+      const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create", validate: playlistNameError });
       if (name === null) return;
       const pl = store.create(name, [{ path: item.path, song: item.song }]);
       toast(`Added to “${pl.name}”`);
@@ -1878,13 +1886,43 @@ async function importUserData(file) {
   toast("Data imported");
 }
 
+async function saveImportedPlaylist(name, items, skipped = 0) {
+  name = sanitizeName(name, "Imported playlist");
+  items = sanitizeItems(items, undefined, Infinity);
+  if (!items.length) {
+    toast("No valid SID entries found", { color: "warning" });
+    return null;
+  }
+  const matches = store.playlists.filter(pl => nameKey(pl.name) === nameKey(name));
+  if (!matches.length) return store.create(name, items);
+  const identical = matches.find(pl => sameItems(pl.items, items));
+  if (identical) {
+    toast("Already imported");
+    go(`#/playlist/${identical.id}`);
+    return null;
+  }
+  const result = await playlistImportSheet(matches, { name, items }, index, skipped);
+  if (!result) return null;
+  if (result.kind === "copy") return store.create(nextPlaylistName(name, store.playlists), items);
+  // Sync or another tab may have changed the target while the sheet was open.
+  const current = store.get(result.target.id);
+  if (!current || !sameItems(current.items, result.original)) {
+    toast("Playlist changed. Import again to review the latest version.", { color: "warning" });
+    return null;
+  }
+  current.items = result.items;
+  store.save(current);
+  return current;
+}
+
 async function importFile(file) {
   if (/\.zip$/i.test(file.name)) {
     try {
       const { items, skipped } = await matchZip(file, index);
       if (!items.length) return toast(`No matching SID files found${skipped ? ` (${skipped} skipped)` : ""}`, { color: "warning" });
-      const pl = store.create(nameFromFileName(file.name), items);
-      toast(`Imported ${items.length} tunes${skipped ? ` (${skipped} not found)` : ""}`);
+      const pl = await saveImportedPlaylist(nameFromFileName(file.name), items, skipped);
+      if (!pl) return;
+      toast(`Saved ${pl.items.length} tunes${skipped ? ` (${skipped} not found)` : ""}`);
       go(`#/playlist/${pl.id}`);
     } catch (err) {
       toast(err.message || "Could not import ZIP", { color: "warning" });
@@ -1893,9 +1931,10 @@ async function importFile(file) {
   }
   const parsed = parseM3U8(await file.text(), nameFromFileName(file.name));
   if (!parsed.items.length) return toast("No SID files found in that playlist", { color: "warning" });
-  const pl = store.create(parsed.name, parsed.items);
-  const missing = resolveItems(parsed.items).filter((i) => i.missing).length;
-  toast(`Imported ${parsed.items.length} tunes${missing ? ` (${missing} not found)` : ""}`);
+  const pl = await saveImportedPlaylist(parsed.name, parsed.items);
+  if (!pl) return;
+  const missing = resolveItems(pl.items).filter((i) => i.missing).length;
+  toast(`Saved ${pl.items.length} tunes${missing ? ` (${missing} not found)` : ""}`);
   go(`#/playlist/${pl.id}`);
 }
 

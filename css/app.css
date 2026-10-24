@@ -1241,3 +1241,66 @@ ion-tab-button[hidden] {
 .list-suggestions { margin: -6px 0 0; padding: 0; border-radius: 10px; overflow: hidden; background: var(--app-surface); }
 .list-suggestions ion-item { --background: var(--app-surface); --min-height: 48px; }
 .list-suggestions ion-label p { color: var(--ion-color-medium); }
+
+/* Playlist import: a focused, grouped sheet with one decision at a time. */
+.playlist-import-sheet {
+  color-scheme: dark;
+  background: var(--app-bg);
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+  border-radius: 22px;
+  padding: 0;
+  width: min(520px, calc(100vw - 24px));
+  height: min(560px, 88dvh);
+  max-height: 88dvh;
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow: 0 24px 80px var(--app-shadow);
+  font-family: var(--ion-font-family, sans-serif);
+  font-size: 16px;
+  line-height: 1.45;
+}
+.playlist-import-sheet[open] { display: grid; grid-template-rows: 64px minmax(0, 1fr) 76px; }
+.playlist-import-sheet::backdrop { background: var(--app-shadow); backdrop-filter: blur(6px); }
+.playlist-import-sheet header { position: relative; display: grid; place-items: center; min-height: 60px; padding: 12px 90px; border-bottom: 1px solid var(--app-border); }
+.playlist-import-sheet header:not(:has(button)) { padding-inline: 20px; }
+.playlist-import-sheet header > button { position: absolute; left: 8px; top: 8px; }
+.playlist-import-sheet h2 { font-size: 17px; text-align: center; margin: 0; }
+.playlist-import-sheet h3 { font-size: 22px; line-height: 1.2; margin: 8px 0 4px; overflow-wrap: anywhere; }
+.playlist-import-sheet section { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 20px; }
+.playlist-import-sheet button { font: inherit; color: var(--app-accent); background: transparent; border: 0; border-radius: 10px; padding: 10px 12px; cursor: pointer; min-height: 44px; }
+.playlist-import-sheet button:disabled { opacity: .4; cursor: default; }
+.playlist-import-sheet button:focus-visible, .playlist-import-sheet input:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 2px; }
+.playlist-import-sheet .merge-start-actions { margin: 24px 0 0; }
+.playlist-import-sheet .merge-start-actions ion-item { --background: var(--app-surface); }
+.playlist-import-sheet .merge-start-actions ion-label { white-space: normal; }
+.merge-playlist-name { margin: 4px 0; text-align: center; overflow-wrap: anywhere; font-weight: 500; }
+.merge-playlist-name + .merge-subtitle { text-align: center; margin-top: 6px; }
+.playlist-import-sheet .merge-remaining { display: block; font-size: 14px; margin: 8px auto 0; padding-inline: 0; }
+.playlist-import-sheet .merge-primary { background: var(--ion-color-primary); color: var(--ion-color-primary-contrast); }
+.playlist-import-sheet footer { border-top: 1px solid var(--app-border); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; }
+.playlist-import-sheet footer .merge-primary { min-width: 144px; }
+
+.merge-subtitle, .merge-path, .merge-choices small { color: var(--app-muted); }
+.merge-path { font-size: 12px; overflow-wrap: anywhere; margin-top: 0; }
+.playlist-import-sheet fieldset { border: 0; padding: 0; margin: 20px 0 0; border-radius: 12px; overflow: hidden; background: var(--app-surface); }
+.playlist-import-sheet fieldset label { display: flex; gap: 12px; align-items: center; min-height: 56px; padding: 12px 16px; cursor: pointer; }
+.playlist-import-sheet fieldset label + label { border-top: 1px solid var(--app-border); }
+.playlist-import-sheet fieldset label:has(input:checked) { background: rgba(var(--ion-color-primary-rgb), 0.08); }
+.merge-choices small { display: block; font-size: 13px; margin-top: 2px; }
+.playlist-import-sheet input { accent-color: var(--ion-color-primary); width: 18px; height: 18px; }
+.merge-warning { color: var(--ion-color-warning); }
+@media (max-width: 600px) {
+  .playlist-import-sheet { margin: auto auto 0; width: 100%; max-width: 100%; border-radius: 22px 22px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Use the same segmented control as Sound settings. */
+.playlist-import-sheet ion-segment { width: 100%; }
+.playlist-import-sheet ion-segment-button { min-width: 0; min-height: 44px; --padding-start: 6px; --padding-end: 6px; }
+.playlist-import-sheet ion-segment ion-label { white-space: normal; font-size: 14px; line-height: 1.3; }
+.playlist-import-sheet ion-segment small { display: block; font-size: 12px; opacity: .75; }
+.merge-difference { padding: 16px 0; }
+.merge-difference + .merge-difference { border-top: 1px solid var(--app-border); }
+.playlist-import-sheet .merge-difference h3 { font-size: 17px; margin-top: 0; }
+.playlist-import-sheet .merge-difference .merge-path { margin-bottom: 12px; }
+.playlist-import-sheet .merge-difference .merge-remaining { margin: 4px 0 0 auto; font-size: 12px; min-height: 36px; }
