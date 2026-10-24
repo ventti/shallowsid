@@ -632,9 +632,14 @@ ion-app > .np {
 
 .np-badges {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 8px;
   min-height: 20px;
+}
+
+.np-badges ion-badge {
+  flex-shrink: 0;
 }
 
 .np-scrub {
