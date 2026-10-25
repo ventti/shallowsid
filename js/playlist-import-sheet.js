@@ -47,7 +47,7 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
               <ion-icon slot="start" name="git-compare-outline" color="primary"></ion-icon><ion-label color="primary">Review Changes</ion-label>
             </ion-item>
             <ion-item button detail="false" data-action="new" ${!target ? 'disabled' : ''}>
-              <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Replace Playlist…</ion-label>
+              <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Replace old</ion-label>
             </ion-item>
             <ion-item button detail="false" data-action="copy" lines="none">
               <ion-icon slot="start" name="copy-outline" color="primary"></ion-icon><ion-label color="primary">Save as New Playlist</ion-label>
@@ -72,7 +72,7 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
           <p class="merge-subtitle">${items.length} tunes</p>`;
         footer = `<button data-action="back">Back</button><button class="merge-primary" data-action="save">Save Changes</button>`;
       }
-      dialog.innerHTML = `<header>${mode === 'start' ? '' : '<button data-action="cancel">Cancel</button>'}<h2 id="merge-heading">${mode === 'start' ? 'Playlist Already Exists' : mode === 'review' ? 'Review Changes' : 'Song Order'}</h2></header>
+      dialog.innerHTML = `<header>${mode === 'start' ? '' : '<button data-action="cancel">Cancel</button>'}<h2 id="merge-heading">${mode === 'start' ? 'Playlist already exists' : mode === 'review' ? 'Review Changes' : 'Song Order'}</h2></header>
         <section>${skipped ? `<p class="merge-warning">${skipped} files could not be matched and are excluded from New.</p>` : ''}${body}</section>
         ${footer ? `<footer>${footer}</footer>` : ''}`;
       dialog.setAttribute('aria-labelledby', 'merge-heading');

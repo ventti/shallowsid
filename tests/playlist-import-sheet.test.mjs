@@ -81,7 +81,7 @@ test('song order uses a two-way segment and applies the selected order', async (
   assert.match(dialog.innerHTML, /Song Order/);
   assert.doesNotMatch(dialog.innerHTML, /0 differences/);
   dialog.click('back');
-  assert.match(dialog.innerHTML, /Playlist Already Exists/);
+  assert.match(dialog.innerHTML, /Playlist already exists/);
   dialog.click('review');
   assert.match(dialog.innerHTML, /data-merge-segment="order"/);
   dialog.order('new'); dialog.click('save');
@@ -102,7 +102,7 @@ test('replacement requires Save and Back returns to the opening sheet', async ()
   const { dialog, result, target } = open([tune('A')], [tune('B')]);
   dialog.click('new');
   assert.deepEqual(target.items, [tune('A')]);
-  dialog.click('back'); assert.match(dialog.innerHTML, /Playlist Already Exists/);
+  dialog.click('back'); assert.match(dialog.innerHTML, /Playlist already exists/);
   dialog.click('new'); dialog.click('save');
   assert.deepEqual((await result).items, [tune('B')]);
 });
@@ -121,7 +121,7 @@ test('opening sheet omits zero counts and competing global actions', async () =>
   const { dialog, result } = open([tune('A', 2)], [tune('A', 5), tune('B')]);
   assert.match(dialog.innerHTML, /1 added · 1 subtune change/);
   assert.doesNotMatch(dialog.innerHTML, /0 removed|Keep existing|Keep all tunes/);
-  assert.match(dialog.innerHTML, /Replace Playlist…/);
+  assert.match(dialog.innerHTML, /Replace old/);
   assert.match(dialog.innerHTML, /Save as New Playlist/);
   dialog.escape(); await result;
 });
