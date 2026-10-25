@@ -190,6 +190,7 @@ let listItems = [];             // queue items backing the list currently shown
 let listShown = 0;
 let listOptions = {};           // {playlistId} when the list is a playlist
 let searchQuery = "";
+let searchExact = false;
 let searchSeq = 0;
 let lastResults = null;
 // Search results and tune lists (folders, composer pages) each remember their
@@ -208,7 +209,7 @@ searchWorker.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "ready") {
     searchReady = true;
-    if (searchQuery) runSearch(searchQuery);
+    if (currentRoute().name === "search" && searchQuery) runSearch(searchQuery);
   } else if (msg.type === "error") {
     failSearch(msg.message);
   } else if (msg.type === "results" && msg.id === searchSeq) {
@@ -229,7 +230,7 @@ function failSearch(message) {
 
 function searchFor(query) {
   dom.searchbar.value = query;
-  if (currentRoute().name !== "search") location.hash = "#/search";
+  if (currentRoute().name !== "search") location.hash = searchHash(query.trim());
   runSearch(query);
 }
 
@@ -315,19 +316,25 @@ dom.searchbar.addEventListener("keydown", (e) => {
   }
 });
 
+function searchHash(query) {
+  const params = new URLSearchParams({ q: query });
+  if (searchExact) params.set("exact", "1");
+  return query ? `#/search?${params}` : "#/home";
+}
+
 function runSearch(query) {
   searchQuery = query.trim();
-  // Results live at #/search, an empty search is Home (no history entry per keystroke).
+  // Keep a shareable query in the address without a history entry per keystroke.
   const route = currentRoute().name;
-  if (searchQuery && route !== "search") history.replaceState(null, "", "#/search");
-  else if (!searchQuery && route === "search") history.replaceState(null, "", "#/home");
+  const hash = searchHash(searchQuery);
+  if ((searchQuery || route === "search") && location.hash !== hash) history.replaceState(null, "", hash);
   lastResults = lastIds = searchFilter = null;
   searchSeq++;   // results still on their way for an earlier query get dropped
   if (searchQuery && !searchQuery.startsWith("#")) {
     searchFilter = parseQuery(searchQuery);
     // Comparisons alone need no word search: they go through the whole catalogue.
     if (searchFilter.text && !searchFilter.error) {
-      searchWorker.postMessage({ type: "search", id: searchSeq, query: searchFilter.text, all: !!searchFilter.filter });
+      searchWorker.postMessage({ type: "search", id: searchSeq, query: searchFilter.text, all: true, exact: searchExact });
     }
   }
   renderSearch();
@@ -440,8 +447,13 @@ function go(hash) {
 }
 
 function currentRoute() {
+  const hash = location.hash.replace(/^#\/?/, "");
+  if (hash === "search" || hash.startsWith("search?")) {
+    const params = new URLSearchParams(hash.slice("search".length));
+    return { name: "search", arg: params.get("q") ?? "", exact: params.get("exact") === "1" };
+  }
   // No hash (plain site URL) splits to [""]: treat it as Home.
-  const [name, ...rest] = location.hash.replace(/^#\/?/, "").split("/");
+  const [name, ...rest] = hash.split("/");
   return { name: name || "home", arg: rest.length ? decodeURIComponent(rest.join("/")) : "" };
 }
 
@@ -579,7 +591,8 @@ function renderSearch() {
   }
   if (!lastResults.length) {
     const hint = fieldHint(searchFilter?.unknown);
-    dom.view.innerHTML = `<div class="empty"><p>No tunes match “${esc(searchQuery)}”.</p>${hint ? `<p>${esc(hint)}</p>` : ""}</div>`;
+    dom.view.innerHTML = `${sortBar("search", searchExact ? "Exact matches · 0 tunes" : "0 tunes", true)}<div class="empty"><p>No tunes match “${esc(searchQuery)}”.</p>${hint ? `<p>${esc(hint)}</p>` : ""}</div>`;
+    $("search-more").addEventListener("click", () => searchResultsMenu());
     dom.infinite.disabled = true;
     return;
   }
@@ -588,8 +601,10 @@ function renderSearch() {
   const count = filter ? `${shown.toLocaleString()} ${noun}${shown === 1 ? "" : "s"} with ${describeFilter(filter)}`
     : lastTotal > shown ? `The best ${shown.toLocaleString()} of ${lastTotal.toLocaleString()} tunes. Add a word to narrow it down.`
     : shown === 1 ? "1 tune" : `${shown.toLocaleString()} tunes`;
-  dom.view.innerHTML = `${sortBar("search", count)}<div id="results"></div>`;
-  showList($("results"), sortResults(lastResults, sorts.search));
+  const items = sortResults(lastResults, sorts.search);
+  dom.view.innerHTML = `${sortBar("search", searchExact && wordSearch ? `Exact matches · ${count}` : count, true)}<div id="results"></div>`;
+  showList($("results"), items);
+  $("search-more").addEventListener("click", () => searchResultsMenu(items));
 }
 
 // A row's tag labels: the whole tune's, then the subtune's own.
@@ -664,7 +679,7 @@ function listSort() {
 // The row above a sortable tune list: its count (unless the page shows it
 // already), the order's name (opens the choices) and an arrow that flips the
 // direction in one tap. `kind` is "search" or "list".
-function sortBar(kind, note) {
+function sortBar(kind, note, searchActions = false) {
   const sort = kind === "list" ? listSort() : sorts.search;
   const arrow = sort.by === "relevance" ? "" : `
     <ion-button data-sort-direction="${kind}" class="sort-direction" fill="clear" size="small" aria-label="Reverse order (now ${sortDirection(sort)})">
@@ -673,6 +688,7 @@ function sortBar(kind, note) {
   return `<div class="list-bar">
     <p class="result-count">${esc(note ?? "")}</p>
     <ion-button data-sort="${kind}" class="sort-button" fill="clear" size="small" aria-label="Sort by ${esc(sortCaption(kind, sort))}">${esc(sortCaption(kind, sort))}</ion-button>${arrow}
+    ${searchActions ? '<ion-button id="search-more" class="sort-button" fill="clear" size="small" aria-label="Search actions"><ion-icon slot="icon-only" name="ellipsis-vertical"></ion-icon></ion-button>' : ""}
   </div>`;
 }
 
@@ -1093,8 +1109,11 @@ function renderTagSearch(text) {
   const items = q ? tagItems(found.map((t) => t.id)) : { tunes: [], subtunes: [] };
   const total = items.tunes.length + items.subtunes.length;
   dom.view.innerHTML = `<p class="result-count">Tags</p><div class="chips">${found.map((t) => tagChip(t.id, counts.get(t.id) ?? 0)).join("")}</div>`
-    + (total ? `<p class="result-count">${tuneCount(total)}</p><div id="tag-tunes"></div>` : "");
-  if (total) showTagItems($("tag-tunes"), items);
+    + (total ? `${sortBar("list", tuneCount(total), true)}<div id="tag-tunes"></div>` : "");
+  if (total) {
+    showTagItems($("tag-tunes"), items);
+    $("search-more").addEventListener("click", () => searchResultsMenu([...items.tunes, ...items.subtunes]));
+  }
 }
 
 function renderAllTags() {
@@ -1612,6 +1631,36 @@ async function renderEdits(cid, stale) {
   else showList($("edit-list"), items, { all: true });
 }
 
+function saveAsPlaylist(title, items) {
+  const pl = store.create(title, items);
+  go(`#/playlist/${pl.id}`);
+}
+
+function searchResultsMenu(items = []) {
+  const title = searchQuery;
+  const buttons = [];
+  if (!title.startsWith("#")) buttons.push({
+    text: "Exact matches",
+    toggle: { checked: searchExact, onChange: (checked) => { searchExact = checked; runSearch(searchQuery); sheet.dismiss(); } },
+  });
+  if (items.length) buttons.push(
+    { text: "Save as Playlist", icon: "list", handler: () => saveAsPlaylist(title, items) },
+    ...(store.playlists.length ? [{ text: "Add to playlist…", icon: "add-circle-outline", handler: () => setTimeout(() => addSearchToPlaylist(items), 300) }] : []),
+  );
+  const sheet = actionSheet("Search results", buttons);
+}
+
+function addSearchToPlaylist(items) {
+  actionSheet("Add to playlist", store.playlists.map((pl) => ({
+    text: pl.name,
+    handler: () => {
+      if (!store.get(pl.id)) return toast("Playlist no longer exists.");
+      store.addItems(pl.id, items);
+      go(`#/playlist/${pl.id}`);
+    },
+  })));
+}
+
 function renderGenerated(title, items, note) {
   setChrome({ title, back: "#/home", tab: "home" });
   dom.view.innerHTML = `
@@ -1625,10 +1674,7 @@ function renderGenerated(title, items, note) {
   showList($("top-list"), items);
   $("top-play").addEventListener("click", () => player.setQueue(items, 0));
   $("top-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
-  $("top-save").addEventListener("click", () => {
-    const pl = store.create(title, items);
-    go(`#/playlist/${pl.id}`);
-  });
+  $("top-save").addEventListener("click", () => saveAsPlaylist(title, items));
 }
 
 // Both link kinds: name and items are already sanitised; all text is escaped.
@@ -1654,7 +1700,7 @@ let renderedRoute = null;
 
 function render() {
   if (!index) return;
-  const { name, arg } = currentRoute();
+  const { name, arg, exact } = currentRoute();
   // Updating the current view (subtune, favorites, removal, sync, etc.)
   // keeps its scroll position. Only navigation starts at the top.
   const route = JSON.stringify([name, arg]);
@@ -1684,6 +1730,13 @@ function render() {
     case "mix": return renderMix(arg);
     case "recent": return renderGenerated("Recently played", recentItems(), `The tunes you played last ${playedWhere()}`);
     case "home": return renderHome();
+    case "search":
+      if (arg !== searchQuery || exact !== searchExact) {
+        searchExact = exact;
+        dom.searchbar.value = arg;
+        return runSearch(arg);
+      }
+      return renderSearch();
     default: return renderSearch();
   }
 }

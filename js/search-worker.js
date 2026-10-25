@@ -70,11 +70,11 @@ function tier(r, query, queryWords) {
 
 self.onmessage = async (e) => {
   if (e.data.type === "load") return receiveCatalogue(e.data.text);
-  const { id, query, all } = e.data;
+  const { id, query, all, exact } = e.data;
   const { search, tunes, ranked } = await ready;
   const q = normalize(query).trim();
   const qWords = words(query);
-  const hits = search.search(query);
+  const hits = search.search(query, exact ? { prefix: false, fuzzy: false } : {});
   const ids = hits
     .map((hit) => ({ id: hit.id, tier: tier(ranked[hit.id], q, qWords) }))
     .sort((a, b) =>

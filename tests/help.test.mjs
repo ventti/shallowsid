@@ -14,6 +14,6 @@ test("search help examples use supported filters", () => {
     const query = parseQuery(example);
     assert.equal(query.error, null, example);
     assert.ok(query.filter, example);
-    assert.equal(matches(query.filter, (field) => values[field] ?? null), !["hubbard bpm>140", "title=Fish release=Chips year=2038"].includes(example), example);
+    assert.equal(matches(query.filter, (field) => values[field] ?? null), !["hubbard bpm>140", "title=Commando composer=Hubbard release=Elite year=1985"].includes(example), example);
   }
 });

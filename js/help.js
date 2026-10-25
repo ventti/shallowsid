@@ -34,7 +34,10 @@ export const HELP = [
       <h2>Sound features</h2>
       <p>Use <code>speed=2</code> for 2x speed, <code>ring=1</code> for ring modulation or <code>filter=1</code> for filter use. Other feature fields are <code>sync</code>, <code>digi</code>, <code>basic</code>, <code>cia</code> and <code>custom</code>. Use <code>=1</code> for present and <code>=0</code> for absent.</p>
       <h2>Tips</h2>
-      <p>Combine specific fields: <code>title=Fish release=Chips year=2038</code> finds titles containing “Fish” with “Chips” in the release credit and a release year of 2038.</p>
+      <p>Share a search by copying the page address. Opening the link restores the search.</p>
+      <p>Open the search results’ More menu to save matches as a new playlist or add them to an existing playlist. Existing entries are skipped unless the playlist allows duplicates.</p>
+      <p>Turn on <strong>Exact matches</strong> in the More menu to match whole words without spelling correction or prefix matching. For example, <code>Teppo</code> matches “Teppo” but not “Seppo” or “Tempo”.</p>
+      <p>Combine specific fields: <code>title=Commando composer=Hubbard release=Elite year=1985</code> finds Rob Hubbard’s Commando, released by Elite in 1985.</p>
       <p>To find tunes from 1987 or 1988 above 120 BPM, repeat the tempo condition: <code>year=1987 &amp; bpm&gt;120 | year=1988 &amp; bpm&gt;120</code>.</p>
       <p>Combine words and filters: <code>hubbard bpm&gt;140</code>. Tempo, duration, speed and feature filters return matching subtunes.</p>
       <p>Combine feature filters: <code>filter=1 &amp; ring=1</code> finds subtunes that use both filtering and ring modulation.</p>`,
@@ -44,7 +47,6 @@ export const HELP = [
     title: "Sync",
     icon: "cloud-outline",
     html: `
-      <h2>What sync keeps together</h2>
       <p>Playlist cloud sync keeps playlists, favorites, sound presets and play history the same across your devices. Open <a href="#/settings/sync">Playlist cloud sync</a> in Settings.</p>
       <h2>Connect another device</h2>
       <ol>

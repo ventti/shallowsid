@@ -125,6 +125,22 @@ export class PlaylistStore extends EventTarget {
     this.save(p);
   }
 
+  // Bulk additions skip existing entries unless the playlist allows duplicates.
+  addItems(id, items) {
+    const p = this.get(id);
+    if (!p) return;
+    const seen = new Set(p.items.map((item) => `${item.path}#${item.song}`));
+    const added = sanitizeItems(items, undefined, Infinity).filter((item) => {
+      const key = `${item.path}#${item.song}`;
+      if ((!p.allowDuplicates || p.favorites) && seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!added.length) return;
+    p.items = p.items.concat(added);
+    this.save(p);
+  }
+
   // Whether the playlist already has this tune (same file and subtune).
   has(id, item) {
     const song = songOf(item);
