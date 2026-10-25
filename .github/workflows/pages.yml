@@ -97,8 +97,8 @@ jobs:
         run: |
           cp -r index.html favicon.ico privacy.html about.html manifest.webmanifest service-worker.js icons css js _site/
           version="$(git describe --tags --always)"
-          sed -i "s|<code data-version>[^<]*</code>|<code data-version>${version}</code>|" _site/about.html
-          grep -q "<code data-version>${version}</code>" _site/about.html
+          sed -i "s|<code data-version>[^<]*</code>|<code data-version>${version}</code>|" _site/js/help.js
+          grep -q "<code data-version>${version}</code>" _site/js/help.js
           touch _site/.nojekyll
           du -sh _site
 

@@ -1,6 +1,6 @@
 # ShallowSID
 
-A small, phone-first player for the High Voltage SID Collection. Inspired by [DeepSID](https://github.com/Chordian/deepsid), but much shallower.
+The easy C64 music web player. Inspired by [DeepSID](https://github.com/Chordian/deepsid), but much shallower.
 
 ## Introduction
 
@@ -392,7 +392,7 @@ The page sends each tune to the device's REST API (`POST /v1/runners:sidplay`). 
 - [HVSC](https://www.hvsc.c64.org/) and its team, for the collection and `Songlengths.md5`.
 - [libsidplayfp](https://github.com/libsidplayfp/libsidplayfp) and reSIDfp, and [libsidplayfp-wasm](https://github.com/chrisgleissner/libsidplayfp-wasm) for the WebAssembly build ([corresponding source](https://cdn.jsdelivr.net/npm/libsidplayfp-wasm@1.1.0/dist/complete-source.tar.gz)).
 - [DeepSID](https://github.com/Chordian/deepsid) by Chordian, for showing how it's done.
-- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [DiceBear](https://www.dicebear.com/), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR), [Press Start 2P](https://fonts.google.com/specimen/Press+Start+2P).
+- [Ionic](https://ionicframework.com/), [MiniSearch](https://github.com/lucaong/minisearch), [DiceBear](https://www.dicebear.com/), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator), [jsQR](https://github.com/cozmo/jsQR).
 
 ## License
 

@@ -16,7 +16,7 @@
 
 const CACHE = "shallowsid-v1";
 const SHELL = ["./", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
-const CDN_HOSTS = new Set(["cdn.jsdelivr.net", "fonts.googleapis.com", "fonts.gstatic.com"]);
+const CDN_HOSTS = new Set(["cdn.jsdelivr.net"]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {

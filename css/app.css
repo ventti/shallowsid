@@ -765,6 +765,61 @@ ion-app > .np {
   margin-inline: auto;
 }
 
+.help-content {
+  margin: 0;
+  padding: 32px 16px 64px;
+  font-size: 16px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.help-content h2 {
+  margin: 28px 0 6px;
+  font-size: 18px;
+}
+
+.help-content p, .help-content ul, .help-content ol {
+  margin-block: 16px;
+}
+
+.help-content .muted {
+  color: var(--app-muted);
+}
+
+.help-content a {
+  color: var(--app-accent);
+}
+
+.help-content code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-surface), var(--app-text) 8%);
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.help-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-block: 16px;
+}
+
+.help-content th, .help-content td {
+  padding: 8px;
+  text-align: start;
+  vertical-align: top;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.help-content tbody th {
+  white-space: nowrap;
+  font-weight: inherit;
+}
+
 @media (min-width: 768px) {
   .sound-content ion-list.settings-menu[inset] ion-item {
     --min-height: 64px;

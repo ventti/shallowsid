@@ -20,6 +20,7 @@ import { LIST_NAMES, LISTS, listCatalog } from "./curated-core.js";
 import { HOT_TUNES } from "./hot-tunes.js";
 import { DEFAULT_SORT, SORTS, normalizeSort, sortResults } from "./result-sort.js";
 import { SearchHistory } from "./search-history.js";
+import { ABOUT, HELP } from "./help.js";
 import { FIELDS, describe as describeFilter, exactYear, fieldHint, matches, parseQuery, perSubtune } from "./num-query.js";
 import { mixDefinition, mixTunes, pickMixes, weekSeed } from "./mixes.js";
 import { SyncService } from "./sync.js";
@@ -446,6 +447,7 @@ function currentRoute() {
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
   dom.title.textContent = title;
+  document.title = title ? `${title} · ShallowSID` : "ShallowSID - The easy C64 music web player";
   dom.titleToolbar.hidden = !title && !back && !actions;   // Home and search results show just the search bar
   dom.back.hidden = !back;
   // "history" goes back to wherever the page was opened from (Home when opened directly).
@@ -727,6 +729,7 @@ function renderBrowse(dir) {
 }
 
 function renderSettingsPage(page) {
+  if (page === "help" || page.startsWith("help/")) return renderHelp(page.slice(5));
   if (page === "roms") {
     setChrome({ title: "C64 ROMs", tab: "settings", back: "#/settings" });
     dom.infinite.disabled = true;
@@ -764,7 +767,28 @@ function renderSettings() {
       <ion-icon slot="start" name="hardware-chip-outline"></ion-icon>
       <ion-label>C64 ROMs</ion-label>
     </ion-item>
+  </ion-list><ion-list inset class="settings-menu">
+    <ion-item button detail="true" href="#/settings/help" lines="full">
+      <ion-icon slot="start" name="help-circle-outline"></ion-icon>
+      <ion-label>Help</ion-label>
+    </ion-item>
+    <ion-item button detail="true" href="#/help/about" lines="none">
+      <ion-icon slot="start" name="information-circle-outline"></ion-icon>
+      <ion-label>About</ion-label>
+    </ion-item>
   </ion-list></div>`;
+}
+
+function renderHelp(topic) {
+  const section = topic === "about" ? ABOUT : HELP.find((s) => s.id === topic);
+  setChrome({ title: section?.title ?? "Help", tab: "settings", back: section && section !== ABOUT ? "#/settings/help" : "#/settings" });
+  dom.infinite.disabled = true;
+  dom.view.innerHTML = `<div class="settings-container sound-content">${section
+    ? `<article class="help-content">${section.html}</article>`
+    : `<ion-list inset class="settings-menu">${HELP.map((s, i) => `
+      <ion-item button detail="true" href="#/help/${s.id}" lines="${i === HELP.length - 1 ? "none" : "full"}">
+        <ion-icon slot="start" name="${s.icon}"></ion-icon><ion-label>${s.title}</ion-label>
+      </ion-item>`).join("")}</ion-list>`}</div>`;
 }
 
 function renderPlaylists() {
@@ -1642,6 +1666,7 @@ function render() {
     case "browse": return renderBrowse(arg);
     case "playlists": return renderPlaylists();
     case "settings": return renderSettingsPage(arg);
+    case "help": return renderHelp(arg);
     case "playlist": return renderPlaylist(arg);
     case "share": return renderShare(arg);
     case "p": return renderLive(arg);

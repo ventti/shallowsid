@@ -7,21 +7,21 @@
   <!-- Only this site, jsDelivr (libraries), HVSC (tunes), Firestore (sync, shared lists)
        and, for those two, Firebase App Check with reCAPTCHA (Google, gstatic). Plain http:
        is for an Ultimate 64 on the local network, at whatever address it has. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com https://www.google.com 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://content-firebaseappcheck.googleapis.com https://www.google.com https://cdn.jsdelivr.net http:; frame-src https://www.google.com; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://www.gstatic.com https://www.google.com 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'none'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://www.hvsc.c64.org https://firestore.googleapis.com https://content-firebaseappcheck.googleapis.com https://www.google.com https://cdn.jsdelivr.net http:; frame-src https://www.google.com; worker-src 'self' https://cdn.jsdelivr.net; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="theme-color" content="#16131f">
   <meta name="description" content="ShallowSID is a free web player that gives you instant access to over 60,000 Commodore 64 tunes from the High Voltage SID Collection. No account, no ads: just press play.">
-  <title>ShallowSID - the easy C64 music web player</title>
+  <title>ShallowSID - The easy C64 music web player</title>
   <!-- Link previews (Open Graph, X/Twitter): crawlers need absolute URLs -->
   <link rel="canonical" href="https://sid.extend.fi/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="ShallowSID">
-  <meta property="og:title" content="ShallowSID - the easy C64 music web player">
+  <meta property="og:title" content="ShallowSID - The easy C64 music web player">
   <meta property="og:description" content="Free, instant access to over 60,000 Commodore 64 tunes from the High Voltage SID Collection. No account, no ads: just press play.">
   <meta property="og:url" content="https://sid.extend.fi/">
   <meta property="og:image" content="https://sid.extend.fi/icons/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="ShallowSID, the easy C64 music web player">
+  <meta property="og:image:alt" content="ShallowSID, The easy C64 music web player">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="favicon.ico" sizes="48x48">
   <link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
@@ -31,9 +31,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ShallowSID">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/ionic.bundle.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ionic/core@9.0.4/css/palettes/dark.always.css">
   <link rel="stylesheet" href="css/app.css">
@@ -70,8 +67,7 @@
             <ion-infinite-scroll-content></ion-infinite-scroll-content>
           </ion-infinite-scroll>
           <footer class="credits">
-            <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener" id="hvsc-version">HVSC</a> ·
-            <a href="about.html" target="_blank" rel="noopener">About ShallowSID</a><span id="install-app-wrap" hidden> ·
+            <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener" id="hvsc-version">HVSC</a><span id="install-app-wrap" hidden> ·
             <a href="#" id="install-app">Install app</a></span>
           </footer>
         </ion-content>
