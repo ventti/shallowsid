@@ -66,6 +66,7 @@ export class Install extends EventTarget {
 
 // After load, so caching the app doesn't compete with drawing it.
 export function registerServiceWorker() {
+  if (["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)) return;
   if (!("serviceWorker" in navigator) || !isSecureContext) return;
   const register = () => navigator.serviceWorker.register(new URL("../service-worker.js", import.meta.url))
     .catch((err) => console.warn("service worker:", err));
