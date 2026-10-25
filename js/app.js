@@ -598,7 +598,7 @@ function rowTags(item) {
   return [...whole, ...sub].map((id) => tags.label(id));
 }
 
-// The tunes passing a numeric filter: one item per subtune when it compares
+// The tunes passing a field filter: one item per subtune when it compares
 // per-subtune values (BPM, length), else per tune, playing from its start song.
 function filterTunes(tunes, filter) {
   const out = [];
@@ -606,14 +606,17 @@ function filterTunes(tunes, filter) {
   for (const tune of tunes) {
     const songs = each ? Array.from({ length: tune.songs }, (_, i) => i + 1) : [tune.start];
     for (const song of songs) {
-      if (matches(filter, (field) => numericValue(tune, song, field))) out.push(asItem(tune, song));
+      if (matches(filter, (field) => searchValue(tune, song, field))) out.push(asItem(tune, song));
     }
   }
   return out;
 }
 
-function numericValue(tune, song, field) {
+function searchValue(tune, song, field) {
   switch (field) {
+    case "title": return tune.title;
+    case "release": return tune.released;
+    case "composer": return tune.author;
     case "bpm": return tags.bpmFor({ path: tune.path, songs: tune.songs, song, bpmEstimates: tune.bpmEstimates }).bpm;
     case "length": return tune.lengths?.[song - 1] || null;
     case "year": return exactYear(tune.released);

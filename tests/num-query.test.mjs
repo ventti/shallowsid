@@ -8,6 +8,39 @@ const pass = (query, values) => {
   return matches(filter, (field) => values[field] ?? null);
 };
 
+test("text fields contain anywhere and combine with numeric filters", () => {
+  const query = "title=Fish release=Chips year=2038";
+  const values = { title: "Big FISH Waltz", release: "2038 Chips Records", year: 2038 };
+  assert.ok(pass(query, values));
+  for (const field of ["title", "release", "year"]) {
+    assert.ok(!pass(query, { ...values, [field]: field === "year" ? 2037 : "Other" }), field);
+  }
+  assert.equal(parseQuery(query).text, "");
+  assert.ok(!perSubtune(parseQuery(query).filter));
+  assert.equal(describe(parseQuery(query).filter), "title contains “Fish” and release contains “Chips” and year = 2038");
+});
+
+test("composer and author are aliases, with case and accent insensitive phrases", () => {
+  assert.ok(pass('composer="Chris Hulsbeck"', { composer: "Chris Hülsbeck / Other" }));
+  assert.ok(pass("AUTHOR='rob hubbard'", { composer: "Rob Hubbard" }));
+  assert.ok(pass("composer=Hubbard&release=Thalamus|title=Fish", { composer: "Rob Hubbard", release: "1987 Thalamus" }));
+  assert.ok(pass("composer=Hubbard&release=Thalamus|title=Fish", { title: "Fish and Chips" }));
+  assert.ok(!pass("composer=Hubbard&release=Thalamus|title=Fish", { composer: "Rob Hubbard", release: "Other" }));
+  assert.equal(parseQuery('remix composer="Rob Hubbard" bpm>120').text, "remix");
+});
+
+test("text filters support exclusion, quoted connectors, and validation", () => {
+  assert.ok(pass('title="Fish & Chips"', { title: "Fish & Chips Theme" }));
+  assert.ok(pass("release==Extend", { release: "2038 Extend" }));
+  assert.ok(pass("release!=Extend", { release: "2038 Chips" }));
+  assert.ok(!pass("release!=Extend", { release: "2038 EXTEND" }));
+  assert.ok(!pass("release!=Extend", {}));
+  assert.ok(!pass("release!=Extend", { release: "" }));
+  assert.equal(describe(parseQuery("release!=Extend").filter), "release does not contain “Extend”");
+  for (const query of ["title=", 'release=""', 'composer="   "', 'title="Fish']) assert.match(parseQuery(query).error, /needs text/, query);
+  assert.match(parseQuery("title>Fish").error, /Use = or !=/);
+});
+
 test("plain words are left alone, & and | included", () => {
   assert.deepEqual(parseQuery("Rock & Roll | hubbard"), { text: "Rock & Roll | hubbard", filter: null, error: null, unknown: [] });
   assert.deepEqual(parseQuery("  "), { text: "", filter: null, error: null, unknown: [] });

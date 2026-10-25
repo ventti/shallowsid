@@ -5,8 +5,10 @@ export const HELP = [
     title: "Search",
     icon: "search-outline",
     html: `
+      <p>Search anything from a tune title or composer to a tempo range, release year or combination of sound features, or browse tags. Combine words with filters and join filter conditions to make your search as broad or specific as you like.</p>
       <h2>Titles and composers</h2>
       <p>Search by tune title, composer, release credit or folder name. Combine words to narrow the results, for example <code>hubbard commando</code>. Search ignores capitals and accents and allows small spelling mistakes.</p>
+      <p>Search a specific field with <code>title=Fish</code>, <code>composer=Hubbard</code> (or <code>author=Hubbard</code>), or <code>release=Chips</code>. These filters match text anywhere in the field and ignore capitals and accents. Use quotes for phrases, such as <code>composer="Rob Hubbard"</code>, and <code>!=</code> to exclude matching text.</p>
       <h2>Tags</h2>
       <p>Start with <code>#</code> to search tags. Enter <code>#</code> alone to browse all tags, or add a tag name to find matching tags and tunes.</p>
       <h2>Numbers and duration</h2>
@@ -29,10 +31,13 @@ export const HELP = [
         </tbody>
       </table>
       <p>Conditions joined by a space or <code>&amp;</code> are checked together before <code>|</code>. Unknown values do not match.</p>
-      <p>Combine words and filters: <code>hubbard bpm&gt;140</code>. Tempo, duration, speed and feature filters return matching subtunes.</p>
       <h2>Sound features</h2>
       <p>Use <code>speed=2</code> for 2x speed, <code>ring=1</code> for ring modulation or <code>filter=1</code> for filter use. Other feature fields are <code>sync</code>, <code>digi</code>, <code>basic</code>, <code>cia</code> and <code>custom</code>. Use <code>=1</code> for present and <code>=0</code> for absent.</p>
-      <p>Badge labels such as “PAL”, “6581” and “ring mod” are not yet searchable as badge values. Use the feature filters above where available.</p>`,
+      <h2>Tips</h2>
+      <p>Combine specific fields: <code>title=Fish release=Chips year=2038</code> finds titles containing “Fish” with “Chips” in the release credit and a release year of 2038.</p>
+      <p>To find tunes from 1987 or 1988 above 120 BPM, repeat the tempo condition: <code>year=1987 &amp; bpm&gt;120 | year=1988 &amp; bpm&gt;120</code>.</p>
+      <p>Combine words and filters: <code>hubbard bpm&gt;140</code>. Tempo, duration, speed and feature filters return matching subtunes.</p>
+      <p>Combine feature filters: <code>filter=1 &amp; ring=1</code> finds subtunes that use both filtering and ring modulation.</p>`,
   },
   {
     id: "sync",

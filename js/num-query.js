@@ -1,7 +1,8 @@
-// Numeric filters in the search bar: "bpm>=120 & bpm<130", "year=1987 | year=1988",
+// Field filters in the search bar: "bpm>=120 & bpm<130", "year=1987 | year=1988",
 // "length>5:00", mixed with words ("hubbard bpm>140"). Pure, for `node --test`.
 //
 // A comparison is FIELD OP VALUE with OP one of = == != > < >= <=. Comparisons
+// on text fields use =/== (contains) or != (does not contain), with quotes for phrases.
 // join with & (and; also just a space) and | (or); & binds tighter, so
 // "a | b & c" is "a | (b & c)". Everything else is text for the word search,
 // including comparisons of anything but FIELDS, so titles like "C=64" or
@@ -25,13 +26,16 @@ export const FIELDS = {
   basic: { level: "sub", label: "BASIC", flag: true },
   cia: { level: "sub", label: "CIA timer", flag: true },
   custom: { level: "sub", label: "custom timing", flag: true },
+  title: { level: "tune", label: "title", text: true },
+  release: { level: "tune", label: "release", text: true },
+  composer: { level: "tune", label: "composer", text: true, aliases: ["author"] },
 };
 
 const FIELD_BY_NAME = new Map(Object.entries(FIELDS).flatMap(([id, f]) => [[id, id], ...(f.aliases ?? []).map((a) => [a, id])]));
 const OPS = { "=": (a, b) => a === b, "==": (a, b) => a === b, "!=": (a, b) => a !== b, ">": (a, b) => a > b, "<": (a, b) => a < b, ">=": (a, b) => a >= b, "<=": (a, b) => a <= b };
 const SHOWN_OP = { "=": "=", "==": "=", "!=": "≠", ">": ">", "<": "<", ">=": "≥", "<=": "≤" };
 // A comparison, a connector, or any other run of characters (a word).
-const TOKEN = /\s*(?:([a-z]+)\s*(>=|<=|!=|==|=|>|<)\s*([\d:.]*)|(&&?|\|\|?)|([^\s&|]+))/giy;
+const TOKEN = /\s*(?:([a-z]+)\s*(>=|<=|!=|==|=|>|<)\s*("[^"]*"|'[^']*'|[^\s&|]*)|(&&?|\|\|?)|([^\s&|]+))/giy;
 
 // {text, filter, error, unknown}: filter is null without comparisons, else an
 // OR of AND groups: [[{field, op, value}, ...], ...]. unknown lists the names
@@ -57,8 +61,9 @@ export function parseQuery(query) {
     else if (t.kind === "or") { if (groups.at(-1).length) groups.push([]); }
     else if (t.kind === "cmp") {
       const field = FIELD_BY_NAME.get(t.name);
+      if (FIELDS[field].text && !["=", "==", "!="].includes(t.op)) return { text: "", filter: null, error: `Use = or != with ${t.name}.`, unknown };
       const value = parseValue(t.raw, FIELDS[field]);
-      if (value === null) return { text: "", filter: null, error: `“${t.name}${t.op}${t.raw}” needs a number${FIELDS[field].time ? " or m:ss" : ""} after ${t.op}.`, unknown };
+      if (value === null) return { text: "", filter: null, error: FIELDS[field].text ? `“${t.name}${t.op}${t.raw}” needs text after ${t.op}. Use quotes around phrases.` : `“${t.name}${t.op}${t.raw}” needs a number${FIELDS[field].time ? " or m:ss" : ""} after ${t.op}.`, unknown };
       groups.at(-1).push({ field, op: t.op, value });
     }
   }
@@ -66,6 +71,12 @@ export function parseQuery(query) {
 }
 
 function parseValue(raw, field) {
+  if (field.text) {
+    const quoted = raw.startsWith('"') || raw.startsWith("'");
+    if (quoted && (raw.length < 2 || raw.at(-1) !== raw[0])) return null;
+    const value = quoted ? raw.slice(1, -1) : raw;
+    return value.trim() ? value : null;
+  }
   if (field.time && /^\d+:\d{1,2}$/.test(raw)) {
     const [min, sec] = raw.split(":").map(Number);
     return min * 60 + sec;
@@ -73,13 +84,20 @@ function parseValue(raw, field) {
   return /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : null;
 }
 
-// For an empty result: how to compare numbers, when the query compared something else.
-export const fieldHint = (unknown) => (unknown?.length ? `To compare numbers, use ${Object.keys(FIELDS).join(", ")}.` : "");
+// For an empty result: list supported fields when the query compared something else.
+export const fieldHint = (unknown) => (unknown?.length ? `To filter by a field, use ${Object.keys(FIELDS).join(", ")}.` : "");
 
-// Whether `valueOf(field)` (a number, or null when unknown) passes the filter.
+const normalizeText = (text) => String(text).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+
+// Whether `valueOf(field)` (text, a number, or null when unknown) passes the filter.
 export function matches(filter, valueOf) {
   return filter.some((group) => group.every(({ field, op, value }) => {
     const v = valueOf(field);
+    if (FIELDS[field].text) {
+      if (v === null || v === undefined || v === "") return false;
+      const contains = normalizeText(v).includes(normalizeText(value));
+      return op === "!=" ? !contains : contains;
+    }
     return v !== null && v !== undefined && OPS[op](v, value);
   }));
 }
@@ -94,6 +112,7 @@ const shownValue = (field, value) => (FIELDS[field].time ? `${Math.floor(value /
 export function describe(filter) {
   const one = ({ field, op, value }) => {
     const { label, flag } = FIELDS[field];
+    if (FIELDS[field].text) return `${label} ${op === "!=" ? "does not contain" : "contains"} “${value}”`;
     const on = op === "!=" ? value !== 1 : op === "=" || op === "==" ? value === 1 : null;
     if (flag && on !== null && (value === 0 || value === 1)) return on ? label : `no ${label}`;
     return `${label} ${SHOWN_OP[op]} ${shownValue(field, value)}`;
