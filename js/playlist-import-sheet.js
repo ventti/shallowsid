@@ -1,5 +1,5 @@
-import { esc } from './ui.js';
-import { comparePlaylists, mergedItems } from './playlist-merge.js';
+import { esc, thumb, subtitle } from './ui.js';
+import { comparePlaylists, mergedItems, sameItems } from './playlist-merge.js';
 
 // A native modal provides focus trapping, Escape cancellation and a contained scroll area.
 export function playlistImportSheet(matches, incoming, index, skipped = 0) {
@@ -12,23 +12,25 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
     const decided = new Set();
     const finish = result => { dialog.close(); dialog.remove(); resolve(result); };
     dialog.addEventListener('cancel', event => { event.preventDefault(); finish(null); });
-    const steps = [];
     const optionsFor = row => row.kind === 'added' ? [['add', 'Add'], ['skip', 'Skip']]
       : row.kind === 'removed' ? [['keep', 'Keep'], ['remove', 'Remove']]
-      : [['existing', `Existing · Subtune ${row.existing.song}`], ['new', `New · Subtune ${row.incoming.song}`], ['both', 'Keep both']];
+      : [['existing', `Current · Subtune ${row.existing.song}`], ['new', `Imported · Subtune ${row.incoming.song}`], ['both', 'Keep both']];
     function segment(key, value, options) {
       return `<ion-segment mode="ios" data-merge-segment="${key}" value="${esc(value)}" aria-label="${key === 'order' ? 'Song order' : 'Choose change'}">${options.map(([v, text]) => {
         const [title, detail] = text.split(' · ');
         return `<ion-segment-button value="${esc(v)}"><ion-label>${esc(title)}${detail ? `<small>${esc(detail)}</small>` : ''}</ion-label></ion-segment-button>`;
       }).join('')}</ion-segment>`;
     }
-    function begin(show = true) {
-      original = target.items.map(item => ({ ...item }));
-      comparison = comparePlaylists(original, incoming.items);
-      choices = new Map(comparison.differences.map(row => [row, optionsFor(row)[0][0]]));
-      decided.clear(); order = 'existing'; mode = comparison.differences.length ? 'review' : 'order'; if (show) render();
+    function begin() {
+      if (!comparison) {
+        original = target.items.map(item => ({ ...item }));
+        comparison = comparePlaylists(original, incoming.items);
+        choices = new Map(comparison.differences.map(row => [row, optionsFor(row)[0][0]]));
+        decided.clear(); order = 'existing';
+      }
+      mode = 'review';
+      render();
     }
-    function finishReview() { mode = 'order'; render(); }
     function render() {
       let body = '', footer = '';
       if (mode === 'start') {
@@ -47,39 +49,44 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
               <ion-icon slot="start" name="git-compare-outline" color="primary"></ion-icon><ion-label color="primary">Review Changes</ion-label>
             </ion-item>
             <ion-item button detail="false" data-action="new" ${!target ? 'disabled' : ''}>
-              <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Replace old</ion-label>
+              <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Replace Playlist</ion-label>
             </ion-item>
             <ion-item button detail="false" data-action="copy" lines="none">
               <ion-icon slot="start" name="copy-outline" color="primary"></ion-icon><ion-label color="primary">Save as New Playlist</ion-label>
             </ion-item>
           </ion-list>`;
-        footer = `<button data-action="cancel">Cancel</button>`;
+        footer = `<span></span>`;
       } else if (mode === 'review') {
-        body = `<p class="merge-subtitle">${comparison.differences.length} differences</p>
+        body = `${comparison.differences.length ? `<p class="merge-subtitle">${comparison.differences.length} differences</p>` : ''}
           <div class="merge-differences">${comparison.differences.map((row, rowIndex) => {
             const item = row.existing || row.incoming;
+            const tune = index.get(item.path);
+            const title = tune?.title || item.path.split('/').pop();
+            const ambiguous = tune && comparison.differences.some(other => {
+              const path = (other.existing || other.incoming).path;
+              return path !== item.path && index.get(path)?.title === title && index.get(path)?.author === tune.author;
+            });
             return `<article class="merge-difference">
-              <h3>${esc(index.get(item.path)?.title || item.path.split('/').pop())}</h3>
-              <p class="merge-path">${esc(item.path)}</p>
+              <div class="merge-tune">${tune ? thumb(tune) : ''}<div><h3>${esc(title)}${row.kind !== 'subtune' && tune?.songs > 1 ? ` <span class="song-chip">#${item.song}/${tune.songs}</span>` : ''}</h3>
+              ${tune ? `<p class="merge-path">${esc(subtitle(tune))}</p>` : ''}
+              ${!tune || ambiguous ? `<p class="merge-path">${esc(item.path)}</p>` : ''}</div></div>
               ${segment(`choice-${rowIndex}`, choices.get(row), optionsFor(row))}
               ${comparison.differences.slice(rowIndex + 1).some(r => r.kind === row.kind) ? `<button class="merge-remaining" data-action="remaining" data-row="${rowIndex}">Apply to Remaining ${row.kind === 'added' ? 'Additions' : row.kind === 'removed' ? 'Removals' : 'Subtune Changes'}</button>` : ''}
             </article>`;
           }).join('')}</div>`;
-        footer = `<button data-action="back">Back</button><button class="merge-primary" data-action="next">Next</button>`;
-      } else {
-        const items = mergedItems(comparison.rows, choices, order);
-        body = `${segment('order', order, [['existing', 'Existing order'], ['new', 'New order']])}
-          <p class="merge-subtitle">${items.length} tunes</p>`;
+        if (!sameItems(mergedItems(comparison.rows, choices), mergedItems(comparison.rows, choices, 'new'))) {
+          body += `<h3>Song order</h3>${segment('order', order, [['existing', 'Current order'], ['new', 'Imported order']])}`;
+        }
         footer = `<button data-action="back">Back</button><button class="merge-primary" data-action="save">Save Changes</button>`;
       }
-      dialog.innerHTML = `<header>${mode === 'start' ? '' : '<button data-action="cancel">Cancel</button>'}<h2 id="merge-heading">${mode === 'start' ? 'Playlist already exists' : mode === 'review' ? 'Review Changes' : 'Song Order'}</h2></header>
-        <section>${skipped ? `<p class="merge-warning">${skipped} files could not be matched and are excluded from New.</p>` : ''}${body}</section>
-        ${footer ? `<footer>${footer}</footer>` : ''}`;
+      dialog.innerHTML = `<header><button data-action="cancel">Cancel</button><h2 id="merge-heading">${mode === 'start' ? 'Playlist already exists' : 'Review Changes'}</h2></header>
+        <section>${skipped ? `<p class="merge-warning">${skipped} files could not be matched and are excluded from the imported playlist.</p>` : ''}${body}</section>
+        <footer>${footer}</footer>`;
       dialog.setAttribute('aria-labelledby', 'merge-heading');
-      if (dialog.open) (dialog.querySelector('ion-segment') || dialog.querySelector('[data-action="save"]') || dialog.querySelector('[data-action="review"]'))?.focus();
+      if (dialog.open) dialog.querySelector('[data-action="cancel"]')?.focus();
     }
     dialog.addEventListener('change', event => {
-      if (event.target.name === 'merge-target') { target = matches[Number(event.target.value)]; render(); }
+      if (event.target.name === 'merge-target') { target = matches[Number(event.target.value)]; comparison = null; render(); }
     });
     dialog.addEventListener('ionChange', event => {
       const key = event.target.dataset.mergeSegment;
@@ -99,15 +106,9 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
       if (!action) return;
       if (action === 'cancel') return finish(null);
       if (action === 'copy') return finish({ kind: 'copy' });
-      if (action === 'review') { steps.push('start'); return begin(); }
+      if (action === 'review') return begin();
       if (action === 'save') return finish({ kind: 'update', target, items: mergedItems(comparison.rows, choices, order), original });
-      if (action === 'back') {
-        const previous = steps.pop();
-        if (!previous) return;
-        mode = previous;
-        return render();
-      }
-      if (action === 'next') { steps.push(mode); return finishReview(); }
+      if (action === 'back') { mode = 'start'; return render(); }
       if (action === 'remaining') {
         const rowIndex = Number(button.dataset.row);
         const row = comparison.differences[rowIndex];
@@ -123,10 +124,9 @@ export function playlistImportSheet(matches, incoming, index, skipped = 0) {
         return;
       }
       if (action === 'new') {
-        steps.push(mode);
-        if (mode === 'start') begin(false);
+        begin();
         comparison.differences.forEach(row => choices.set(row, row.kind === 'added' ? 'add' : row.kind === 'removed' ? 'remove' : 'new'));
-        order = 'new'; finishReview();
+        order = 'new'; render();
       }
     });
     render(); dialog.showModal();

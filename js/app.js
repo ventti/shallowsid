@@ -1644,9 +1644,9 @@ function showShared(shared, note) {
     <div id="share-list"></div>`;
   showList($("share-list"), items);
   $("share-play").addEventListener("click", () => player.setQueue(items.filter((i) => !i.missing), 0));
-  $("share-save").addEventListener("click", () => {
-    const pl = store.create(shared.name, shared.items);
-    go(`#/playlist/${pl.id}`);
+  $("share-save").addEventListener("click", async () => {
+    const pl = await saveImportedPlaylist(shared.name, shared.items);
+    if (pl) go(`#/playlist/${pl.id}`);
   });
 }
 

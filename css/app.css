@@ -1369,3 +1369,9 @@ ion-tab-button[hidden] {
 .playlist-import-sheet .merge-difference h3 { font-size: 17px; margin-top: 0; }
 .playlist-import-sheet .merge-difference .merge-path { margin-bottom: 12px; }
 .playlist-import-sheet .merge-difference .merge-remaining { margin: 4px 0 0 auto; font-size: 12px; min-height: 36px; }
+
+.playlist-import-sheet section > h3 { font-size: 17px; }
+.merge-tune { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.merge-tune > div:last-child { min-width: 0; flex: 1; }
+.merge-tune .thumb { flex-shrink: 0; }
+.merge-tune .merge-path { margin: 4px 0 0; }
