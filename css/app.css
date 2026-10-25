@@ -1,5 +1,10 @@
 /* ShallowSID: small overrides on top of Ionic. Always dark; colors are tokens on :root. */
 
+/* Keep dialog contents hidden until Ionic takes over their visibility. */
+ion-modal:not(.hydrated) {
+  display: none;
+}
+
 :root,
 /* Ionic's dark palette also sets its tokens on `.ios body` / `.md body` */
 .ios body,
