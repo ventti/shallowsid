@@ -87,15 +87,23 @@ test("a pending pause cannot suspend audible scrubbing", () => {
   assert.equal(calls.includes("suspend"), false);
 });
 
-test("native audio sessions resume without a silent element or context suspension", async (t) => {
+test("native audio sessions retain the media element bridge for system controls", async (t) => {
   const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
   const originalAudioContext = globalThis.AudioContext;
+  const originalAudio = globalThis.Audio;
   t.after(() => {
     if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator);
     else delete globalThis.navigator;
+    if (originalAudio) globalThis.Audio = originalAudio;
+    else delete globalThis.Audio;
     if (originalAudioContext) globalThis.AudioContext = originalAudioContext;
     else delete globalThis.AudioContext;
   });
+  globalThis.Audio = class extends EventTarget {
+    constructor(src) { super(); this.src = src; }
+    play() { return Promise.resolve(); }
+    pause() {}
+  };
   const audioSession = {};
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: { audioSession, mediaSession: {} } });
   const calls = [];
@@ -111,11 +119,12 @@ test("native audio sessions resume without a silent element or context suspensio
   player.index = 0;
   await player.ensureAudio();
   assert.equal(audioSession.type, "playback");
-  assert.equal(player.sessionAudio, undefined);
+  assert.ok(player.sessionAudio);
+  t.after(() => URL.revokeObjectURL(player.sessionAudio.src));
   player.pause();
   player.onWorklet({ type: "paused", id: player.pauseId });
   player.play();
-  assert.equal(calls.includes("suspend"), false);
+  assert.equal(calls.includes("suspend"), true);
   assert.equal(player.state, "playing");
   assert.deepEqual(calls.at(-1), { type: "play" });
 });

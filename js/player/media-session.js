@@ -23,21 +23,22 @@ export function connectMediaSession(player) {
     }
   }
 
-  // The cover is rendered asynchronously, so the text goes up first and the
-  // artwork follows, unless another track has started meanwhile.
+  // Publish text and cover together so system controls do not flash the app icon.
+  let trackVersion = 0;
   player.addEventListener("track", async ({ detail: { item } }) => {
     const info = {
       title: item.song > 1 || item.songs > 1 ? `${item.title} (#${item.song})` : item.title,
       artist: item.author,
       album: item.released,
     };
-    const metadata = ms.metadata = new MediaMetadata(info);
+    const version = ++trackVersion;
     try {
       const src = await artworkPng(item, 512);
-      if (ms.metadata === metadata) ms.metadata = new MediaMetadata({ ...info, artwork: [{ src, sizes: "512x512", type: "image/png" }] });
+      info.artwork = [{ src, sizes: "512x512", type: "image/png" }];
     } catch {
-      // no artwork then
+      // Keep track information available if the cover cannot be rendered.
     }
+    if (version === trackVersion) ms.metadata = new MediaMetadata(info);
   });
 
   player.addEventListener("state", ({ detail: { state } }) => {
