@@ -88,6 +88,11 @@ body {
   background: var(--ion-background-color);
 }
 
+/* Disable double-tap zoom throughout the app while allowing pinch zoom. */
+* {
+  touch-action: manipulation;
+}
+
 [hidden] {
   display: none !important;
 }
