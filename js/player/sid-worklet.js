@@ -12,7 +12,7 @@
 // Chunks carry a generation number per source: a higher one replaces what that
 // source had (a restarted render), a lower one is stale and dropped.
 
-const FADE_FRAMES = 256;            // click-free ramp after a seek/resume/gap
+const FADE_FRAMES = 256;            // click-free ramp on pause and after a seek/resume/gap
 const FADE_OUT_SECONDS = 1.5;       // the end fades out, in case the tune loops back before it
 const GRAIN_FRAMES = 2048;          // ~45 ms scrub grain
 const POS_REPORT_FRAMES = 2048;     // ~23 position reports per second
@@ -29,6 +29,9 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
     this.playing = false;
     this.ended = false;
     this.fade = 0;
+    this.pauseId = null;
+    this.pauseFade = 0;
+    this.lastLeft = this.lastRight = 0;
     this.scrubFrame = null;
     this.grainPhase = 0;
     this.grainStarts = [0, 0];
@@ -71,10 +74,15 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
         this.fade = 0;
         break;
       case "play":
+        this.pauseId = null;
         this.playing = true;
         this.fade = 0;
         break;
       case "pause":
+        this.pauseId = msg.id;
+        this.pauseFade = FADE_FRAMES;
+        this.pauseLeft = this.lastLeft;
+        this.pauseRight = this.lastRight;
         this.playing = false;
         break;
       case "seek":
@@ -88,6 +96,7 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
         this.stopFrame = msg.frame;
         break;
       case "scrub":
+        if (msg.frame !== null) this.pauseId = null;
         this.scrubFrame = msg.frame;
         break;
       case "cache-clear":
@@ -171,7 +180,18 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
   process(_inputs, outputs) {
     const [left, right] = outputs[0];
     const n = left.length;
-    if (this.scrubFrame !== null) {
+    if (this.pauseId !== null) {
+      for (let i = 0; i < n; i++) {
+        const gain = Math.max(0, --this.pauseFade) / FADE_FRAMES;
+        left[i] = this.pauseLeft * gain;
+        right[i] = this.pauseRight * gain;
+      }
+      if (this.pauseFade <= 0) {
+        this.port.postMessage({ type: "paused", id: this.pauseId });
+        this.pauseId = null;
+        this.scrubFrame = null;
+      }
+    } else if (this.scrubFrame !== null) {
       this.renderScrub(left, right, n);
     } else if (this.playing && !this.ended) {
       this.renderPlay(left, right, n);
@@ -180,6 +200,8 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
       left.fill(0);
       right.fill(0);
     }
+    this.lastLeft = left[n - 1];
+    this.lastRight = right[n - 1];
     this.sinceReport += n;
     if (this.sinceReport >= POS_REPORT_FRAMES) this.report();
     return true;

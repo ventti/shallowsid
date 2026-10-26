@@ -21,14 +21,15 @@ function setup() {
   return { player, calls };
 }
 
-test("app pause suspends audio and play resumes even with a pending suspend", () => {
+test("pause waits for the fade and ignores its completion after resume", () => {
   const { player, calls } = setup();
   player.pause();
   assert.equal(player.state, "paused");
-  // The context can still report running until suspend completes.
+  // Resume can happen before the worklet finishes fading.
   player.play();
+  player.onWorklet({ type: "paused", id: 1 });
   assert.equal(player.state, "playing");
-  assert.deepEqual(calls, [{ type: "pause" }, "session-pause", "suspend", "session-play", "resume", { type: "play" }]);
+  assert.deepEqual(calls, [{ type: "pause", id: 1 }, "session-pause", "session-play", "resume", { type: "play" }]);
 });
 
 test("scrubbing while paused temporarily resumes audio, then suspends again", () => {
@@ -40,7 +41,7 @@ test("scrubbing while paused temporarily resumes audio, then suspends again", ()
   assert.equal(player.state, "paused");
   assert.deepEqual(calls, [
     { type: "scrub", frame: 240000 }, "resume",
-    { type: "scrub", frame: null }, "suspend",
+    { type: "scrub", frame: null }, { type: "pause", id: 3 }, "session-pause",
   ]);
 });
 
@@ -56,11 +57,32 @@ test("without a session element pause keeps the original Web Audio behavior", ()
   delete player.sessionAudio;
   player.pause();
   assert.equal(player.state, "paused");
-  assert.deepEqual(calls, [{ type: "pause" }]);
+  assert.deepEqual(calls, [{ type: "pause", id: 1 }]);
 });
 
 test("switching to remote output stops the local session element", () => {
   const { player, calls } = setup();
   player.stopLocal();
-  assert.deepEqual(calls.slice(0, 3), [{ type: "pause" }, "session-pause", "suspend"]);
+  assert.deepEqual(calls, [{ type: "pause", id: 1 }, "session-pause"]);
+  player.u64 = {};
+  player.onWorklet({ type: "paused", id: 1 });
+  assert.equal(calls.at(-1), "suspend");
+});
+
+test("only the latest completed pause suspends the context", () => {
+  const { player, calls } = setup();
+  player.pause();
+  player.pause();
+  player.onWorklet({ type: "paused", id: 1 });
+  assert.equal(calls.includes("suspend"), false);
+  player.onWorklet({ type: "paused", id: 2 });
+  assert.equal(calls.at(-1), "suspend");
+});
+
+test("a pending pause cannot suspend audible scrubbing", () => {
+  const { player, calls } = setup();
+  player.pause();
+  player.scrub(5);
+  player.onWorklet({ type: "paused", id: 1 });
+  assert.equal(calls.includes("suspend"), false);
 });

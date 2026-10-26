@@ -104,6 +104,7 @@ export class Player extends EventTarget {
     this.peaks = new Float32Array(0);
     this.errors = 0;
     this.audioReady = null;
+    this.pauseId = 0;
   }
 
   get current() {
@@ -121,6 +122,7 @@ export class Player extends EventTarget {
 
   // Must be first called from a user gesture (iOS unlocks audio only then).
   ensureAudio() {
+    this.pauseId++;
     if (!this.ctx) {
       this.ctx = new AudioContext({ latencyHint: "playback" });
       // Safari 17+: play through the ringer/mute switch like a music app.
@@ -388,11 +390,7 @@ export class Player extends EventTarget {
   // ---- Ultimate 64 --------------------------------------------------------
 
   stopLocal() {
-    this.node?.port.postMessage({ type: "pause" });
-    if (this.sessionAudio) {
-      this.sessionAudio.pause();
-      this.ctx.suspend().catch(() => {});
-    }
+    this.pauseLocal();
     this.liveWorker?.postMessage({ type: "stop" });
     this.stopCache();
     this.resetPeaks();
@@ -501,12 +499,13 @@ export class Player extends EventTarget {
       this.position = 0;
       this.emitTime();
     }
-    this.node?.port.postMessage({ type: "pause" });
-    if (this.sessionAudio) {
-      this.sessionAudio.pause();
-      this.ctx.suspend().catch(() => {});
-    }
+    this.pauseLocal();
     if (this.current) this.setState("paused");
+  }
+
+  pauseLocal() {
+    this.node?.port.postMessage({ type: "pause", id: ++this.pauseId });
+    this.sessionAudio?.pause();
   }
 
   toggle() {
@@ -538,13 +537,20 @@ export class Player extends EventTarget {
     if (!this.node || (seconds !== null && !this.canScrub)) return;
     const frame = seconds === null ? null : Math.round(seconds * this.ctx.sampleRate);
     this.node.port.postMessage({ type: "scrub", frame });
-    if (seconds !== null) this.ctx.resume().catch(() => {});
-    else if (this.sessionAudio && (this.state === "paused" || this.state === "idle")) this.ctx.suspend().catch(() => {});
+    if (seconds !== null) {
+      this.pauseId++;
+      this.ctx.resume().catch(() => {});
+    } else if (this.state === "paused" || this.state === "idle") this.pauseLocal();
   }
 
   // ---- messages ------------------------------------------------------------
 
   onWorklet(msg) {
+    if (msg.type === "paused") {
+      // Let the worklet finish its fade before stopping the audio device.
+      if (msg.id === this.pauseId && this.sessionAudio) this.ctx.suspend().catch(() => {});
+      return;
+    }
     if (this.u64) return;
     if (msg.type === "pos") {
       const sr = this.ctx.sampleRate;
