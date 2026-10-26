@@ -86,3 +86,36 @@ test("a pending pause cannot suspend audible scrubbing", () => {
   player.onWorklet({ type: "paused", id: 1 });
   assert.equal(calls.includes("suspend"), false);
 });
+
+test("native audio sessions resume without a silent element or context suspension", async (t) => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const originalAudioContext = globalThis.AudioContext;
+  t.after(() => {
+    if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator);
+    else delete globalThis.navigator;
+    if (originalAudioContext) globalThis.AudioContext = originalAudioContext;
+    else delete globalThis.AudioContext;
+  });
+  const audioSession = {};
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { audioSession, mediaSession: {} } });
+  const calls = [];
+  globalThis.AudioContext = class {
+    resume() { calls.push("resume"); return Promise.resolve(); }
+    suspend() { calls.push("suspend"); return Promise.resolve(); }
+  };
+  const player = new Player({ sidUrls: () => [] });
+  player.initAudioGraph = async () => {
+    player.node = { port: { postMessage: (message) => calls.push(message) } };
+  };
+  player.queue = [{ title: "Tune" }];
+  player.index = 0;
+  await player.ensureAudio();
+  assert.equal(audioSession.type, "playback");
+  assert.equal(player.sessionAudio, undefined);
+  player.pause();
+  player.onWorklet({ type: "paused", id: player.pauseId });
+  player.play();
+  assert.equal(calls.includes("suspend"), false);
+  assert.equal(player.state, "playing");
+  assert.deepEqual(calls.at(-1), { type: "play" });
+});

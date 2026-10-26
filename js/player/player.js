@@ -127,7 +127,8 @@ export class Player extends EventTarget {
       this.ctx = new AudioContext({ latencyHint: "playback" });
       // Safari 17+: play through the ringer/mute switch like a music app.
       if (navigator.audioSession) navigator.audioSession.type = "playback";
-      if ("mediaSession" in navigator) this.sessionAudio = createSessionAudio(this);
+      // Native audio sessions need no silent-element shim or device restart on resume.
+      if ("mediaSession" in navigator && !navigator.audioSession) this.sessionAudio = createSessionAudio(this);
       this.audioReady = this.initAudioGraph();
     }
     this.sessionAudio?.play().catch((error) => {
