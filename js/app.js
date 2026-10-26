@@ -4,6 +4,7 @@ import { matchZip } from "./zip-playlist.js";
 // ShallowSID: hash router + views (Search, Browse, Playlists, Share).
 
 import { loadIndex, sidFeatures } from "./index-store.js";
+import { preventDoubleTapZoom } from "./gestures.js";
 import { NowPlaying } from "./now-playing.js";
 import { Player, shuffle } from "./player/player.js";
 import { connectMediaSession } from "./player/media-session.js";
@@ -38,6 +39,8 @@ import { Notices } from "./notices.js";
 import { dataWidget, syncWidget } from "./notice-widgets.js";
 import { fileName as userDataFileName, mergeImport, parseBundle, toBundle } from "./user-data.js";
 import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, subtuneDialog, thumb, toast, tuneRow } from "./ui.js";
+
+preventDoubleTapZoom(document);
 
 const PAGE_SIZE = 100;
 // SID files come from the gzip-enabled Firebase mirror, refreshed by CI.

@@ -61,3 +61,18 @@ test("resume cancels a pending pause acknowledgement", () => {
   assert.equal(messages.some((msg) => msg.type === "paused"), false);
   assert.equal(worklet.playing, true);
 });
+
+test("pause fades the remaining waveform instead of holding a DC sample", () => {
+  const { worklet, block } = setup();
+  const position = worklet.playhead;
+  worklet.sampleAt = (frame, ch) => (frame % 2 ? -1 : 1) * (ch ? 0.25 : 0.5);
+  worklet.onControl({ type: "pause", id: 1 });
+  const output = block();
+  for (let i = 0; i < 128; i++) {
+    const gain = (255 - i) / 256;
+    const sign = (position + i) % 2 ? -1 : 1;
+    assert.equal(output[0][i], sign * 0.5 * gain);
+    assert.equal(output[1][i], sign * 0.25 * gain);
+  }
+  assert.equal(worklet.playhead, position);
+});

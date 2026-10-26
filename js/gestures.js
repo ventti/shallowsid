@@ -61,3 +61,30 @@ export function swipeable(el, handlers) {
     el.removeEventListener("pointercancel", cancel);
   };
 }
+
+// Safari versions with broken touch-action support still zoom on a second tap.
+export function preventDoubleTapZoom(root) {
+  let start = null, last = null;
+  root.addEventListener("touchstart", (e) => {
+    start = e.touches.length === 1 ? e.touches[0] : null;
+    if (!start) last = null;
+  }, { passive: true });
+  root.addEventListener("touchmove", () => { start = last = null; }, { passive: true });
+  root.addEventListener("touchcancel", () => { start = last = null; }, { passive: true });
+  root.addEventListener("touchend", (e) => {
+    const touch = e.changedTouches[0];
+    if (e.defaultPrevented || !start || e.touches.length || !touch) {
+      start = last = null;
+      return;
+    }
+    start = null;
+    const target = e.composedPath()[0];
+    if (last && e.timeStamp - last.time < 350 &&
+        Math.abs(touch.clientX - last.x) < 24 && Math.abs(touch.clientY - last.y) < 24 && e.cancelable) {
+      e.preventDefault();
+      // Cancelling touchend also cancels its click: keep buttons and links working.
+      target.click?.();
+    }
+    last = { time: e.timeStamp, x: touch.clientX, y: touch.clientY };
+  }, { passive: false });
+}

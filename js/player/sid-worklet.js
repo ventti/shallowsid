@@ -182,9 +182,11 @@ class SidPlayerProcessor extends AudioWorkletProcessor {
     const n = left.length;
     if (this.pauseId !== null) {
       for (let i = 0; i < n; i++) {
+        const frame = this.playhead + FADE_FRAMES - this.pauseFade;
         const gain = Math.max(0, --this.pauseFade) / FADE_FRAMES;
-        left[i] = this.pauseLeft * gain;
-        right[i] = this.pauseRight * gain;
+        // Fade the waveform, rather than turning its last sample into a DC pulse.
+        left[i] = (this.sampleAt(frame, 0) ?? this.pauseLeft) * gain;
+        right[i] = (this.sampleAt(frame, 1) ?? this.pauseRight) * gain;
       }
       if (this.pauseFade <= 0) {
         this.port.postMessage({ type: "paused", id: this.pauseId });
