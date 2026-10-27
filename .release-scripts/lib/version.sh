@@ -136,3 +136,22 @@ release_moving_tags() {
         esac
     done
 }
+
+# The base bump also applies to release candidates and their promotions.
+release_version_scope() {
+    local current=$1 target=$2
+    if [[ "${current%%.*}" != "${target%%.*}" ]]; then
+        printf '%s\n' major
+    elif [[ "${current%.*}" != "${target%.*}" ]]; then
+        printf '%s\n' minor
+    else
+        printf '%s\n' patch
+    fi
+}
+
+release_meets_threshold() {
+    case "$2:$1" in
+        patch:patch|patch:minor|patch:major|minor:minor|minor:major|major:major) return 0 ;;
+        *) return 1 ;;
+    esac
+}

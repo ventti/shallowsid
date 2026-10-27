@@ -237,6 +237,23 @@ tools/build_rules.py && npx firebase-tools@15.31.0 emulators:exec --only firesto
 
 `.github/workflows/pages.yml` builds the catalogue and deploys it with the app to GitHub Pages on every push to `main`, and daily to pick up new tags. The site is about 5 MB. Enable Pages with source **GitHub Actions** in the repo settings.
 
+Pushes to `main` run `.release-scripts/release` before building the site.
+Conventional Commits choose the bump: breaking changes use major, `feat` uses
+minor, and all other production pushes use patch. `.release.env` sets
+`RELEASE_CHANGELOG_THRESHOLD=minor` and `RELEASE_GITHUB_THRESHOLD=patch`:
+patches publish a tag and GitHub Release with notes without a changelog commit;
+minor and major releases also update `CHANGELOG.md` and commit it. Package
+checks still run for every release. Scheduled and manual deployments do not
+bump the app version.
+
+CI carries the prepared release commit, tag and notes to the deployment job.
+After the site build and Firebase checks pass, it publishes the release and
+then deploys Pages. A failed final Pages deployment may therefore leave a
+published release; rerun the failed job to retry it. Existing tags are reused
+on reruns. The bot needs `contents: write` and permission to push release
+commits to `main`; branch or tag protections can block publishing. Its pushes
+use `GITHUB_TOKEN`, so they do not trigger another deployment.
+
 ## Local HVSC copy (optional)
 
 If the Firebase mirror and hvsc.c64.org are unreachable, the app falls back to an `hvsc/` folder next to `index.html`. To get the latest HVSC there (~375 MB unpacked):

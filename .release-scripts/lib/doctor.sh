@@ -143,6 +143,14 @@ else
     fi
 fi
 
+for threshold_name in RELEASE_CHANGELOG_THRESHOLD RELEASE_GITHUB_THRESHOLD; do
+    threshold=${!threshold_name:-patch}
+    case "$threshold" in
+        patch|minor|major|none) printf 'ok  %s: %s\n' "$threshold_name" "$threshold" ;;
+        *) printf 'ERR %s must be patch, minor, major, or none\n' "$threshold_name" >&2; failed=true ;;
+    esac
+done
+
 if [[ -n "${RELEASE_GET_VERSION:-}" ]]; then
     if version=$(bash -o pipefail -c "$RELEASE_GET_VERSION" 2>/dev/null); then
         printf 'ok  package version: %s\n' "$(release_trim "$version")"

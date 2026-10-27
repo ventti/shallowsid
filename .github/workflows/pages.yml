@@ -42,6 +42,8 @@ jobs:
     # Keepalive-only runs skip the rebuild.
     if: github.event.schedule != '17 3 1 2-5,8-11 *'
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -55,11 +57,29 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Prepare production release
+        id: release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git checkout -B main "$GITHUB_SHA"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bash tools/prepare_release.sh "$RUNNER_TEMP/release-state"
+
+      - name: Save prepared release
+        if: steps.release.outputs.tag != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-state
+          path: ${{ runner.temp }}/release-state
+
       # Not in git: built from firestore.rules.in and js/tags-vocab.json.
       - name: Generate firestore.rules
         run: python3 tools/build_rules.py
 
       - name: Unit tests
+        # New releases already ran these through RELEASE_CHECK_COMMAND.
+        if: steps.release.outputs.tag == ''
         run: node --test "tests/*.test.mjs"
 
       - name: Resolve HVSC version
@@ -120,9 +140,35 @@ jobs:
   deploy:
     needs: [build, firebase]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v7
+        if: needs.build.outputs.release_tag != ''
+        with:
+          fetch-depth: 0
+
+      - name: Restore prepared release
+        if: needs.build.outputs.release_tag != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: release-state
+          path: ${{ runner.temp }}/release-state
+
+      - name: Publish production release
+        if: needs.build.outputs.release_tag != ''
+        env:
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch "$RUNNER_TEMP/release-state/release.bundle" refs/heads/main:refs/heads/ci-release "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          git checkout -B main ci-release
+          .release-scripts/release github "$RELEASE_TAG" "$RUNNER_TEMP/release-state/notes.md"
+
       - id: deployment
         uses: actions/deploy-pages@v5

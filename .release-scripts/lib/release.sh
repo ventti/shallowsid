@@ -19,6 +19,12 @@ Options:
   --promote      promote the latest rc tag to a stable release
   --dry-run      show the release plan without changing anything
   --no-publish   create the local commit and tag without pushing
+  --changelog LEVEL
+                 minimum stable bump that updates the changelog file:
+                 patch (default), minor, major, or none
+  --release LEVEL
+                 minimum bump that publishes a GitHub Release:
+                 patch (default), minor, major, or none
   --moving-tags LEVELS
                  update moving stable tags: major, minor, or major,minor
   -h, --help     show this help
@@ -31,6 +37,8 @@ DRY_RUN=false
 PUBLISH=true
 BUMP=""
 MOVING_TAGS=${RELEASE_MOVING_TAGS:-}
+CHANGELOG_THRESHOLD=${RELEASE_CHANGELOG_THRESHOLD:-patch}
+RELEASE_THRESHOLD=${RELEASE_GITHUB_THRESHOLD:-patch}
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -38,6 +46,11 @@ while [[ $# -gt 0 ]]; do
         --promote) PROMOTE=true ;;
         --dry-run) DRY_RUN=true ;;
         --no-publish) PUBLISH=false ;;
+        --changelog|--release)
+            [[ $# -ge 2 ]] || release_die "$1 requires a threshold"
+            if [[ "$1" == --changelog ]]; then CHANGELOG_THRESHOLD=$2; else RELEASE_THRESHOLD=$2; fi
+            shift
+            ;;
         --moving-tags)
             [[ $# -ge 2 ]] || release_die "--moving-tags requires a value"
             MOVING_TAGS=$2
@@ -61,6 +74,13 @@ elif [[ -z "$BUMP" ]] && ! $PRE; then
     exit 1
 fi
 
+for threshold in "$CHANGELOG_THRESHOLD" "$RELEASE_THRESHOLD"; do
+    case "$threshold" in
+        patch|minor|major|none) ;;
+        *) release_die "release thresholds must be patch, minor, major, or none" ;;
+    esac
+done
+
 if [[ -n "${RELEASE_GET_VERSION:-}" || -n "${RELEASE_SET_VERSION:-}" ]]; then
     [[ -n "${RELEASE_GET_VERSION:-}" && -n "${RELEASE_SET_VERSION:-}" ]] || \
         release_die "RELEASE_GET_VERSION and RELEASE_SET_VERSION must be configured together"
@@ -74,9 +94,6 @@ if ! $DRY_RUN; then
 fi
 
 if $PUBLISH && ! $DRY_RUN; then
-    release_gh_available || release_die "GitHub CLI is unavailable; install gh or mise"
-    release_gh auth status >/dev/null 2>&1 || \
-        release_die "GitHub CLI is not authenticated; run: gh auth login (or mise exec gh@2 -- gh auth login)"
     git remote get-url origin >/dev/null 2>&1 || release_die "origin remote is not configured"
 fi
 RELEASE_BRANCH=$(release_assert_branch)
@@ -177,6 +194,18 @@ else
     fi
 fi
 
+CHANGELOG_ENABLED=false
+GITHUB_RELEASE_ENABLED=false
+# Compare the stable versions so continuing an rc or promoting it uses its base bump.
+SCOPE=$(release_version_scope "$LATEST_STABLE_VERSION" "${TARGET_VERSION%%-rc.*}")
+release_meets_threshold "$SCOPE" "$CHANGELOG_THRESHOLD" && CHANGELOG_ENABLED=true
+release_meets_threshold "$SCOPE" "$RELEASE_THRESHOLD" && GITHUB_RELEASE_ENABLED=true
+if $PUBLISH && ! $DRY_RUN && $GITHUB_RELEASE_ENABLED; then
+    release_gh_available || release_die "GitHub CLI is unavailable; install gh or mise"
+    release_gh auth status >/dev/null 2>&1 || \
+        release_die "GitHub CLI is not authenticated; run: gh auth login (or mise exec gh@2 -- gh auth login)"
+fi
+
 TAG="${TAG_PREFIX}${TARGET_VERSION}"
 git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null && release_die "tag already exists: ${TAG}"
 MOVING_TAG_NAMES=()
@@ -207,6 +236,8 @@ elif [[ -n "$MOVING_TAGS" && "$TARGET_VERSION" == *-rc.* ]]; then
     release_info "  Moving:  skipped for prerelease"
 fi
 release_info "  Publish: ${PUBLISH}"
+release_info "  Changelog: ${CHANGELOG_ENABLED}"
+release_info "  GitHub release: ${GITHUB_RELEASE_ENABLED}"
 
 if $DRY_RUN; then
     [[ -z "${RELEASE_SET_VERSION:-}" ]] || release_info "  Version command: ${RELEASE_SET_VERSION}"
@@ -235,7 +266,8 @@ NOTES_FILE="$ROOT/.git/release-notes-${SAFE_TAG}.md"
 export RELEASE_NOTES_FILE=$NOTES_FILE
 export RELEASE_PREVIOUS_TAG=$PREVIOUS_TAG
 CHANGELOG=${RELEASE_CHANGELOG:-CHANGELOG.md}
-if [[ -n "${RELEASE_CHANGELOG_COMMAND:-}" ]]; then
+$CHANGELOG_ENABLED || CHANGELOG=false
+if $CHANGELOG_ENABLED && [[ -n "${RELEASE_CHANGELOG_COMMAND:-}" ]]; then
     release_run_hook "Changelog" "$RELEASE_CHANGELOG_COMMAND"
     [[ -s "$NOTES_FILE" ]] || \
         release_die "RELEASE_CHANGELOG_COMMAND did not write RELEASE_NOTES_FILE: $NOTES_FILE"
@@ -264,6 +296,7 @@ fi
 
 if $PUBLISH; then
     github_args=("$TAG" "$NOTES_FILE")
+    $GITHUB_RELEASE_ENABLED || github_args+=(--tag-only)
     [[ "$TARGET_VERSION" == *-rc.* ]] && github_args+=(--prerelease)
     "$SCRIPT_DIR/github.sh" "${github_args[@]}"
 else

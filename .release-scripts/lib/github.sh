@@ -9,7 +9,7 @@ source "$SCRIPT_DIR/version.sh"
 
 usage() {
     cat <<'EOF'
-Usage: github.sh TAG [NOTES_FILE] [--prerelease] [--moving-tags LEVELS]
+Usage: github.sh TAG [NOTES_FILE] [--prerelease] [--tag-only] [--moving-tags LEVELS]
 
 Push TAG and create or update its GitHub Release with RELEASE_ARTIFACTS.
 EOF
@@ -25,9 +25,11 @@ if [[ $# -gt 0 && "$1" != --* ]]; then
     shift
 fi
 PRERELEASE=false
+TAG_ONLY=false
 MOVING_TAGS=${RELEASE_MOVING_TAGS:-}
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --tag-only) TAG_ONLY=true ;;
         --prerelease) PRERELEASE=true ;;
         --moving-tags)
             [[ $# -ge 2 ]] || release_die "--moving-tags requires a value"
@@ -40,14 +42,14 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-release_gh_available || release_die "GitHub CLI is unavailable; install gh or mise"
+$TAG_ONLY || release_gh_available || release_die "GitHub CLI is unavailable; install gh or mise"
 ROOT=$(release_project_root)
 cd "$ROOT"
 NOTES=${NOTES:-$ROOT/.git/release-notes-${SAFE_TAG}.md}
-[[ -f "$NOTES" ]] || release_die "release notes not found: $NOTES"
+$TAG_ONLY || [[ -f "$NOTES" ]] || release_die "release notes not found: $NOTES"
 git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null || release_die "tag not found: $TAG"
 
-release_expand_artifacts
+$TAG_ONLY || release_expand_artifacts
 BRANCH=$(git symbolic-ref --quiet --short HEAD) || release_die "releases must be published from a branch"
 if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
     git push
@@ -67,6 +69,11 @@ while IFS= read -r moving_tag; do
     fi
 done <<< "$MOVING_TAG_OUTPUT"
 git push --atomic origin "${tag_refspecs[@]}"
+
+if $TAG_ONLY; then
+    release_info "Published tag ${TAG} without a GitHub Release"
+    exit 0
+fi
 
 if release_gh release view "$TAG" >/dev/null 2>&1; then
     release_info "Updating GitHub Release ${TAG}"

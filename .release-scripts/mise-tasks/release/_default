@@ -8,6 +8,8 @@
 #USAGE flag "--promote" help="Promote the latest release candidate"
 #USAGE flag "--dry-run" help="Show the release plan without changing files"
 #USAGE flag "--no-publish" help="Create only the local commit and tag"
+#USAGE flag "--changelog <level>" help="Minimum bump for a changelog file: patch, minor, major, or none"
+#USAGE flag "--release <level>" help="Minimum bump for a GitHub Release: patch, minor, major, or none"
 #USAGE flag "--moving-tags <levels>" help="Moving aliases: major, minor, or major,minor" {
 #USAGE   choices "major" "minor" "major,minor"
 #USAGE }

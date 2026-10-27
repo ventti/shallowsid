@@ -73,7 +73,7 @@ export const ABOUT = {
   <header class="ion-text-center">
     <img class="notice-logo" src="icons/icon-192.png" width="88" height="88" alt="">
     <h1 class="notice-title">ShallowSID</h1>
-    <p class="muted">The easy C64 music web player<br>Version <code data-version>dev</code></p>
+    <p class="muted">The easy C64 music web player<br>Version <a href="https://github.com/ventti/shallowsid/releases" target="_blank" rel="noopener" title="View changelog"><code data-version>dev</code></a></p>
   </header>
 
   <h2>Music</h2>
