@@ -31,6 +31,7 @@
 
 import { Ultimate64 } from "./u64.js";
 import { createSessionAudio } from "./session-audio.js";
+import { monitorAudio } from "./audio-health.js";
 
 const PEAK_BUCKETS_PER_SECOND = 10;
 const DEFAULT_SONG_SECONDS = 180;       // tunes missing from Songlengths.md5
@@ -105,6 +106,7 @@ export class Player extends EventTarget {
     this.errors = 0;
     this.audioReady = null;
     this.pauseId = 0;
+    this.audioReports = 0;
   }
 
   get current() {
@@ -134,10 +136,20 @@ export class Player extends EventTarget {
       }
       this.audioReady = this.initAudioGraph();
     }
-    this.sessionAudio?.play().catch((error) => {
+    if (this.sessionDestination && !this.stopAudioMonitor) this.stopAudioMonitor = monitorAudio(this);
+    const audio = this.sessionAudio;
+    const started = audio?.play();
+    this.audioStarting = started;
+    started?.catch((error) => {
       // A quick play/pause can abort play normally. Other failures mean system
       // controls cannot retain this session, so do not hide them.
-      if (error.name !== "AbortError") console.warn("System media controls could not start", error);
+      if (error.name !== "AbortError" && this.sessionAudio === audio && this.audioStarting === started) {
+        console.warn("System media controls could not start", error);
+        this.pause();
+        this.emit("error", { message: "Playback could not start. Tap Play to retry.", item: this.current });
+      }
+    }).finally(() => {
+      if (this.audioStarting === started) this.audioStarting = null;
     });
     // Resume even when a preceding pause's suspend has not completed yet.
     this.ctx.resume().catch(() => {});
@@ -161,6 +173,37 @@ export class Player extends EventTarget {
     worker.postMessage({ type: "worklet-port", port: channel.port1 }, [channel.port1]);
     this.node.port.postMessage({ type: "engine-port", port: channel.port2 }, [channel.port2]);
     return worker;
+  }
+
+  // Replace only the audio engine; the queue, settings and tune position survive.
+  async restartAudio() {
+    if (this.u64 || !this.current) return;
+    this.needsAudioRestart = false;
+    const position = this.position;
+    const bytes = this.bytes;
+    const ctx = this.ctx;
+    const audio = this.sessionAudio;
+    this.sessionAudio = null; // Ignore queued events from the old output element.
+    audio?.pause();
+    for (const track of audio?.srcObject?.getTracks() ?? []) track.stop();
+    if (audio) audio.srcObject = null;
+    if (this.node) {
+      this.node.port.onmessage = null;
+      this.node.disconnect();
+    }
+    this.liveWorker?.terminate();
+    this.cacheWorker?.terminate();
+    this.node = this.liveWorker = this.cacheWorker = null;
+    this.ctx = this.sessionDestination = this.audioReady = null;
+    ctx?.close().catch((error) => console.warn("Old audio device could not close", error));
+    try {
+      await this.playIndex(this.index, { position, bytes });
+    } catch (error) {
+      this.needsAudioRestart = true;
+      this.pause();
+      this.emit("error", { message: "Playback could not resume. Tap Play to retry.", item: this.current });
+      console.warn("Audio engine restart failed", error);
+    }
   }
 
   // ---- queue -------------------------------------------------------------
@@ -206,7 +249,7 @@ export class Player extends EventTarget {
     this.emit("queue", { queue: this.queue, index: this.index });
   }
 
-  async playIndex(index) {
+  async playIndex(index, { position = 0, bytes: savedBytes } = {}) {
     if (index < 0 || index >= this.queue.length) return;
     const audioReady = this.u64 ? null : this.ensureAudio();
     this.index = index;
@@ -215,28 +258,33 @@ export class Player extends EventTarget {
     this.setState("loading");
     this.graceStall();
     this.duration = item.lengths?.[item.song - 1] || DEFAULT_SONG_SECONDS;
-    this.position = this.buffered = this.bufferedFrom = 0;
+    this.position = Math.max(0, Math.min(position, this.duration - 0.05));
+    this.buffered = this.bufferedFrom = 0;
     this.cacheBase = this.cacheEnd = this.liveEnd = 0;
     this.resetPeaks();
     this.emit("track", { item, index });
     this.emit("queue", { queue: this.queue, index });
     this.emitTime();
     try {
-      const [bytes] = await Promise.all([this.fetchSid(item), audioReady, this.romsReady]);
+      const [bytes] = await Promise.all([savedBytes ?? this.fetchSid(item), audioReady, this.romsReady]);
       if (token !== this.token) return;
       this.bytes = bytes;
       if (this.u64) return await this.playRemote();
       const sampleRate = this.ctx.sampleRate;
+      const startFrame = Math.round(this.position * sampleRate);
       this.node.port.postMessage({
-        type: "reset", token, channels: this.channels(), startFrame: 0, stopFrame: Math.round(this.duration * sampleRate),
+        type: "reset", token, channels: this.channels(), startFrame, stopFrame: Math.round(this.duration * sampleRate),
       });
-      this.startLive(0);
+      this.startLive(startFrame);
       this.cacheDirty = false;
-      if (this.prerender && !this.adjusting) this.startCache(0);
+      if (this.prerender && !this.adjusting) this.startCache(startFrame);
       else this.cacheDirty = this.prerender;
-      this.node.port.postMessage({ type: "play" });
+      if (this.state !== "paused") this.node.port.postMessage({ type: "play" });
     } catch (err) {
-      if (token === this.token) this.fail(err.message, item);
+      if (token === this.token) {
+        if (savedBytes !== undefined) throw err;
+        this.fail(err.message, item);
+      }
     }
   }
 
@@ -490,6 +538,7 @@ export class Player extends EventTarget {
 
   play() {
     if (!this.current) return;
+    if (!this.u64 && this.needsAudioRestart) return this.restartAudio();
     if (this.u64) return this.bytes ? this.playRemote() : this.playIndex(this.index);
     this.ensureAudio();
     this.graceStall();
@@ -555,7 +604,9 @@ export class Player extends EventTarget {
     if (msg.type === "paused") {
       // Let the worklet finish its fade before stopping the audio device.
       if (msg.id === this.pauseId && this.sessionAudio) {
-        if (this.sessionDestination) this.sessionAudio.pause();
+        // Keep the iPhone output alive with the worklet's silence while paused,
+        // so iOS does not hand remote controls to another music app.
+        if (this.sessionDestination && this.u64) this.sessionAudio.pause();
         // Keep iOS Web Audio resumable through the media element after a pause.
         if (!this.sessionDestination || this.u64) this.ctx.suspend().catch(() => {});
       }
@@ -563,6 +614,7 @@ export class Player extends EventTarget {
     }
     if (this.u64) return;
     if (msg.type === "pos") {
+      this.audioReports++;
       const sr = this.ctx.sampleRate;
       this.position = msg.frame / sr;
       this.cacheBase = msg.base;

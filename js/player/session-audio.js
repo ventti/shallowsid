@@ -39,10 +39,10 @@ function connectControls(audio, player) {
   // Some browser controls operate on the element directly, bypassing the
   // Media Session action handler. Keep both entry points connected.
   audio.addEventListener("play", () => {
-    if (!audio.paused && !player.u64 && !player.scrubbing && player.state === "paused") player.play();
+    if (audio === player.sessionAudio && !audio.paused && !player.u64 && !player.audioStarting && !player.scrubbing && player.state === "paused") player.play();
   });
   audio.addEventListener("pause", () => {
-    if (audio.paused && !player.u64 && player.state !== "paused" && player.state !== "idle") player.pause();
+    if (audio === player.sessionAudio && audio.paused && !player.u64 && player.state !== "paused" && player.state !== "idle") player.pause();
   });
   return audio;
 }

@@ -18,7 +18,7 @@ function setup(t) {
     play() { calls.push("play"); this.state = "playing"; },
     pause() { calls.push("pause"); this.state = "paused"; },
   };
-  const audio = createSessionAudio(player);
+  const audio = player.sessionAudio = createSessionAudio(player);
   t.after(() => URL.revokeObjectURL(audio.src));
   return { audio, player, calls };
 }
@@ -90,7 +90,7 @@ test("stale element events and remote playback cannot restart the local player",
 test("the iPhone element carries the SID stream without a silent loop", (t) => {
   const { player } = setup(t);
   const stream = {};
-  const audio = createSessionAudio(player, stream);
+  const audio = player.sessionAudio = createSessionAudio(player, stream);
   assert.equal(audio.srcObject, stream);
   assert.equal(audio.src, undefined);
   assert.notEqual(audio.loop, true);
@@ -102,4 +102,20 @@ test("the iPhone element carries the SID stream without a silent loop", (t) => {
   player.scrubbing = false;
   audio.dispatchEvent(new Event("play"));
   assert.equal(player.state, "playing");
+});
+
+
+test("events from a replaced output or an internal start cannot resume playback", (t) => {
+  const { audio, player, calls } = setup(t);
+  audio.paused = false;
+  player.state = "paused";
+  player.audioStarting = Promise.resolve();
+  audio.dispatchEvent(new Event("play"));
+  player.audioStarting = null;
+  player.sessionAudio = {};
+  audio.dispatchEvent(new Event("play"));
+  audio.paused = true;
+  player.state = "playing";
+  audio.dispatchEvent(new Event("pause"));
+  assert.deepEqual(calls, []);
 });

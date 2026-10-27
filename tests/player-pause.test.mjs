@@ -119,6 +119,7 @@ test("native audio sessions retain the media element bridge for system controls"
   player.queue = [{ title: "Tune" }];
   player.index = 0;
   await player.ensureAudio();
+  t.after(() => player.stopAudioMonitor?.());
   assert.equal(audioSession.type, "playback");
   assert.ok(player.sessionAudio);
   assert.equal(player.sessionAudio.srcObject, player.sessionDestination.stream);
@@ -130,20 +131,21 @@ test("native audio sessions retain the media element bridge for system controls"
   assert.deepEqual(calls.at(-1), { type: "play" });
 });
 
-test("iPhone pause waits for the fade without suspending and resume cancels stale pauses", () => {
+test("iPhone pause keeps silent output and resume cancels stale pauses", (t) => {
   const { player, calls } = setup();
   player.sessionDestination = { stream: {} };
   player.pause();
   assert.deepEqual(calls, [{ type: "pause", id: 1 }]);
   player.onWorklet({ type: "paused", id: 1 });
-  assert.deepEqual(calls, [{ type: "pause", id: 1 }, "session-pause"]);
+  assert.deepEqual(calls, [{ type: "pause", id: 1 }]);
   player.play();
+  t.after(() => player.stopAudioMonitor?.());
   calls.length = 0;
   player.onWorklet({ type: "paused", id: 1 });
   assert.deepEqual(calls, []);
 });
 
-test("iPhone paused scrubbing opens the real audio output and closes it after fading", () => {
+test("iPhone paused scrubbing retains silent output after fading", () => {
   const { player, calls } = setup();
   player.sessionDestination = { stream: {} };
   player.state = "paused";
@@ -153,7 +155,7 @@ test("iPhone paused scrubbing opens the real audio output and closes it after fa
   player.scrub(null);
   assert.equal(player.scrubbing, false);
   player.onWorklet({ type: "paused", id: player.pauseId });
-  assert.equal(calls.at(-1), "session-pause");
+  assert.deepEqual(calls.at(-1), { type: "pause", id: player.pauseId });
   assert.equal(calls.includes("suspend"), false);
 });
 
@@ -178,4 +180,27 @@ test("the worklet connects only to the selected audio output", async (t) => {
     assert.equal(outputs.at(-1), streamOutput ? player.sessionDestination : player.ctx.destination);
   }
   assert.equal(outputs.length, 2, "each graph must have only one output to avoid doubled sound");
+});
+
+
+test("switching iPhone output to Ultimate stops the retained silent stream", () => {
+  const { player, calls } = setup();
+  player.sessionDestination = { stream: {} };
+  player.u64 = {};
+  player.stopLocal();
+  player.onWorklet({ type: "paused", id: player.pauseId });
+  assert.deepEqual(calls.slice(-2), ["session-pause", "suspend"]);
+});
+
+test("a rejected output start pauses instead of reporting silent playback", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const { player } = setup();
+  player.sessionAudio.play = () => Promise.reject(new DOMException("Not allowed", "NotAllowedError"));
+  const errors = [];
+  player.addEventListener("error", (event) => errors.push(event.detail));
+  player.play();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(player.state, "paused");
+  assert.equal(errors.length, 1);
 });
