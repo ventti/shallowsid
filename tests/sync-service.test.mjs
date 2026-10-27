@@ -334,3 +334,60 @@ test("a delete another device couldn't finish is finished on the next sync", asy
   assert.equal(docs.get(vault.id).fields.del, undefined);             // deleted, then written fresh
   assert.equal(docs.get(vault.id).fields.n.integerValue, "0");
 });
+
+
+test("history batches for 60 seconds without later plays postponing it", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const a = device("a");
+  await a.sync.turnOn();
+  requests.length = 0;
+  a.store.addRecent({ path: "X.sid", song: 1 });
+  t.mock.timers.tick(30_000);
+  a.store.addPlay({ path: "X.sid", song: 1 });
+  t.mock.timers.tick(29_999);
+  assert.equal(requests.length, 0);
+  t.mock.timers.tick(1);
+  await a.sync.running;
+  assert.deepEqual(requests.map((r) => r.method), ["GET", "PATCH"]);
+  assert.equal(a.sync.syncDue, 0);
+});
+
+test("playlists, favorites and settings bring a history batch forward to 5 seconds", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const a = device("a");
+  await a.sync.turnOn();
+  for (const change of [
+    () => a.store.create("Mix"),
+    () => a.store.toggleFavorite({ path: "X.sid", song: 1 }),
+    () => a.sound.setGlobal({ chip: "8580" }),
+  ]) {
+    requests.length = 0;
+    a.store.addRecent({ path: "X.sid", song: 1 });
+    change();
+    t.mock.timers.tick(4999);
+    a.store.addPlay({ path: "X.sid", song: 1 });
+    assert.equal(requests.length, 0);
+    t.mock.timers.tick(1);
+    await a.sync.running;
+    assert.deepEqual(requests.map((r) => r.method), ["GET", "PATCH"]);
+    t.mock.timers.tick(60_000);
+    assert.equal(requests.length, 2); // No leftover history timer.
+  }
+});
+
+test("startup sync uploads history left pending when the previous instance closed", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const a = device("a");
+  await a.sync.turnOn();
+  a.store.addPlay({ path: "X.sid", song: 1 });
+  a.store.addRecent({ path: "X.sid", song: 1 });
+  clearTimeout(a.sync.timer); // The previous instance closed before its batch ran.
+  requests.length = 0;
+  const reopened = device("a");
+  await reopened.sync.running;
+  assert.deepEqual(requests.map((r) => r.method), ["GET", "PATCH"]);
+  const b = device("b");
+  await b.sync.useKey(reopened.sync.key);
+  assert.equal(b.store.mostPlayed()[0].count, 1);
+  assert.equal(b.store.recent[0].path, "X.sid");
+});

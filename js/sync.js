@@ -49,7 +49,8 @@ const DEVICE_REFRESH_MS = 10 * 60_000;
 const FORMAT_VERSION = 1;
 const MOVED_VERSION = 2;                // firestore.rules keeps these records from being changed or deleted
 const MAX_MOVES = 10;                   // moved records followed in one sync
-const PUSH_DELAY_MS = 3000;
+const PUSH_DELAY_MS = 5000;
+const HISTORY_DELAY_MS = 60_000;
 const RESYNC_ON_FOCUS_MS = 30_000;
 const RETENTION_DAYS = 365;             // `expireAt` for an optional Firestore TTL policy (needs billing; off for now)
 
@@ -78,12 +79,13 @@ export class SyncService extends EventTarget {
     this.lastSynced = null;
     this.applying = false;
     this.timer = 0;
+    this.syncDue = 0;
     this.running = null;
     this.state = this.load();
     this.describeDevice = device;
     this.deviceId = this.loadDeviceId();
-    const onLocalChange = () => {
-      if (!this.applying && this.enabled) this.schedule();
+    const onLocalChange = (event) => {
+      if (!this.applying && this.enabled) this.schedule(event.type === "history" ? HISTORY_DELAY_MS : PUSH_DELAY_MS);
     };
     store.addEventListener("change", onLocalChange);
     store.addEventListener("history", onLocalChange);
@@ -188,6 +190,7 @@ export class SyncService extends EventTarget {
 
   pause() {
     clearTimeout(this.timer);
+    this.syncDue = 0;
     this.state = { ...this.state, paused: true };
     this.persist();
     this.setStatus("off");
@@ -196,6 +199,7 @@ export class SyncService extends EventTarget {
   // Stop syncing and forget the key.
   turnOff() {
     clearTimeout(this.timer);
+    this.syncDue = 0;
     this.state = this.state.key && this.state.base ? { left: { key: this.state.key, base: this.state.base } } : {};
     this.persist();
     this.setStatus("off");
@@ -206,6 +210,7 @@ export class SyncService extends EventTarget {
   async removeDevice(id) {
     if (!this.enabled) return;
     clearTimeout(this.timer);
+    this.syncDue = 0;
     await this.running;
     this.running = this.run(() => this.moveWithout(id)).finally(() => (this.running = null));
     return this.running;
@@ -226,15 +231,20 @@ export class SyncService extends EventTarget {
     this.turnOff();
   }
 
-  schedule() {
+  schedule(delay = PUSH_DELAY_MS) {
+    const due = Date.now() + delay;
+    // Later changes join the pending batch without postponing it.
+    if (this.syncDue && this.syncDue <= due) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.syncNow(), PUSH_DELAY_MS);
+    this.syncDue = due;
+    this.timer = setTimeout(() => this.syncNow(), delay);
   }
 
   // Pull, merge, apply locally, push. Serialised: concurrent calls share one run.
   syncNow() {
     if (!this.enabled) return Promise.resolve();
     clearTimeout(this.timer);
+    this.syncDue = 0;
     this.running ??= this.run(() => this.syncOnce()).finally(() => (this.running = null));
     return this.running;
   }
