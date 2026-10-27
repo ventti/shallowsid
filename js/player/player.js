@@ -127,9 +127,11 @@ export class Player extends EventTarget {
       this.ctx = new AudioContext({ latencyHint: "playback" });
       // Safari 17+: play through the ringer/mute switch like a music app.
       if (navigator.audioSession) navigator.audioSession.type = "playback";
-      // WebKit AudioContext remote commands omit skip/seek; keep the media
-      // element bridge on Safari too, so system controls reach our handlers.
-      if ("mediaSession" in navigator) this.sessionAudio = createSessionAudio(this);
+      if ("mediaSession" in navigator) {
+        // On iOS let the media element carry the music and own system controls.
+        if (navigator.audioSession) this.sessionDestination = this.ctx.createMediaStreamDestination();
+        this.sessionAudio = createSessionAudio(this, this.sessionDestination?.stream);
+      }
       this.audioReady = this.initAudioGraph();
     }
     this.sessionAudio?.play().catch((error) => {
@@ -145,7 +147,7 @@ export class Player extends EventTarget {
   async initAudioGraph() {
     await this.ctx.audioWorklet.addModule(assetUrl("./sid-worklet.js"));
     this.node = new AudioWorkletNode(this.ctx, "sid-player", { numberOfInputs: 0, outputChannelCount: [2] });
-    this.node.connect(this.ctx.destination);
+    this.node.connect(this.sessionDestination ?? this.ctx.destination);
     this.node.port.onmessage = (e) => this.onWorklet(e.data);
     this.liveWorker = this.createWorker("live");
     if (this.prerender) this.cacheWorker = this.createWorker("cache");
@@ -507,7 +509,7 @@ export class Player extends EventTarget {
 
   pauseLocal() {
     this.node?.port.postMessage({ type: "pause", id: ++this.pauseId });
-    this.sessionAudio?.pause();
+    if (!this.sessionDestination) this.sessionAudio?.pause();
   }
 
   toggle() {
@@ -537,10 +539,12 @@ export class Player extends EventTarget {
   // Audible scrubbing: call scrub(seconds) while dragging, scrub(null) to stop.
   scrub(seconds) {
     if (!this.node || (seconds !== null && !this.canScrub)) return;
+    this.scrubbing = seconds !== null;
     const frame = seconds === null ? null : Math.round(seconds * this.ctx.sampleRate);
     this.node.port.postMessage({ type: "scrub", frame });
     if (seconds !== null) {
       this.pauseId++;
+      if (this.sessionDestination) this.sessionAudio.play().catch((error) => console.warn("Audio preview could not start", error));
       this.ctx.resume().catch(() => {});
     } else if (this.state === "paused" || this.state === "idle") this.pauseLocal();
   }
@@ -550,7 +554,11 @@ export class Player extends EventTarget {
   onWorklet(msg) {
     if (msg.type === "paused") {
       // Let the worklet finish its fade before stopping the audio device.
-      if (msg.id === this.pauseId && this.sessionAudio) this.ctx.suspend().catch(() => {});
+      if (msg.id === this.pauseId && this.sessionAudio) {
+        if (this.sessionDestination) this.sessionAudio.pause();
+        // Keep iOS Web Audio resumable through the media element after a pause.
+        if (!this.sessionDestination || this.u64) this.ctx.suspend().catch(() => {});
+      }
       return;
     }
     if (this.u64) return;

@@ -1,7 +1,12 @@
 // Chrome removes a suspended AudioContext from its media session. A normal
 // audio element stays available for resume when paused. Its silent loop gives
-// the SID worklet that same lifetime without changing the music's audio path.
-export function createSessionAudio(player) {
+// the SID worklet that same lifetime. iOS uses the actual SID stream instead.
+export function createSessionAudio(player, stream) {
+  if (stream) {
+    const audio = new Audio();
+    audio.srcObject = stream;
+    return connectControls(audio, player);
+  }
   const sampleRate = 8000;
   const samples = sampleRate * 8;
   const wav = new Uint8Array(44 + samples);
@@ -25,16 +30,19 @@ export function createSessionAudio(player) {
   const url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
   const audio = new Audio(url);
   audio.loop = true;
+  // Keep the URL valid for resumes; it is released with the document.
+  return connectControls(audio, player);
+}
+
+function connectControls(audio, player) {
   // Do not mute it: muted elements do not hold media-session audio focus.
   // Some browser controls operate on the element directly, bypassing the
   // Media Session action handler. Keep both entry points connected.
   audio.addEventListener("play", () => {
-    if (!audio.paused && !player.u64 && player.state === "paused") player.play();
+    if (!audio.paused && !player.u64 && !player.scrubbing && player.state === "paused") player.play();
   });
   audio.addEventListener("pause", () => {
     if (audio.paused && !player.u64 && player.state !== "paused" && player.state !== "idle") player.pause();
   });
-  // Keep the URL valid for later resumes and loop reloads. It is released with
-  // the document; there is only one such element per player.
   return audio;
 }

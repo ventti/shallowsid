@@ -85,3 +85,21 @@ test("stale element events and remote playback cannot restart the local player",
   audio.dispatchEvent(new Event("play"));
   assert.deepEqual(calls, []);
 });
+
+
+test("the iPhone element carries the SID stream without a silent loop", (t) => {
+  const { player } = setup(t);
+  const stream = {};
+  const audio = createSessionAudio(player, stream);
+  assert.equal(audio.srcObject, stream);
+  assert.equal(audio.src, undefined);
+  assert.notEqual(audio.loop, true);
+  player.state = "paused";
+  player.scrubbing = true;
+  audio.paused = false;
+  audio.dispatchEvent(new Event("play"));
+  assert.equal(player.state, "paused", "audio preview must not resume the tune");
+  player.scrubbing = false;
+  audio.dispatchEvent(new Event("play"));
+  assert.equal(player.state, "playing");
+});
