@@ -76,3 +76,14 @@ test("pause fades the remaining waveform instead of holding a DC sample", () => 
   }
   assert.equal(worklet.playhead, position);
 });
+
+
+test("position reports identify the track that produced them", () => {
+  const { worklet, messages } = setup();
+  worklet.report();
+  assert.equal(messages.at(-1).token, 1);
+  worklet.onControl({ type: "reset", token: 2, channels: 2, startFrame: 0, stopFrame: 480000 });
+  worklet.report();
+  assert.equal(messages.at(-1).token, 2);
+  assert.equal(messages.at(-1).frame, 0);
+});

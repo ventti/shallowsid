@@ -614,6 +614,7 @@ export class Player extends EventTarget {
     }
     if (this.u64) return;
     if (msg.type === "pos") {
+      if (msg.token !== this.token) return;
       this.audioReports++;
       const sr = this.ctx.sampleRate;
       this.position = msg.frame / sr;

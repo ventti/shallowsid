@@ -83,3 +83,25 @@ test("failed engine initialization keeps the tune available for another Play", a
   await player.play();
   assert.equal(retried, true);
 });
+
+
+test("old worklet reports cannot move a newly selected tune away from zero", async () => {
+  const { player, calls } = setup();
+  player.ensureAudio();
+  player.token = 7;
+  let loaded;
+  player.fetchSid = () => new Promise((resolve) => { loaded = resolve; });
+  const playing = player.playIndex(1);
+  const token = player.token;
+  assert.equal(player.position, 0);
+  const reports = player.audioReports;
+  player.onWorklet({ type: "pos", token: 7, frame: 25000, base: 0, end: 100000, liveEnd: 100000 });
+  assert.equal(player.position, 0);
+  assert.equal(player.audioReports, reports);
+  loaded(new ArrayBuffer(4));
+  await playing;
+  const reset = calls.find((message) => message.type === "reset");
+  assert.equal(reset.startFrame, 0);
+  player.onWorklet({ type: "pos", token, frame: 1000, base: 0, end: 100000, liveEnd: 100000, waiting: false });
+  assert.equal(player.position, 1);
+});
