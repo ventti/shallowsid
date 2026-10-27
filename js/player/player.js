@@ -124,6 +124,7 @@ export class Player extends EventTarget {
 
   // Must be first called from a user gesture (iOS unlocks audio only then).
   ensureAudio() {
+    clearTimeout(this.pauseTimer);
     this.pauseId++;
     if (!this.ctx) {
       this.ctx = new AudioContext({ latencyHint: "playback" });
@@ -149,7 +150,10 @@ export class Player extends EventTarget {
         this.emit("error", { message: "Playback could not start. Tap Play to retry.", item: this.current });
       }
     }).finally(() => {
-      if (this.audioStarting === started) this.audioStarting = null;
+      if (this.audioStarting === started) {
+        this.audioStarting = null;
+        if (this.sessionDestination && this.sessionAudio === audio && this.state === "paused" && !this.scrubbing) this.pauseLocal();
+      }
     });
     // Resume even when a preceding pause's suspend has not completed yet.
     this.ctx.resume().catch(() => {});
@@ -558,7 +562,15 @@ export class Player extends EventTarget {
 
   pauseLocal() {
     this.node?.port.postMessage({ type: "pause", id: ++this.pauseId });
-    if (!this.sessionDestination) this.sessionAudio?.pause();
+    clearTimeout(this.pauseTimer);
+    if (this.sessionDestination) {
+      const id = this.pauseId;
+      const audio = this.sessionAudio;
+      // Normally the worklet pauses the output after fading. Bound a missing ack.
+      this.pauseTimer = setTimeout(() => {
+        if (id === this.pauseId && audio === this.sessionAudio && !this.scrubbing) audio?.pause();
+      }, 250);
+    } else this.sessionAudio?.pause();
   }
 
   toggle() {
@@ -592,6 +604,7 @@ export class Player extends EventTarget {
     const frame = seconds === null ? null : Math.round(seconds * this.ctx.sampleRate);
     this.node.port.postMessage({ type: "scrub", frame });
     if (seconds !== null) {
+      clearTimeout(this.pauseTimer);
       this.pauseId++;
       if (this.sessionDestination) this.sessionAudio.play().catch((error) => console.warn("Audio preview could not start", error));
       this.ctx.resume().catch(() => {});
@@ -604,9 +617,8 @@ export class Player extends EventTarget {
     if (msg.type === "paused") {
       // Let the worklet finish its fade before stopping the audio device.
       if (msg.id === this.pauseId && this.sessionAudio) {
-        // Keep the iPhone output alive with the worklet's silence while paused,
-        // so iOS does not hand remote controls to another music app.
-        if (this.sessionDestination && this.u64) this.sessionAudio.pause();
+        clearTimeout(this.pauseTimer);
+        if (this.sessionDestination) this.sessionAudio.pause();
         // Keep iOS Web Audio resumable through the media element after a pause.
         if (!this.sessionDestination || this.u64) this.ctx.suspend().catch(() => {});
       }

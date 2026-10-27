@@ -131,13 +131,13 @@ test("native audio sessions retain the media element bridge for system controls"
   assert.deepEqual(calls.at(-1), { type: "play" });
 });
 
-test("iPhone pause keeps silent output and resume cancels stale pauses", (t) => {
+test("iPhone pause preserves the fade and resume cancels stale pauses", (t) => {
   const { player, calls } = setup();
   player.sessionDestination = { stream: {} };
   player.pause();
   assert.deepEqual(calls, [{ type: "pause", id: 1 }]);
   player.onWorklet({ type: "paused", id: 1 });
-  assert.deepEqual(calls, [{ type: "pause", id: 1 }]);
+  assert.deepEqual(calls, [{ type: "pause", id: 1 }, "session-pause"]);
   player.play();
   t.after(() => player.stopAudioMonitor?.());
   calls.length = 0;
@@ -145,7 +145,7 @@ test("iPhone pause keeps silent output and resume cancels stale pauses", (t) => 
   assert.deepEqual(calls, []);
 });
 
-test("iPhone paused scrubbing retains silent output after fading", () => {
+test("iPhone paused scrubbing pauses output after fading", () => {
   const { player, calls } = setup();
   player.sessionDestination = { stream: {} };
   player.state = "paused";
@@ -155,7 +155,7 @@ test("iPhone paused scrubbing retains silent output after fading", () => {
   player.scrub(null);
   assert.equal(player.scrubbing, false);
   player.onWorklet({ type: "paused", id: player.pauseId });
-  assert.deepEqual(calls.at(-1), { type: "pause", id: player.pauseId });
+  assert.equal(calls.at(-1), "session-pause");
   assert.equal(calls.includes("suspend"), false);
 });
 
@@ -203,4 +203,50 @@ test("a rejected output start pauses instead of reporting silent playback", asyn
   await Promise.resolve();
   assert.equal(player.state, "paused");
   assert.equal(errors.length, 1);
+});
+
+
+test("a delayed stream start cannot undo a pause requested during loading", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { player, calls } = setup();
+  player.sessionDestination = { stream: {} };
+  let finish;
+  player.sessionAudio.play = () => new Promise((resolve) => { finish = resolve; });
+  player.ensureAudio();
+  t.after(() => player.stopAudioMonitor?.());
+  player.pause();
+  calls.length = 0;
+  finish();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(player.state, "paused");
+  assert.equal(calls.includes("session-pause"), false, "the late start must still allow a fade");
+  player.onWorklet({ type: "paused", id: player.pauseId });
+  assert.ok(calls.includes("session-pause"));
+});
+
+
+test("a missing fade acknowledgement has a bounded output-pause fallback", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { player, calls } = setup();
+  player.sessionDestination = { stream: {} };
+  player.pause();
+  assert.equal(player.state, "paused");
+  t.mock.timers.tick(249);
+  assert.equal(calls.includes("session-pause"), false);
+  t.mock.timers.tick(1);
+  assert.equal(calls.at(-1), "session-pause");
+  assert.equal(calls.includes("suspend"), false);
+});
+
+test("resuming before the fallback cannot pause the resumed stream", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { player, calls } = setup();
+  player.sessionDestination = { stream: {} };
+  player.pause();
+  player.play();
+  t.after(() => player.stopAudioMonitor?.());
+  t.mock.timers.tick(1000);
+  assert.equal(player.state, "playing");
+  assert.equal(calls.includes("session-pause"), false);
 });

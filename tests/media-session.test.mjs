@@ -65,7 +65,7 @@ test("system controls reach the player and artwork publishes atomically for the 
   await Promise.resolve();
   assert.equal(ms.metadata.title, "Broken cover");
   const before = positions.length;
-  time(3, 200);
+  time(0.1, 200);
   assert.equal(positions.length, before, "ordinary ticks remain throttled");
   now += 1100;
   time(3, NaN);
@@ -74,4 +74,20 @@ test("system controls reach the player and artwork publishes atomically for the 
   assert.equal(positions.length, before, "invalid durations are not published");
   time(3, 200);
   assert.equal(positions.at(-1).position, 3);
+  const state = (value, position) => {
+    player.position = position;
+    player.dispatchEvent(new CustomEvent("state", { detail: { state: value } }));
+  };
+  state("paused", 3.4);
+  assert.equal(ms.playbackState, "paused");
+  assert.equal(positions.at(-1).position, 3.4, "pause updates the exact position without waiting for a tick");
+  state("playing", 3.4);
+  assert.equal(ms.playbackState, "playing");
+  assert.equal(positions.at(-1).position, 3.4);
+  time(0, 200);
+  assert.equal(positions.at(-1).position, 0, "restart bypasses the throttle while paused or playing");
+  time(20, 200);
+  assert.equal(positions.at(-1).position, 20, "forward seeks bypass the throttle too");
+  state("idle", 0);
+  assert.equal(ms.playbackState, "none");
 });

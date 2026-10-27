@@ -25,11 +25,13 @@ export function connectMediaSession(player) {
 
   // Publish text and cover together so system controls do not flash the app icon.
   let lastUpdate = -Infinity;
+  let lastPosition = 0;
   function updatePosition(position, duration) {
     if (!ms.setPositionState || !Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return;
     try {
       ms.setPositionState({ duration, position: Math.max(0, Math.min(position, duration)), playbackRate: 1 });
       lastUpdate = performance.now();
+      lastPosition = position;
     } catch {
       // The browser may be replacing its media session during a track change.
     }
@@ -57,11 +59,13 @@ export function connectMediaSession(player) {
   });
 
   player.addEventListener("state", ({ detail: { state } }) => {
-    ms.playbackState = state === "paused" || state === "idle" ? "paused" : "playing";
+    ms.playbackState = state === "idle" ? "none" : state === "paused" ? "paused" : "playing";
+    updatePosition(player.position, player.duration);
   });
 
   player.addEventListener("time", ({ detail: { position, duration } }) => {
-    if (performance.now() - lastUpdate < 1000) return;
+    // Restart and seek updates must not wait for the next ordinary clock tick.
+    if (performance.now() - lastUpdate < 1000 && position >= lastPosition && position - lastPosition < 1) return;
     updatePosition(position, duration);
   });
 }

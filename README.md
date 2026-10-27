@@ -31,12 +31,12 @@ Written for my own use, so beware of peculiarities.
 - **Waveform**: drag to scrub (you hear it), release to seek. Grey bars are rendered audio; the flat line is still being rendered.
 - **Subtune**: pick one from the Now Playing view.
 
-On iPhone, pausing stops the tune but keeps a silent audio stream running to
-retain CarPlay and lock-screen controls. Long pauses may therefore use more
-battery. Playback checks the audio clocks and worklet reports; if they stop,
-it tries to restart the audio device, then rebuilds the audio engine using the
-loaded tune and its current position. If recovery fails, playback stops with
-an error and Play retries the engine without reloading the app.
+On iPhone, pausing stops the output element as well as the tune, so CarPlay,
+Apple Watch and lock-screen controls receive the same playback state.
+Playback checks the audio clocks and worklet reports; if they stop, it tries
+to restart the audio device, then rebuilds the audio engine using the loaded
+tune and its current position. If recovery fails, playback stops with an error
+and Play retries the engine without reloading the app.
 
 Sound (**Settings → Sound**):
 
