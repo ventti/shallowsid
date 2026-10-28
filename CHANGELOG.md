@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 - 2026-10-28
+
+### feat
+
+- **appearance:** add synced accent color settings ([`b6a4dbb`](../../commit/b6a4dbb5e114994063c48d8549bd3d4c3a854111))
+
+### fix
+
+- **ui:** show the HVSC footer link only while browsing ([`47c268a`](../../commit/47c268acd9a3a705b47f20376db907fe04913f4b))
+
 ## 0.4.0 - 2026-10-28
 
 ### feat
