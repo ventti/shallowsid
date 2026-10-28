@@ -1,6 +1,6 @@
 // All of the user's data in one file, to move it without Sync: what Sync
 // carries (playlists, favorites, sound presets and preferences, play history,
-// the curator identity) plus recent searches. Not encrypted, unlike Sync.
+// the curator identity and device list) plus recent searches. Not encrypted, unlike Sync.
 //
 // Importing merges the file into what's here, as joining Sync does: nothing
 // here is removed, and importing the same file twice changes nothing (play
@@ -17,8 +17,7 @@ const list = (value) => (Array.isArray(value) ? value : []);
 
 // The file's content, from a sync snapshot and the search history.
 export function toBundle(snapshot, searches = [], now = new Date()) {
-  const { devices, ...data } = snapshot;   // devices belong to Sync, not to the data
-  return { format: FORMAT, version: VERSION, exported: now.toISOString(), data, searches };
+  return { format: FORMAT, version: VERSION, exported: now.toISOString(), data: snapshot, searches };
 }
 
 // A playlist from a file, cleaned like one from a shared link. Null if unusable.

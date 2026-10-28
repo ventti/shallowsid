@@ -125,7 +125,11 @@ applySound();
 const tags = new TagService();
 const tagSheet = new TagSheet(tags);
 const sync = new SyncService({ store, sound, curation: tags });
-const syncSheet = sync.configured ? new SyncSheet(sync, { onOpen: () => go("#/settings/sync") }) : null;
+const syncSheet = sync.configured ? new SyncSheet(sync, {
+  onOpen: () => go("#/settings/sync"),
+  onImportData: () => $("user-data-input").click(),
+  onExportData: exportUserData,
+}) : null;
 const liveShare = new LiveShare({ store });
 liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
 // Remote changes landed: show them. Folders and search results only show
@@ -794,6 +798,10 @@ function renderSettings() {
       <ion-icon slot="start" name="help-circle-outline"></ion-icon>
       <ion-label>Help</ion-label>
     </ion-item>
+    <ion-item button detail="true" href="#/help/privacy" lines="full">
+      <ion-icon slot="start" name="shield-checkmark-outline"></ion-icon>
+      <ion-label>Privacy</ion-label>
+    </ion-item>
     <ion-item button detail="true" href="#/help/about" lines="none">
       <ion-icon slot="start" name="information-circle-outline"></ion-icon>
       <ion-label>About</ion-label>
@@ -801,9 +809,11 @@ function renderSettings() {
   </ion-list></div>`;
 }
 
-function renderHelp(topic) {
-  const section = topic === "about" ? ABOUT : HELP.find((s) => s.id === topic);
-  setChrome({ title: section?.title ?? "Help", tab: "settings", back: section && section !== ABOUT ? "#/settings/help" : "#/settings" });
+async function renderHelp(topic) {
+  const section = topic === "privacy"
+    ? { title: "Privacy", html: '<div class="empty"><ion-spinner></ion-spinner></div>' }
+    : topic === "about" ? ABOUT : HELP.find((s) => s.id === topic);
+  setChrome({ title: section?.title ?? "Help", tab: "settings", back: section && section !== ABOUT && topic !== "privacy" ? "#/settings/help" : "#/settings" });
   dom.infinite.disabled = true;
   dom.view.innerHTML = `<div class="settings-container sound-content">${section
     ? `<article class="help-content">${section.html}</article>`
@@ -811,6 +821,20 @@ function renderHelp(topic) {
       <ion-item button detail="true" href="#/help/${s.id}" lines="${i === HELP.length - 1 ? "none" : "full"}">
         <ion-icon slot="start" name="${s.icon}"></ion-icon><ion-label>${s.title}</ion-label>
       </ion-item>`).join("")}</ion-list>`}</div>`;
+  if (topic === "privacy") {
+    const article = dom.view.querySelector(".help-content");
+    try {
+      const response = await fetch("privacy.html");
+      if (!response.ok) throw new Error("Privacy page unavailable");
+      const content = new DOMParser().parseFromString(await response.text(), "text/html").querySelector("main");
+      if (!content) throw new Error("Privacy content missing");
+      content.querySelector("h1")?.remove();
+      content.querySelector('a[href="./"]')?.parentElement.remove();
+      if (article.isConnected) article.innerHTML = content.innerHTML;
+    } catch {
+      if (article.isConnected) article.innerHTML = '<div class="empty">Could not load Privacy. Please try again.</div>';
+    }
+  }
 }
 
 function renderPlaylists() {
@@ -844,8 +868,6 @@ function renderPlaylists() {
   $("import-pl").addEventListener("click", () => actionSheet("Import", [
     { text: "Import Playlist File…", icon: "document-attach-outline", handler: () => dom.importInput.click() },
     { text: "Open Playlist Link…", icon: "link", handler: () => openPlaylistLink() },
-    { text: "Import User Data…", icon: "download-outline", handler: () => $("user-data-input").click() },
-    { text: "Export User Data…", icon: "archive-outline", handler: () => exportUserData() },
   ]));
 }
 

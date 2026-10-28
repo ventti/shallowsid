@@ -22,141 +22,97 @@
 <main>
   <h1>Privacy</h1>
 
-  <h2>In short</h2>
-  <p>Your playlists, listening history and settings stay in your browser by default.</p>
-  <p>If you enable Sync, ShallowSID stores an encrypted copy of this information in the cloud for use across your devices. Live links publish your chosen playlist as readable data.</p>
-  <p>Your browser also contacts services that deliver the app, fonts, libraries and tunes. These services receive technical data, including your IP address.
-    Sync, live links and curator features also use Google's bot protection.</p>
-
-  <h2>Stored in your browser</h2>
+  <p>ShallowSID is a free, non-commercial music player.</p>
   <ul>
-    <li>ShallowSID stores playlists, favorites, recently played tunes and playlists, play counts, sound presets and preferences in local storage.
-      The storage keys start with <code>shallowsid.</code>.</li>
-    <li>Your browser caches app files and libraries so the app can open offline.</li>
-    <li>This storage supports the features you use. Clear the site's data in your browser to remove it.
-      Server copies stay until you delete them through Sync or stop sharing each live link.</li>
+    <li><strong>By default:</strong> your playlists, listening history and settings stay in your browser.</li>
+    <li><strong>Sync is optional:</strong> it stores an encrypted copy online. Anyone with your sync key can read it.</li>
+    <li><strong>Sharing is optional:</strong> anyone with a playlist link can read and copy that playlist.</li>
+    <li><strong>Online requests:</strong> services that deliver the app and tunes receive technical data, including your IP address.</li>
   </ul>
 
-  <h2>Sync (optional, off by default)</h2>
-  <ul>
-    <li><strong>What is stored:</strong> an encrypted record contains your playlists, favorites, recently played tunes and playlists, play counts and sound presets.
-      It also contains your selected sound preset, pre-rendering preference and a list of devices that use the sync key.</li>
-    <li><strong>Device details:</strong> each device has a random ID and a public key for secure key transfers.
-      Its details include its operating system, browser, installed-app status and last sync time.
-      A place name, such as “Helsinki”, comes from its time zone alone.</li>
-    <li><strong>Encryption:</strong> your device encrypts the record with AES-256-GCM and a key derived from your sync key.
-      Your devices hold the key needed to read the contents. The record's ID also comes from the sync key.
-      Only devices with the sync key can change or delete the active record.</li>
-    <li><strong>Removing a device:</strong> your remaining devices use a new sync key.
-      The old record becomes an encrypted key-transfer record so those devices can reconnect later.
-      Each remaining device can read only its own copy of the new key.
-      Access to the new key stays with the remaining devices.</li>
-    <li><strong>Old key-transfer records:</strong> these records remain on the server. The app leaves them unchanged.</li>
-    <li><strong>Personal details:</strong> Sync uses a random ID instead of your name or email address.
-      Random IDs and encryption protect your data. Data that can be linked to a person remains personal data.
-      The server stores a new sync key only in encrypted form when devices need a key transfer.</li>
-    <li><strong>QR code:</strong> a QR code can contain a link with your sync key after <code>#</code>.
-      This part of the link stays in your browser. Anyone with the key can read your synced data.</li>
-    <li><strong>Camera:</strong> the scanner uses your camera while it is open. It reads images on your device, then discards them.</li>
-    <li><strong>Where:</strong> Google Cloud Firestore (Firebase) stores the records in <code>europe-north1</code>, Finland.
-      Google also processes technical data, including IP addresses, to deliver and protect requests. The international processing section below also applies.</li>
-    <li><strong>Why:</strong> to provide Sync at your request. The legal basis is performance of a contract under GDPR Article 6(1)(b).</li>
-    <li><strong>How long:</strong> the active record stays until you use <em>Sync → Delete Synced Data</em>.
-      Inactive records stay until you delete them.</li>
-    <li><strong>After deletion:</strong> old key-transfer records remain. They contain encrypted key-transfer data rather than the old playlists or settings.</li>
-    <li><strong>Older copies:</strong> records from before September 2026 move to the new format when a device next syncs.
-      The maintainer removes those old copies manually. Until then, they remain on the server, with no scheduled removal date.</li>
-    <li><strong>Deletion:</strong> <em>Delete Synced Data</em> deletes the active server record when the operation succeeds.
-      It turns Sync off and removes the sync key from this device. Data on your devices stays.
-      Old key-transfer records, older copies and live links remain. Use <em>Stop Sharing</em> to remove a live link's playlist content.</li>
-  </ul>
+  <h2>Data on your device</h2>
+  <p>Your browser stores playlists, favorites, recent tunes and playlists, play counts, search history, sound presets and preferences.
+    It also caches app files for offline use. Clear this site's data in your browser to remove these local copies.
+    This does not delete online copies or data on other devices.</p>
 
-  <h2>Live links to playlists (optional)</h2>
-  <ul>
-    <li><strong>What is stored:</strong> <em>Share → Live Link</em> publishes the playlist's name and tune list as readable data.
-      Google Cloud Firestore stores this data in Finland, as described above.
-      A random proof value controls changes to the playlist.</li>
-    <li><strong>Who can read it:</strong> anyone with the link. People find the playlist through its link.
-      They can forward the link or keep copies. Use playlist names that protect your privacy.</li>
-    <li><strong>Why:</strong> to publish, update and open the playlist at your request.
-      The legal basis is performance of a contract under GDPR Article 6(1)(b).</li>
-    <li><strong>How long:</strong> the playlist stays until you choose <em>Stop Sharing</em>.</li>
-    <li><strong>After Stop Sharing:</strong> the name and tunes are removed. A record remains so the link can show “no longer shared”.
-      Copies held by other people remain under their control.</li>
-  </ul>
+  <h2>Sync</h2>
+  <p>Sync is off by default. When enabled, it uploads your playlists, favorites, recent tunes and playlists, play counts,
+    sound presets and sound settings. Search history stays on your device.</p>
+  <p>The encrypted copy also includes the devices using your sync key: random device IDs, public keys for secure key transfers,
+    operating system, browser, installed-app status and last sync time.
+    The place shown for a device comes from its time zone, not a location lookup.
+    For curators, Sync also includes curator access details and private invite notes.</p>
+  <p>Your device encrypts this data before uploading it. ShallowSID's maintainer and storage provider cannot read its contents.
+    Sync uses a random key. No account, name or email address is needed. <strong>Keep your sync key and its QR code private:</strong>
+    anyone with the key can read, change or delete your synced data. If no device has the key anymore, we cannot recover it or the encrypted contents.</p>
+  <p>Sync links keep the key after <code>#</code>, which browsers do not send to the web server.
+    The QR scanner processes camera images on your device and stops the camera when closed.</p>
+  <p><strong>Deletion:</strong> <em>Sync → Delete Synced Data</em> deletes the current online copy when successful and turns Sync off on this device.
+    Local data and shared playlists remain. Turning Sync off or clearing browser data alone does not delete the online copy.
+    There is no scheduled removal of inactive copies.</p>
+  <p><strong>Older records:</strong> removing a device changes the sync key. The old record keeps encrypted key-transfer data
+    so remaining devices can reconnect; the app cannot delete that record. It no longer contains the old playlists or settings.
+    Copies from before September 2026 also remain until the maintainer removes them manually, with no scheduled removal date.
+    <em>Delete Synced Data</em> does not remove either kind of older record.</p>
 
-  <h2>Tune tags and curators (invite only)</h2>
-  <ul>
-    <li><strong>Reading tags:</strong> tags, such as “Ballad”, come with the site files. Your browser reads them from those files.</li>
-    <li><strong>Curator data:</strong> invited curators choose tags from a fixed list.
-      Each tagged tune stores the tags, the time of the last change and a random curator ID.
-      A curator record stores that ID, role, active status, a proof value and the source invite.
-      The proof value controls access. Curators use a random ID instead of a name or email address.</li>
-    <li><strong>Who can read it:</strong> the app shows each curator's changes to that curator and to admins.
-      Direct database access can reveal which tags share a curator ID. This can link changes to the same curator.</li>
-    <li><strong>Invite names:</strong> an admin's name for an invite stays in the admin's encrypted synced data.</li>
-    <li><strong>Where:</strong> Google Cloud Firestore stores these records in Finland, as described above.</li>
-    <li><strong>How long:</strong> tags stay until a curator changes them. Curator records stay until the maintainer removes them.
-      Deactivated curator records also stay until the maintainer removes them.</li>
-    <li><strong>Why:</strong> our legitimate interest is to maintain useful tune tags and record their source, under GDPR Article 6(1)(f).
-      For the curator role you accept, the legal basis is performance of a contract under Article 6(1)(b).</li>
-  </ul>
+  <h2>Sharing playlists</h2>
+  <p><strong>Live Link</strong> stores the playlist name and tune list online without end-to-end encryption and keeps them updated as you edit.
+    It is not listed publicly, but anyone with the link can read it or pass it on. Avoid private information in playlist names.</p>
+  <p>The playlist stays online until you choose <em>Stop Sharing</em>. This removes its name and tunes, leaving a record that says it is no longer shared.
+    Stop sharing before deleting local data if you want to remove the online playlist.</p>
+  <p><strong>Snapshot Link</strong> puts a fixed copy of the playlist in the link itself, after <code>#</code>, without storing it in ShallowSID's database.
+    You cannot revoke it. Neither sharing option can erase copies other people have saved.</p>
 
-  <h2>Bot protection</h2>
-  <ul>
-    <li>Sync, live links and curator features use Firebase App Check with Google reCAPTCHA Enterprise.
-      This helps reject automated abuse of the database.</li>
-    <li>reCAPTCHA starts with the first database request. It can continue to refresh its security token while the app remains open.
-      These database features trigger the security check.</li>
-    <li>Google processes technical data about your device, browser and use of the page to detect bots.
-      reCAPTCHA also uses the <code>_grecaptcha</code> cookie for this security check.</li>
-    <li><strong>Why:</strong> our legitimate interest is to prevent abuse and keep the service available, under GDPR Article 6(1)(f).</li>
-    <li>Google processes reCAPTCHA customer data on our behalf under its
-      <a href="https://cloud.google.com/terms/data-processing-addendum" target="_blank" rel="noopener">Cloud Data Processing Addendum</a>
-      and <a href="https://cloud.google.com/terms/service-terms" target="_blank" rel="noopener">service terms</a>.</li>
-  </ul>
+  <h2>Curators (invite only)</h2>
+  <p>Ordinary listeners receive tune tags with the app files. Invited curators can edit tags and tempos.
+    Online edit records contain the values, last-change time and a random curator ID.
+    Changes can be linked to that ID, including through direct database access.</p>
+  <p>Curator records contain the ID, role, active status, access-verification data and source invite.
+    Private invite notes stay in the admin's encrypted Sync data.
+    Tags and tempos stay until changed; curator records, including deactivated ones, stay until the maintainer removes them.</p>
 
-  <h2>Other services and international processing</h2>
-  <ul>
-    <li>The <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">High Voltage SID Collection</a> supplies tunes when you play them.
-      GitHub Pages delivers the app. jsDelivr and Google Fonts deliver libraries and fonts.
-      These services receive your IP address and request details, such as the requested file, to deliver their content.</li>
-    <li>Our legitimate interest is to deliver the app and music you request, under GDPR Article 6(1)(f).
-      Providers also process technical data under their own terms, including for security and service operation.</li>
-    <li>Firestore records are stored in Finland. Providers can process technical data elsewhere, including outside the European Economic Area and in the United States.</li>
-    <li>Google's data-processing terms provide transfer safeguards, including the European Commission's standard contractual clauses where applicable.
-      These clauses set duties for protecting transferred personal data.
-      See <a href="https://cloud.google.com/terms/data-processing-addendum" target="_blank" rel="noopener">Google's data-processing terms</a>
-      for the safeguards and how to obtain copies.</li>
-    <li>For other providers' processing, retention and transfer safeguards, see the
-      <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a>,
-      <a href="https://www.jsdelivr.com/terms/privacy-policy" target="_blank" rel="noopener">jsDelivr privacy policy</a> and
-      <a href="https://developers.google.com/fonts/faq/privacy" target="_blank" rel="noopener">Google Fonts privacy information</a>.</li>
-  </ul>
+  <h2>Online services and security</h2>
+  <p>GitHub Pages delivers the app, jsDelivr delivers libraries, and Google Firebase Hosting delivers tunes from the
+    <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">High Voltage SID Collection</a> (HVSC).
+    The official HVSC site is a fallback for tunes.
+    Each service receives your IP address and request details, such as the file requested and browser information.</p>
+  <p>The maintainer can use Firebase request logs and usage totals to monitor traffic, downloads and service limits.
+    Raw logs may contain visitor identifiers. The usage report keeps aggregate counts and tune paths, without IP addresses or other visitor identifiers.
+    Downloads do not reliably show what you played, because your browser can reuse cached tunes.</p>
+  <p>Sync, live playlists and curator records use Google Cloud Firestore, with database storage in Finland (<code>europe-north1</code>).
+    Their requests also use Firebase App Check with Google reCAPTCHA Enterprise to prevent automated abuse.
+    This starts on the first database request and may keep refreshing while the app is open.
+    Ordinary playback does not require these database features.</p>
+  <p>Google's bot protection processes device, browser and page-use data and uses a <code>_grecaptcha</code> security cookie.
+    Google processes this data on our behalf under its
+    <a href="https://cloud.google.com/terms/data-processing-addendum" target="_blank" rel="noopener">data-processing terms</a>
+    and <a href="https://cloud.google.com/terms/service-terms" target="_blank" rel="noopener">service terms</a>.</p>
+  <p>Database storage in Finland does not mean all processing stays there. Providers may process technical data outside the European Economic Area,
+    including in the United States. Google's data-processing terms describe transfer safeguards, including European Commission standard contractual clauses where applicable,
+    and how to obtain copies. For providers' processing and retention, see the
+    <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub privacy statement</a>,
+    <a href="https://www.jsdelivr.com/terms/privacy-policy" target="_blank" rel="noopener">jsDelivr privacy policy</a> and
+    <a href="https://cloud.google.com/terms/cloud-privacy-notice" target="_blank" rel="noopener">Google Cloud privacy notice</a>.</p>
 
-  <h2>Your rights</h2>
-  <p>You control your encrypted Sync contents through the app. Use the app to view and change your data.
-    Use <em>Sync → Delete Synced Data</em> to delete the active server copy.</p>
-  <p>Only your devices hold the key needed to read your Sync contents. We cannot read, correct or provide a readable copy of those contents.</p>
-  <p>For personal data we can identify as yours, you can request access, correction, deletion, restriction of processing and a portable copy.
-    These rights apply subject to the conditions in the GDPR.</p>
-  <p>You can object to processing based on legitimate interests.</p>
-  <p>Contact us at <a href="mailto:shallowsid@extend.fi">shallowsid@extend.fi</a> to make a request.
-    We normally respond within one month.</p>
-  <p>If the GDPR permits more time, we will explain the reason within that month.</p>
-  <p>We may need information that connects you to the relevant record before we can act.
-    Where we cannot identify your data, GDPR Article 11 can limit our duty to act on these requests.</p>
-  <p>Your devices control access to your encrypted online contents. Keep your sync key private.</p>
-  <p>If you lose the sync key, the key and the online data encrypted with it are unrecoverable.</p>
-  <p>You can complain to a data protection authority, including the
-    <a href="https://tietosuoja.fi/en" target="_blank" rel="noopener">Office of the Data Protection Ombudsman in Finland</a>.
-    You can also complain to the authority where you live or work in the European Economic Area.</p>
-  <p>Choose Sync, live links or curator features when you want them. Each feature uses the data and security checks described above.
-    Tune playback is available independently.</p>
+  <h2>Why data is used</h2>
+  <p>Data is used to provide the features you request, deliver the app and tunes, maintain tune information, monitor service use and prevent abuse.
+    The GDPR legal basis for Sync and the curator role you accept is providing the service you request (Article 6(1)(b)).
+    Delivering and protecting the service, monitoring usage and maintaining tune information rely on legitimate interests (Article 6(1)(f)).</p>
 
-  <h2>Contact</h2>
-  <p>Teppo Keitaanniemi is the data controller and decides why and how ShallowSID processes personal data.</p>
-  <p>Email: <a href="mailto:shallowsid@extend.fi">shallowsid@extend.fi</a>.</p>
+  <h2>Your rights and contact</h2>
+  <p>Teppo Keitaanniemi runs ShallowSID and is its data controller.
+    Contact <a href="mailto:shallowsid@extend.fi">shallowsid@extend.fi</a> about privacy or your data.</p>
+  <p>Under the GDPR, you can request access, correction, deletion, restricted use or a portable copy of personal data,
+    and object to use based on legitimate interests. These rights have legal conditions.
+    We normally respond within one month; if more time is legally allowed, we explain why within that month.</p>
+  <p>Use <em>Sync → Export User Data</em> to download this device's current playlists, play history, sound settings, search history,
+    Sync device list and any curator access details and invite notes. The file is unencrypted; keep it private.
+    It does not include providers' request logs or older server records.</p>
+  <p>Use the app to view, change or delete encrypted Sync contents: we cannot read them for you.
+    We may need information linking you to a record to handle other requests.
+    If we cannot identify your data, GDPR Article 11 may limit what we can do.</p>
+  <p>You can complain to the <a href="https://tietosuoja.fi/en" target="_blank" rel="noopener">Data Protection Ombudsman in Finland</a>
+    or the data protection authority where you live or work in the European Economic Area.</p>
   <p>Source code: <a href="https://github.com/ventti/shallowsid" target="_blank" rel="noopener">github.com/ventti/shallowsid</a>.</p>
 
   <p><a href="./">← Back to ShallowSID</a></p>

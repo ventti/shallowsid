@@ -76,6 +76,11 @@ export const ABOUT = {
     <p class="muted">The easy C64 music web player<br>Version <a href="https://github.com/ventti/shallowsid/releases" target="_blank" rel="noopener" title="View changelog"><code data-version>dev</code></a></p>
   </header>
 
+  <h2>Ideology</h2>
+  <p>We deliberately keep your private playlists and listening history unreadable to us, even with Sync.
+    We choose not to follow the trend of tracking listeners.
+    We use designated curators who know SID music to categorise the tunes.</p>
+
   <h2>Music</h2>
   <p>All tunes come from the <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">High Voltage SID Collection</a> and its team, including the song lengths in <code>Songlengths.md5</code>.</p>
 
@@ -93,10 +98,13 @@ export const ABOUT = {
     <li><a href="https://github.com/kazuhikoarase/qrcode-generator" target="_blank" rel="noopener">qrcode-generator</a> and <a href="https://github.com/cozmo/jsQR" target="_blank" rel="noopener">jsQR</a> for sync key QR codes.</li>
   </ul>
 
+  <h2>Credits</h2>
+  <p>Idea and production by Vent.</p>
+
   <h2>Acknowledgements</h2>
   <p>Special thanks to Sulevi, Tempest and Grue for their help and contribution to the development.</p>
 
   <h2>License</h2>
-  <p>ShallowSID is free software under the <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" target="_blank" rel="noopener">GNU GPL, version 2 or later</a>.
+  <p>ShallowSID is free software under the <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.html" target="_blank" rel="noopener">GNU GPL, version 2 or later</a>.<br>
     Source code: <a href="https://github.com/ventti/shallowsid" target="_blank" rel="noopener">github.com/ventti/shallowsid</a>.</p>`,
 };

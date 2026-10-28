@@ -19,16 +19,16 @@ const snapshot = (over = {}) => ({
 
 const roundTrip = (snap, searches) => parseBundle(JSON.stringify(toBundle(snap, searches, new Date("2026-10-02T10:00:00Z"))));
 
-test("a file holds the data and searches, not the devices", () => {
+test("a file holds all snapshot fields, including devices, and searches", () => {
   const bundle = toBundle(snapshot(), [{ q: "hubbard" }], new Date("2026-10-02T10:00:00Z"));
   assert.equal(bundle.format, FORMAT);
   assert.equal(bundle.exported, "2026-10-02T10:00:00.000Z");
-  assert.equal(bundle.data.devices, undefined);
+  assert.deepEqual(bundle.data, snapshot());
   assert.deepEqual(bundle.searches, [{ q: "hubbard" }]);
   assert.equal(fileName(new Date("2026-10-02T10:00:00Z")), "shallowsid-data-2026-10-02.json");
 });
 
-test("a round trip keeps the data", () => {
+test("a round trip keeps the data without importing sync devices", () => {
   const { data, searches } = roundTrip(snapshot(), [{ q: "hubbard" }]);
   assert.deepEqual(data.playlists, snapshot().playlists);
   assert.deepEqual(data.plays, snapshot().plays);

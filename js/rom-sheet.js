@@ -1,5 +1,5 @@
 import { ROM_TYPES, fetchRom } from "./roms.js";
-import { esc, prompt } from "./ui.js";
+import { actionSheet, esc, prompt } from "./ui.js";
 
 export class RomSheet {
   constructor(store, onChange) {
@@ -12,10 +12,13 @@ export class RomSheet {
       const button = event.target.closest("[data-rom-action]");
       if (!button || this.busy) return;
       const { romAction: action, type } = button.dataset;
-      if (action === "file") {
-        this.type = type;
-        this.root.querySelector("input").click();
-      } else if (action === "remove") this.run(() => this.store.remove(type));
+      if (action === "add") {
+        actionSheet(`Add ${ROM_TYPES[type].label}`, [
+          { text: "Choose File…", icon: "folder-open-outline", handler: () => this.fromFile(type) },
+          { text: "Load from URL…", icon: "link-outline", handler: () => this.fromUrl(type) },
+        ]);
+      } else if (action === "file") this.fromFile(type);
+      else if (action === "remove") this.run(() => this.store.remove(type));
       else this.fromUrl(type);
     });
     this.root.addEventListener("change", (event) => {
@@ -32,6 +35,11 @@ export class RomSheet {
   async open() {
     this.root.hidden = false;
     await this.run();
+  }
+
+  fromFile(type) {
+    this.type = type;
+    this.root.querySelector("input").click();
   }
 
   async fromUrl(type) {
@@ -64,15 +72,20 @@ export class RomSheet {
     this.root.innerHTML = `${Object.entries(ROM_TYPES).map(([type, spec]) => `
       <h3 class="sound-section">${spec.label}</h3>
       <ion-list inset>
+        ${this.entries[type] ? `
         <ion-item lines="none">
-          <ion-label><h3>${esc(this.entries[type]?.name || "Not added")}</h3><p>${spec.size / 1024} KB</p></ion-label>
+          <ion-label><h3>${esc(this.entries[type].name)}</h3></ion-label>
           <ion-button slot="end" fill="clear" data-rom-action="file" data-type="${type}" aria-label="Browse for ${spec.label}"${off}><ion-icon slot="icon-only" name="folder-open-outline"></ion-icon></ion-button>
           <ion-button slot="end" fill="clear" data-rom-action="url" data-type="${type}" aria-label="${spec.label} from URL"${off}><ion-icon slot="icon-only" name="link-outline"></ion-icon></ion-button>
-          ${this.entries[type] ? `<ion-button slot="end" fill="clear" color="danger" data-rom-action="remove" data-type="${type}" aria-label="Remove ${spec.label}"${off}><ion-icon slot="icon-only" name="trash-outline"></ion-icon></ion-button>` : ""}
-        </ion-item>
+          <ion-button slot="end" fill="clear" color="danger" data-rom-action="remove" data-type="${type}" aria-label="Remove ${spec.label}"${off}><ion-icon slot="icon-only" name="trash-outline"></ion-icon></ion-button>
+        </ion-item>` : `
+        <ion-item button detail="false" lines="none" data-rom-action="add" data-type="${type}" aria-label="Add ${spec.label}"${off}>
+          <ion-icon slot="start" name="add-circle-outline" color="primary" aria-hidden="true"></ion-icon>
+          <ion-label color="primary">Add ROM…</ion-label>
+        </ion-item>`}
       </ion-list>`).join("")}
       ${error ? `<p class="sound-note" role="alert">${esc(error)}</p>` : ""}
-      <p class="sound-note">ShallowSID does not supply ROMs and does not encourage the use of copyrighted material. ShallowSID takes no responsibility for material added by the user. ROMs are stored in this browser only. Provide only ROMs you have the right to use.</p>
+      <p class="sound-note">ShallowSID supplies no ROMs. You are responsible for using only ROMs you have the right to use. ROMs stay in this browser.</p>
       <input type="file" hidden>`;
   }
 }

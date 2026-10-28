@@ -1,7 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
 import { HELP } from "../js/help.js";
 import { matches, parseQuery } from "../js/num-query.js";
+
+test("Privacy uses the Help layout and handles failed loading without changing a later page", async () => {
+  const source = readFileSync(new URL("../js/app.js", import.meta.url), "utf8");
+  for (const connected of [true, false]) {
+    const article = { isConnected: connected, innerHTML: "later page" };
+    const view = { innerHTML: "", querySelector: () => article };
+    let chrome;
+    const context = vm.createContext({
+      dom: { view, infinite: {} }, HELP, ABOUT: {},
+      setChrome: (value) => { chrome = value; },
+      fetch: async (url) => { assert.equal(url, "privacy.html"); return { ok: false }; },
+    });
+    vm.runInContext(source.slice(source.indexOf("async function renderHelp("), source.indexOf("function renderPlaylists(")), context);
+    await context.renderHelp("privacy");
+    assert.equal(chrome.title, "Privacy");
+    assert.equal(chrome.back, "#/settings");
+    assert.match(view.innerHTML, /article class="help-content"/);
+    if (connected) assert.match(article.innerHTML, /Could not load Privacy/);
+    else assert.equal(article.innerHTML, "later page");
+  }
+});
 
 test("search help examples use supported filters", () => {
   const html = HELP.find((section) => section.id === "search").html;

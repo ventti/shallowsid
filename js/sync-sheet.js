@@ -40,9 +40,11 @@ function deviceRow(d, self, last) {
 }
 
 export class SyncSheet {
-  constructor(sync, { onOpen }) {
+  constructor(sync, { onOpen, onImportData, onExportData }) {
     this.sync = sync;
     this.onOpen = onOpen;
+    this.onImportData = onImportData;
+    this.onExportData = onExportData;
     this.root = document.getElementById("sync-sheet");
     sync.addEventListener("status", () => this.render());
     this.root.addEventListener("click", (e) => this.onClick(e));
@@ -77,9 +79,17 @@ export class SyncSheet {
 
   render() {
     const s = this.sync;
-    const intro = `<p class="sound-note">Keeps your playlists, favorites, sound presets and play history the same on all your devices.
-      Everything is encrypted on this device with a sync key only your devices know. There are no accounts,
-      and the server stores nothing it can read. <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy</a></p>`;
+    const dataItems = `<ion-item button detail="false" id="sync-import">
+      <ion-icon slot="start" name="push-outline" color="primary"></ion-icon>
+      <ion-label color="primary">Import User Data…</ion-label>
+    </ion-item>
+    <ion-item button detail="false" id="sync-export" ${s.hasKey ? "" : 'lines="none"'}>
+      <ion-icon slot="start" name="archive-outline" color="primary"></ion-icon>
+      <ion-label color="primary">Export User Data…</ion-label>
+    </ion-item>`;
+    const intro = `<p class="sound-note">Sync playlists, favorites, sound presets and play history across devices.
+      No account needed. Only devices with your sync key can read the synced data.
+      <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy</a></p>`;
     if (!s.hasKey) {
       this.root.innerHTML = `
         <h3 class="sound-section">Sync</h3>
@@ -90,6 +100,7 @@ export class SyncSheet {
           ${this.joinItems()}
         </ion-list>
         ${s.removed ? `<p class="sound-note">Sync moved to a new key on another device, without this one. To sync again, use the key from a device that still syncs.</p>` : ""}
+        <ion-list inset>${dataItems}</ion-list>
         ${intro}`;
       return;
     }
@@ -120,8 +131,8 @@ export class SyncSheet {
           <ion-icon slot="start" name="copy-outline" color="primary"></ion-icon><ion-label color="primary">Copy Key</ion-label>
         </ion-item>
       </ion-list>
-      <p class="sound-note">On your other devices, scan this code with the camera, or enter the key with <strong>Use a Key from Another Device</strong>.
-        Keep it somewhere safe: without it the synced copy can't be recovered, not even by us.</p>
+      <p class="sound-note">On another device, scan the code or choose <strong>Use a Key from Another Device</strong>.
+        Keep your key safe. We cannot recover synced data without it.</p>
 
       <h3 class="sound-section">Change key</h3>
       <ion-list inset>
@@ -132,7 +143,9 @@ export class SyncSheet {
       </ion-list>
 
       <ion-list inset>
+        ${dataItems}
         <ion-item button detail="false" id="sync-delete" lines="none">
+          <ion-icon slot="start" name="trash-outline" color="danger"></ion-icon>
           <ion-label color="danger">Delete Synced Data…</ion-label>
         </ion-item>
       </ion-list>
@@ -220,6 +233,12 @@ export class SyncSheet {
     const id = e.target.closest("ion-item[id], ion-button[id]")?.id;
     try {
       switch (id) {
+        case "sync-import":
+          this.onImportData();
+          break;
+        case "sync-export":
+          await this.onExportData();
+          break;
         case "sync-on":
           await s.turnOn();
           break;
