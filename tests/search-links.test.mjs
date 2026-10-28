@@ -25,6 +25,7 @@ function setup(hash = "#/home") {
     soundSheet: { close() {}, root: {} }, romSheet: { root: {} }, syncSheet: null,
     searchWorker: { postMessage(message) { messages.push(message); } },
     renderSearch() {},
+    applyAppearance() {},
     renderHome() { context.searchQuery = ""; context.dom.searchbar.value = ""; },
     renderBrowse() {},
   });

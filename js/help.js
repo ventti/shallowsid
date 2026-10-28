@@ -47,7 +47,7 @@ export const HELP = [
     title: "Sync",
     icon: "cloud-outline",
     html: `
-      <p>Playlist cloud sync keeps playlists, favorites, sound presets and play history the same across your devices. Open <a href="#/settings/sync">Playlist cloud sync</a> in Settings.</p>
+      <p>Playlist cloud sync keeps playlists, favorites, sound presets, appearance and play history the same across your devices. Open <a href="#/settings/sync">Playlist cloud sync</a> in Settings.</p>
       <h2>Connect another device</h2>
       <ol>
         <li>On your first device, choose <strong>Turn On Sync</strong>.</li>

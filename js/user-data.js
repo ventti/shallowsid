@@ -1,5 +1,5 @@
 // All of the user's data in one file, to move it without Sync: what Sync
-// carries (playlists, favorites, sound presets and preferences, play history,
+// carries (playlists, favorites, sound presets, sound and appearance preferences, play history,
 // the curator identity and device list) plus recent searches. Not encrypted, unlike Sync.
 //
 // Importing merges the file into what's here, as joining Sync does: nothing

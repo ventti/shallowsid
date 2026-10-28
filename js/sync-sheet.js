@@ -87,7 +87,7 @@ export class SyncSheet {
       <ion-icon slot="start" name="archive-outline" color="primary"></ion-icon>
       <ion-label color="primary">Export User Data…</ion-label>
     </ion-item>`;
-    const intro = `<p class="sound-note">Sync playlists, favorites, sound presets and play history across devices.
+    const intro = `<p class="sound-note">Sync playlists, favorites, sound presets, appearance and play history across devices.
       No account needed. Only devices with your sync key can read the synced data.
       <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Privacy</a></p>`;
     if (!s.hasKey) {

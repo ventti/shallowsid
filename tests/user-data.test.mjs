@@ -68,6 +68,14 @@ test("two Favorites become one", () => {
   assert.deepEqual(favorites[0].items.map((i) => i.path).sort(), [B, A].sort());
 });
 
+test("appearance preferences survive export, import and merge with older data", () => {
+  const original = snapshot({ prefs: { soundChip: "auto", accentHue: 180 } });
+  const { data } = roundTrip(original);
+  assert.equal(data.prefs.accentHue, 180);
+  assert.equal(mergeImport(snapshot(), data).prefs.accentHue, 180);
+  assert.equal(mergeImport(original, roundTrip(snapshot()).data).prefs.accentHue, 180);
+});
+
 test("files that aren't ShallowSID data are refused", () => {
   for (const text of ["", "not json", "[]", JSON.stringify({ format: "other", data: {} }), JSON.stringify({ format: FORMAT, version: 1 })]) {
     assert.throws(() => parseBundle(text), /isn't ShallowSID data/, text);

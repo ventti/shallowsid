@@ -51,6 +51,7 @@ globalThis.fetch = async (url, { method = "GET", body } = {}) => {
 const { SyncService } = await import("../js/sync.js");
 const { PlaylistStore } = await import("../js/playlists.js");
 const { SoundSettings } = await import("../js/sound-settings.js");
+const { AppearanceSettings, DEFAULT_HUE } = await import("../js/appearance.js");
 const { deriveVault, parseKey } = await import("../js/sync-crypto.js");
 
 const config = { apiKey: "test-key", projectId: "test" };
@@ -63,17 +64,18 @@ function device(name) {
   globalThis.localStorage = scoped;
   const store = new PlaylistStore();
   const sound = new SoundSettings();
-  const sync = new SyncService({ store, sound, config });
+  const appearance = new AppearanceSettings();
+  const sync = new SyncService({ store, sound, appearance, config });
   globalThis.localStorage = saved;
   // route this device's storage calls through its namespace from now on
-  for (const obj of [store, sound, sync]) {
+  for (const obj of [store, sound, appearance, sync]) {
     for (const m of ["save", "persist", "addRecent", "addPlay", "markPlayed", "applySyncedHistory"]) {
       if (typeof obj[m] !== "function") continue;
       const orig = obj[m].bind(obj);
       obj[m] = (...a) => { const s = globalThis.localStorage; globalThis.localStorage = scoped; try { return orig(...a); } finally { globalThis.localStorage = s; } };
     }
   }
-  return { store, sound, sync };
+  return { store, sound, appearance, sync };
 }
 
 beforeEach(() => { storage.clear(); docs.clear(); legacy.clear(); requests.length = 0; });
@@ -139,6 +141,30 @@ test("sound presets and prefs sync; deleting the synced data works", async () =>
   await b.sync.deleteRemote();
   assert.equal(docs.size, 0);
   assert.equal(b.sync.enabled, false);
+});
+
+test("accent choices and reset sync between devices without overwriting unrelated changes", async () => {
+  const a = device("a"), b = device("b");
+  a.appearance.setHue(30);
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  assert.equal(b.appearance.hue, 30);
+  b.appearance.setHue(180);
+  a.sound.setPrerender(false);
+  await a.sync.syncNow();
+  await b.sync.syncNow();
+  await a.sync.syncNow();
+  for (const d of [a, b]) {
+    assert.equal(d.appearance.hue, 180);
+    assert.equal(d.sound.prerender, false);
+  }
+  b.appearance.setHue(DEFAULT_HUE);
+  await b.sync.syncNow();
+  await a.sync.syncNow();
+  assert.equal(a.appearance.hue, DEFAULT_HUE);
+  const reopened = device("a");
+  await reopened.sync.running;
+  assert.equal(reopened.appearance.hue, DEFAULT_HUE);
 });
 
 test("a wrong key fails with a clear message and uploads nothing new", async () => {
@@ -360,6 +386,7 @@ test("playlists, favorites and settings bring a history batch forward to 5 secon
     () => a.store.create("Mix"),
     () => a.store.toggleFavorite({ path: "X.sid", song: 1 }),
     () => a.sound.setGlobal({ chip: "8580" }),
+    () => a.appearance.setHue(120),
   ]) {
     requests.length = 0;
     a.store.addRecent({ path: "X.sid", song: 1 });

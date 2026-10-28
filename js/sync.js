@@ -66,10 +66,11 @@ class ConflictError extends Error {}
 const revOf = (doc) => ({ updateTime: doc.updateTime, n: Number(doc.fields?.n?.integerValue ?? 0) });
 
 export class SyncService extends EventTarget {
-  constructor({ store, sound, curation = null, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
+  constructor({ store, sound, appearance = null, curation = null, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
     super();
     this.store = store;
     this.sound = sound;
+    this.appearance = appearance;
     this.curation = curation;
     this.config = config;
     this.storageKey = storageKey;
@@ -90,6 +91,7 @@ export class SyncService extends EventTarget {
     store.addEventListener("change", onLocalChange);
     store.addEventListener("history", onLocalChange);
     sound.addEventListener("change", onLocalChange);
+    appearance?.addEventListener("change", onLocalChange);
     curation?.addEventListener("identity", onLocalChange);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.enabled && Date.now() - (this.lastSynced ?? 0) > RESYNC_ON_FOCUS_MS) this.syncNow();
@@ -335,7 +337,7 @@ export class SyncService extends EventTarget {
       devices: this.devicesWithSelf(),
       playlists: this.store.playlists,
       soundPresets: this.sound.presets,
-      prefs: this.sound.syncPrefs,
+      prefs: { ...this.sound.syncPrefs, ...this.appearance?.syncPrefs },
       plays: { ...this.store.plays },   // a copy: plays are counted in place
       recent: this.store.recent,
       playedLists: this.store.playedLists,
@@ -368,6 +370,7 @@ export class SyncService extends EventTarget {
     try {
       this.store.replaceAll(structuredClone(merged.playlists));
       this.sound.applySynced({ presets: structuredClone(merged.soundPresets), prefs: merged.prefs });
+      this.appearance?.applySynced(merged.prefs);
       this.curation?.applySynced(structuredClone(merged.curation));
     } finally {
       this.applying = false;

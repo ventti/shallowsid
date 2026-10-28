@@ -9,14 +9,13 @@ ion-modal:not(.hydrated) {
 /* Ionic's dark palette also sets its tokens on `.ios body` / `.md body` */
 .ios body,
 .md body {
-  /* Lavender accent: 7.7:1 on the background, 6.9:1 on surfaces (WCAG AAA),
-     with dark text on filled buttons (7.7:1). */
-  --ion-color-primary: #a99cff;
+  /* Default accent RGB; Appearance overrides it. Shade and tint follow it. */
   --ion-color-primary-rgb: 169, 156, 255;
+  --ion-color-primary: rgb(var(--ion-color-primary-rgb));
   --ion-color-primary-contrast: #16131f;   /* = --app-bg; Ionic needs it literal, with its rgb */
   --ion-color-primary-contrast-rgb: 22, 19, 31;
-  --ion-color-primary-shade: #9589e0;
-  --ion-color-primary-tint: #b2a6ff;
+  --ion-color-primary-shade: color-mix(in srgb, var(--ion-color-primary) 88%, black);
+  --ion-color-primary-tint: color-mix(in srgb, var(--ion-color-primary) 90%, white);
 
   /* The grays: every one in the app comes from these. */
   --app-bg: #16131f;                     /* page, bars, rows; dark text on accents */
@@ -884,6 +883,12 @@ ion-app > .np {
 .sound-content ion-range {
   --bar-background-active: var(--app-accent);
   --knob-background: var(--app-text);
+}
+
+.sound-content ion-range.appearance-hue {
+  --bar-background: linear-gradient(to right, #ff9c9c, #ffff9c, #9cff9c, #9cffff, #9c9cff, #ff9cff, #ff9c9c);
+  --bar-background-active: transparent;
+  --knob-background: var(--app-accent);
 }
 
 .range-value {

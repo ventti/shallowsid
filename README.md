@@ -57,6 +57,8 @@ Sound (**Settings → Sound**):
 - While Sound settings are open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you leave Sound settings, the tune pre-renders again with the new sound.
 - **Pre-render tunes** (on by default) renders the whole tune ahead for instant seeking and audible scrubbing. With it off, seeking waits for the engine to fast-forward, and nothing is kept in memory.
 
+Appearance (**Settings → Appearance**): choose the accent with the hue slider, or **Reset to Default**. The color previews while dragging and saves on release. It is included in user-data exports and cloud sync.
+
 Sync (**Settings → Playlist cloud sync**, optional and off by default):
 
 - **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites, sound presets and play history (**Recently played**, **Your most played**) then stay the same everywhere. Play counts add up across devices.

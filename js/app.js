@@ -12,6 +12,7 @@ import { decodeShare, encodeShare, nameFromFileName, parseM3U8, safeFileName, to
 import { PlaylistStore } from "./playlists.js";
 import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
+import { AppearanceSettings, DEFAULT_HUE, accentRgb } from "./appearance.js";
 import { RomStore } from "./roms.js";
 import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
@@ -76,6 +77,16 @@ const dom = {
 const store = new PlaylistStore();
 const searchHistory = new SearchHistory();
 const sound = new SoundSettings();
+const appearance = new AppearanceSettings();
+function applyAppearance(hue = appearance.hue) {
+  document.body.style.setProperty("--ion-color-primary-rgb", accentRgb(hue).join(", "));
+  const value = $("accent-value");
+  if (value) value.textContent = `${hue}°`;
+  const reset = $("accent-reset");
+  if (reset) reset.disabled = hue === DEFAULT_HUE;
+}
+appearance.addEventListener("change", () => applyAppearance());
+applyAppearance();
 const player = new Player({
   sidUrls: (item) => SID_SOURCES.map((base) => base + encodePath(item.path)), prerender: sound.prerender, engine: sound.engine, u64Host: sound.u64Host,
 });
@@ -124,7 +135,7 @@ player.addEventListener("stall", ({ detail: { engine } }) => {
 applySound();
 const tags = new TagService();
 const tagSheet = new TagSheet(tags);
-const sync = new SyncService({ store, sound, curation: tags });
+const sync = new SyncService({ store, sound, appearance, curation: tags });
 const syncSheet = sync.configured ? new SyncSheet(sync, {
   onOpen: () => go("#/settings/sync"),
   onImportData: () => $("user-data-input").click(),
@@ -160,7 +171,7 @@ const notices = new Notices({
     data: dataWidget({ exportData: () => exportUserData(), importData: () => $("user-data-input").click() }),
   },
 });
-globalThis.shallowsid = { player, store, sound, sync, tags, notices };   // handy from the devtools console
+globalThis.shallowsid = { player, store, sound, appearance, sync, tags, notices };   // handy from the devtools console
 const nowPlaying = new NowPlaying(player, {
   onAddToPlaylist: (item) => addToPlaylist(item),
   onShowFolder: (dir) => go(`#/browse/${encodeURIComponent(dir)}`),
@@ -172,6 +183,7 @@ const nowPlaying = new NowPlaying(player, {
   onOpenTag: (id) => go(tagHref(id)),
   onEditTags: (item) => tagSheet.open(item),
 });
+appearance.addEventListener("change", () => nowPlaying.waveform.invalidate());
 // Curators and admins get a tab right of Settings: "Admin" for admins,
 // "Curation" for curators (also once turned off, to see why).
 function showCurationTab() {
@@ -756,6 +768,7 @@ function renderBrowse(dir) {
 }
 
 function renderSettingsPage(page) {
+  if (page === "appearance") return renderAppearance();
   if (page === "help" || page.startsWith("help/")) return renderHelp(page.slice(5));
   if (page === "roms") {
     setChrome({ title: "C64 ROMs", tab: "settings", back: "#/settings" });
@@ -790,6 +803,10 @@ function renderSettings() {
       <ion-icon slot="start" name="options-outline"></ion-icon>
       <ion-label>Sound</ion-label>
     </ion-item>
+    <ion-item button detail="true" href="#/settings/appearance" lines="full">
+      <ion-icon slot="start" name="color-palette-outline"></ion-icon>
+      <ion-label>Appearance</ion-label>
+    </ion-item>
     <ion-item button detail="true" href="#/settings/roms" lines="none">
       <ion-icon slot="start" name="hardware-chip-outline"></ion-icon>
       <ion-label>C64 ROMs</ion-label>
@@ -808,6 +825,31 @@ function renderSettings() {
       <ion-label>About</ion-label>
     </ion-item>
   </ion-list></div>`;
+}
+
+function renderAppearance() {
+  setChrome({ title: "Appearance", tab: "settings", back: "#/settings" });
+  dom.infinite.disabled = true;
+  dom.view.innerHTML = `<div class="settings-container sound-content">
+    <h3 class="sound-section">Accent color</h3>
+    <ion-list inset>
+      <ion-item>
+        <ion-range id="accent-hue" class="appearance-hue" min="0" max="360" step="1" value="${appearance.hue}" aria-label="Accent hue">
+          <div slot="label">Hue <span class="range-value" id="accent-value">${appearance.hue}°</span></div>
+        </ion-range>
+      </ion-item>
+      <ion-item button detail="false" id="accent-reset" lines="none" ${appearance.hue === DEFAULT_HUE ? "disabled" : ""}>
+        <ion-label color="primary">Reset to Default</ion-label>
+      </ion-item>
+    </ion-list>
+  </div>`;
+  const range = $("accent-hue");
+  range.addEventListener("ionInput", (e) => applyAppearance(e.detail.value));
+  range.addEventListener("ionChange", (e) => appearance.setHue(e.detail.value));
+  $("accent-reset").addEventListener("click", () => {
+    appearance.setHue(DEFAULT_HUE);
+    range.value = appearance.hue;
+  });
 }
 
 async function renderHelp(topic) {
@@ -1726,6 +1768,7 @@ let renderedRoute = null;
 
 function render() {
   if (!index) return;
+  applyAppearance();
   const { name, arg, exact } = currentRoute();
   // Updating the current view (subtune, favorites, removal, sync, etc.)
   // keeps its scroll position. Only navigation starts at the top.
