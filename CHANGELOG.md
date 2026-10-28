@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-10-28
+
+### feat
+
+- clarify privacy and simplify sync and ROM settings ([`8cdc21d`](../../commit/8cdc21d20b0836b3d761710ce9c1766ebf33dc91))
+
+### docs
+
+- clarify encrypted data rights and key recovery ([`39667ca`](../../commit/39667ca1f4d2d4796ea1d8eee1aa1eb34656297a))
+- clarify privacy notice and data handling ([`422046e`](../../commit/422046ebf86c5fd888673e9d922e13305cccf7ef))
+
 ## 0.3.0 - 2026-10-27
 
 ### feat
