@@ -465,6 +465,7 @@ function currentRoute() {
 }
 
 function setChrome({ title, back = null, actions = "", search = false, tab }) {
+  $("hvsc-source").hidden = tab !== "browse";
   dom.title.textContent = title;
   document.title = title ? `${title} · ShallowSID` : "ShallowSID - The easy C64 music web player";
   dom.titleToolbar.hidden = !title && !back && !actions;   // Home and search results show just the search bar
