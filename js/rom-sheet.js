@@ -14,8 +14,8 @@ export class RomSheet {
       const { romAction: action, type } = button.dataset;
       if (action === "add") {
         actionSheet(`Add ${ROM_TYPES[type].label}`, [
-          { text: "Choose File…", icon: "folder-open-outline", handler: () => this.fromFile(type) },
-          { text: "Load from URL…", icon: "link-outline", handler: () => this.fromUrl(type) },
+          { text: "Choose File", icon: "folder-open-outline", handler: () => this.fromFile(type) },
+          { text: "Load from URL", icon: "link-outline", handler: () => this.fromUrl(type) },
         ]);
       } else if (action === "file") this.fromFile(type);
       else if (action === "remove") this.run(() => this.store.remove(type));
@@ -81,7 +81,7 @@ export class RomSheet {
         </ion-item>` : `
         <ion-item button detail="false" lines="none" data-rom-action="add" data-type="${type}" aria-label="Add ${spec.label}"${off}>
           <ion-icon slot="start" name="add-circle-outline" color="primary" aria-hidden="true"></ion-icon>
-          <ion-label color="primary">Add ROM…</ion-label>
+          <ion-label color="primary">Add ROM</ion-label>
         </ion-item>`}
       </ion-list>`).join("")}
       ${error ? `<p class="sound-note" role="alert">${esc(error)}</p>` : ""}

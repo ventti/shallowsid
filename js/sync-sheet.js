@@ -70,7 +70,7 @@ export class SyncSheet {
     const scan = canScan();
     return `
       <ion-item button detail="false" id="sync-join" ${last && !scan ? `lines="none"` : ""}>
-        <ion-icon slot="start" name="key-outline" color="primary"></ion-icon><ion-label color="primary">Use a Key from Another Device…</ion-label>
+        <ion-icon slot="start" name="key-outline" color="primary"></ion-icon><ion-label color="primary">Use a Key from Another Device</ion-label>
       </ion-item>
       ${scan ? `<ion-item button detail="false" id="sync-scan" ${last ? `lines="none"` : ""}>
         <ion-icon slot="start" name="qr-code-outline" color="primary"></ion-icon><ion-label color="primary">Scan QR Code from Another Device</ion-label>
@@ -81,11 +81,11 @@ export class SyncSheet {
     const s = this.sync;
     const dataItems = `<ion-item button detail="false" id="sync-import">
       <ion-icon slot="start" name="push-outline" color="primary"></ion-icon>
-      <ion-label color="primary">Import User Data…</ion-label>
+      <ion-label color="primary">Import User Data</ion-label>
     </ion-item>
     <ion-item button detail="false" id="sync-export" ${s.hasKey ? "" : 'lines="none"'}>
       <ion-icon slot="start" name="archive-outline" color="primary"></ion-icon>
-      <ion-label color="primary">Export User Data…</ion-label>
+      <ion-label color="primary">Export User Data</ion-label>
     </ion-item>`;
     const intro = `<p class="sound-note">Sync playlists, favorites, sound presets, appearance and play history across devices.
       No account needed. Only devices with your sync key can read the synced data.
@@ -138,7 +138,7 @@ export class SyncSheet {
       <ion-list inset>
         ${this.joinItems(false)}
         <ion-item button detail="false" id="sync-new-key" lines="none">
-          <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Generate New Key…</ion-label>
+          <ion-icon slot="start" name="refresh-outline" color="primary"></ion-icon><ion-label color="primary">Generate New Key</ion-label>
         </ion-item>
       </ion-list>
 
@@ -146,7 +146,7 @@ export class SyncSheet {
         ${dataItems}
         <ion-item button detail="false" id="sync-delete" lines="none">
           <ion-icon slot="start" name="trash-outline" color="danger"></ion-icon>
-          <ion-label color="danger">Delete Synced Data…</ion-label>
+          <ion-label color="danger">Delete Synced Data</ion-label>
         </ion-item>
       </ion-list>
       ${intro}`;
@@ -205,7 +205,7 @@ export class SyncSheet {
     await this.join(key);
   }
 
-  // "Use a Key from Another Device…": ask for the key, then join.
+  // "Use a Key from Another Device": ask for the key, then join.
   async promptJoin() {
     const key = await prompt("Use a sync key", { placeholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX", confirm: "Use" });
     if (key !== null) await this.join(key);

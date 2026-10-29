@@ -92,7 +92,7 @@ export class SoundSheet extends EventTarget {
         ${[...builtin, ...mine].map((p) => this.presetRow(p, "")).join("")}
         <ion-item button detail="false" data-save-new="${chip}" lines="none">
           <ion-icon slot="start" name="add-circle-outline" color="primary"></ion-icon>
-          <ion-label color="primary">Save as ${chip} Preset…</ion-label>
+          <ion-label color="primary">Save as ${chip} Preset</ion-label>
         </ion-item>
       </ion-list>
       <ion-list inset>
@@ -174,10 +174,10 @@ export class SoundSheet extends EventTarget {
 
       ${tunable ? `<ion-list inset>
         ${mine.length ? `<ion-item button detail="false" id="sound-export">
-          <ion-icon slot="start" name="share-outline" color="primary"></ion-icon><ion-label>Export my presets…</ion-label>
+          <ion-icon slot="start" name="share-outline" color="primary"></ion-icon><ion-label>Export my presets</ion-label>
         </ion-item>` : ""}
         <ion-item button detail="false" id="sound-import" lines="none">
-          <ion-icon slot="start" name="cloud-upload-outline" color="primary"></ion-icon><ion-label>Import presets…</ion-label>
+          <ion-icon slot="start" name="cloud-upload-outline" color="primary"></ion-icon><ion-label>Import presets</ion-label>
         </ion-item>
       </ion-list>` : ""}`;
   }
@@ -243,7 +243,7 @@ export class SoundSheet extends EventTarget {
     const p = this.settings.find(id);
     if (!p) return;
     actionSheet(p.name, [
-      { text: "Export…", icon: "share-outline", handler: () => this.exportPresets([id]) },
+      { text: "Export", icon: "share-outline", handler: () => this.exportPresets([id]) },
       { text: "Rename", icon: "create-outline", handler: async () => {
         const name = await prompt("Rename preset", { value: p.name });
         if (name !== null) this.settings.rename(id, name);

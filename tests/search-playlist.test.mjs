@@ -117,7 +117,7 @@ test("adding search results appends to the latest playlist and skips duplicates"
   const playlist = store.create("Mix", [item(1)]);
   context.renderSearch();
   elements.get("search-more").click();
-  context.buttons.find((b) => b.text === "Add to playlist…").handler();
+  context.buttons.find((b) => b.text === "Add to playlist").handler();
   const choose = context.buttons.find((b) => b.text === "Mix").handler;
   store.add(playlist.id, item(4));
   let changes = 0;

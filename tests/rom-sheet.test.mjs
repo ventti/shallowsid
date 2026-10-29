@@ -24,11 +24,11 @@ test("empty ROM rows offer file and URL choices without changing data on cancel"
   const urls = [];
   sheet.fromUrl = (type) => urls.push(type);
   sheet.render();
-  assert.equal((root.innerHTML.match(/Add ROM…/g) ?? []).length, 3);
+  assert.equal((root.innerHTML.match(/Add ROM/g) ?? []).length, 3);
   assert.doesNotMatch(root.innerHTML, /Not added/);
   for (const type of ["basic", "kernal", "chargen"]) {
     listeners.click({ target: { closest: () => ({ dataset: { romAction: "add", type } }) } });
-    assert.deepEqual(menu.buttons.map((b) => b.text), ["Choose File…", "Load from URL…", "Cancel"]);
+    assert.deepEqual(menu.buttons.map((b) => b.text), ["Choose File", "Load from URL", "Cancel"]);
     assert.equal(menu.buttons[2].role, "cancel");
     assert.equal(sheet.type, undefined);
     menu.buttons[0].handler();

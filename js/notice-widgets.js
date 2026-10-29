@@ -5,11 +5,11 @@
 //   * elsewhere: Turn On Sync, then the key, Copy Key, and Continue on <site>,
 //     which opens <site> with the key in the link (#/sync/<key>, never sent
 //     to a server); <site> asks before joining, as for a scanned QR code.
-//   * on <site>: Use a Key from Another Device…
-// Without <site>: Turn On Sync or Use a Key from Another Device…, then the status.
+//   * on <site>: Use a Key from Another Device
+// Without <site>: Turn On Sync or Use a Key from Another Device, then the status.
 //
-// {widget:data <site>}: the data as a file (user-data.js). Export Data…
-// elsewhere, Import Data… on <site>.
+// {widget:data <site>}: the data as a file (user-data.js). Export Data
+// elsewhere, Import Data on <site>.
 
 import { esc, toast } from "./ui.js";
 
@@ -33,8 +33,8 @@ const isElsewhere = (arg) => !!arg && new URL(arg, location.href).origin !== loc
 export function dataWidget({ exportData, importData }) {
   return (el, arg) => {
     el.innerHTML = `<ion-list inset>${isElsewhere(arg)
-      ? item("export", "archive-outline", "Export Data…", { last: true })
-      : item("import", "download-outline", "Import Data…", { last: true })}</ion-list>`;
+      ? item("export", "archive-outline", "Export Data", { last: true })
+      : item("import", "download-outline", "Import Data", { last: true })}</ion-list>`;
     el.addEventListener("click", (e) => {
       const action = e.target.closest("[data-sync-action]")?.dataset.syncAction;
       if (action === "export") exportData();
@@ -53,8 +53,8 @@ export function syncWidget(sync, sheet) {
       let items;
       if (!elsewhere) {
         items = sync.hasKey ? statusRow(sync)
-          : !arg ? `${item("on", "cloud-upload-outline", "Turn On Sync")}${item("join", "key-outline", "Use a Key from Another Device…", { last: true })}`
-          : item("join", "key-outline", "Use a Key from Another Device…", { last: true });
+          : !arg ? `${item("on", "cloud-upload-outline", "Turn On Sync")}${item("join", "key-outline", "Use a Key from Another Device", { last: true })}`
+          : item("join", "key-outline", "Use a Key from Another Device", { last: true });
       } else if (!sync.hasKey) {
         items = item("on", "cloud-upload-outline", "Turn On Sync", { last: true });
       } else if (!sync.enabled) {

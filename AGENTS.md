@@ -3,6 +3,7 @@
 - Reuse an existing menu or dialog pattern before creating a new one. Keep equivalent interactions consistent in layout, spacing, controls, and behavior.
 - Do not use native HTML dropdowns (`<select>`). Use controls styled like the rest of ShallowSID; for a few choices, use radio rows or segmented controls.
 - Use the shared colors, fonts, and other style variables in `css/app.css`.
+- Do not end menu items, buttons, or other labels with an ellipsis (`…` or `...`). Use an ellipsis only for text that continues, for example a progress state such as "Syncing…".
 - Keep multi-step modals the same size across steps. Keep navigation buttons in fixed positions and scroll longer content inside the modal.
 - For two-way and three-way choices, reuse the Ionic segmented controls from Sound settings. Show related playlist differences together in a scrollable review list.
 
