@@ -17,10 +17,10 @@ Written for my own use, so beware of peculiarities.
 - **Search**: type a title, composer, group or year. Exact title matches come first, then the composer's tunes, then titles starting with the query, then looser matches. Each group is sorted A–Z. Accents are optional: `hulsbeck` finds Hülsbeck.
 - **Text filters**: use `title=Fish`, `composer=Hubbard` (or `author=Hubbard`) and `release=Chips` to match text anywhere in a specific field, ignoring capitals and accents. Quote phrases: `composer="Rob Hubbard"`. Use `!=` to exclude matching text. Combine with other filters: `title=Fish release=Chips year=2038`; spaces and `&` mean AND, `|` means OR.
 - **Search links**: copy the page address to share the current search. Links such as `#/search?q=title%3DCommando+composer%3DHubbard` restore the query and results when opened.
-- **Search actions**: the results’ **More** menu offers **Save as Playlist** and **Add to playlist…** for all matching tunes or subtunes in their current order, including tag searches. Bulk additions skip existing entries unless the playlist allows duplicates. **Exact matches** turns off spelling correction and prefix matching for plain text, so `Teppo` does not match `Seppo` or `Tempo`; shared links keep this setting. Field filters such as `title=Teppo` still match text anywhere in the field.
+- **Search actions**: the results’ **More** menu offers **Save as Playlist** and **Add to playlist** for all matching tunes or subtunes in their current order, including tag searches. Bulk additions skip existing entries unless the playlist allows duplicates. **Exact matches** turns off spelling correction and prefix matching for plain text, so `Teppo` does not match `Seppo` or `Tempo`; shared links keep this setting. Field filters such as `title=Teppo` still match text anywhere in the field.
 - **Numbers**: compare `bpm`, `length`, `year`, `subtunes`, `subtune` or `speed` with `=` `!=` `>` `<` `>=` `<=`, joined with `&` (or a space) and `|`; `&` goes first. Mix them with words: `hubbard bpm>=120 & bpm<130`, `year=1987 | year=1988`, `length>5:00`, `speed>=2`. The SID features are 0 or 1: `filter`, `ring`, `sync`, `digi`, `basic`, `cia` (a CIA timer) and `custom` (custom timing), as in `filter=1 & ring=1`. All but year and subtunes compare per subtune, so those results list subtunes. A value that's unknown never matches.
 - **Now Playing** shows what [`tools/sidfeatures`](tools/sidfeatures/features.py) found for the subtune beside the SID model and clock: its speed when it isn't 1x (**2x speed**), **CIA** for a CIA timer, **Custom timing** when there's no steady play rate (delay loops, a timer it keeps changing), and **Filter**, **Ring mod**, **Sync**, **Digi** or **BASIC**.
-- **Tune links**: the share icon beside the star in Now Playing, or **Share…** in a tune's **⋯** menu, shares (or, without a share sheet, copies) a link such as `…/#/tune/3/MUSICIANS/H/Hubbard_Rob/Commando.sid` (subtune 3). It opens the tune ready to play; browsers only start audio after a tap, so it waits for **Play**.
+- **Tune links**: the share icon beside the star in Now Playing, or **Share** in a tune's **⋯** menu, shares (or, without a share sheet, copies) a link such as `…/#/tune/3/MUSICIANS/H/Hubbard_Rob/Commando.sid` (subtune 3). It opens the tune ready to play; browsers only start audio after a tap, so it waits for **Play**.
 - **Composer pages**: tap a composer chip, or the composer's name in Now Playing. Shows an animated [DiceBear](https://www.dicebear.com/) critter (the same one every time), the tune count and years, **Your top tunes**, all their tunes, and those credited jointly **With others**. Playing from a section queues just that section.
 - **Your favorite composers** and **Jump back in** (on the search page) come from what you've played on this device. Jump back in shows **Your most played** (your top 50 tunes), **Favorites**, **Recently played** and the playlists you last played. A tune counts once heard for 30 seconds, or half of a shorter one. **Save as Playlist** keeps a copy of most or recently played.
 - **Sort** (the ⇅ button beside the search field): Relevance, Name, Folder, Release (publisher or group) or Year. Tap the current order again to reverse it. The last order used becomes the default. Folders and composer pages have the same button above their tunes, with **Default** (HVSC's order) in place of Relevance; they remember their own order.
@@ -51,7 +51,7 @@ Sound (**Settings → Sound**):
   - 6581 presets hold the filter curve and range, old capacitors and combined waveforms. 8580 presets hold the filter curve, digi boost and combined waveforms.
   - **MOS 6581R4AR 0687 14** and **CSG 8580R5 1690 25** are the defaults. They are the two chips reSIDfp's filter model was measured on, and the only presets with real measurements behind them.
   - The built-in presets everyone gets, and the defaults, are in `js/sid-presets.json`.
-  - Changes play from where the tune is. Adjusting a built-in preset creates an edited copy. **Save as 6581/8580 Preset…** keeps it. Your own presets save automatically.
+  - Changes play from where the tune is. Adjusting a built-in preset creates an edited copy. **Save as 6581/8580 Preset** keeps it. Your own presets save automatically.
   - Presets export and import as `ShallowSID - Sound - <name>.json`.
   - CheeseCutter/VICE-style chip profiles (6581R3 4885, …) use the older reSID-fp filter model, so they don't carry over.
 - While Sound settings are open, sliders are heard as you drag them. Scrubbing is off and pre-rendering pauses; when you leave Sound settings, the tune pre-renders again with the new sound.
@@ -61,18 +61,18 @@ Appearance (**Settings → Appearance**): choose the accent with the hue slider,
 
 Sync (**Settings → Playlist cloud sync**, optional and off by default):
 
-- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device…** and type it. Playlists, favorites, sound presets and play history (**Recently played**, **Your most played**) then stay the same everywhere. Play counts add up across devices.
+- **Turn On Sync** creates a sync key such as `XA3W-GK29-…`. On another device, point the camera at the QR code shown under the key, or tap **Scan QR Code from Another Device**, or **Use a Key from Another Device** and type it. Playlists, favorites, sound presets and play history (**Recently played**, **Your most played**) then stay the same everywhere. Play counts add up across devices.
 - There are no accounts. Everything is encrypted in the browser with the key, and the server only stores ciphertext under an ID derived from it. Lose the key and the synced copy is gone, but your local data stays.
 - **Sync This Device** pauses and resumes sync. The key is kept, so turning it back on catches up.
-- **Generate New Key…** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
+- **Generate New Key** starts a new synced copy. Devices on the old key stop syncing with this one until they switch too.
 - **Devices** lists everything using the key: OS, browser, when it last synced, and a place guessed from the time zone (no location permission). Tap an old device to remove it: sync moves to a new key, your other devices switch over on their next sync, and the removed one can't follow. Devices not yet updated to this version have to enter the new key by hand. The list is encrypted with the rest.
-- **Delete Synced Data…** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
+- **Delete Synced Data** removes the server copy and forgets the key. Nothing expires on its own. See [privacy.html](privacy.html).
 
 Tags:
 
 - Tunes can carry tags such as **Ballad**, **Title Tune** or **Digi Samples**, from a fixed list in [`js/tags-vocab.json`](js/tags-vocab.json). They show under the composer in Now Playing. Tap one for every tune with it. Home shows the most used tags, and typing `#` in search lists them.
 - A tag is on a whole tune or on one subtune. A subtune also shows the whole tune's tags.
-- Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags…** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
+- Only curators can tag. They get a **Tag** chip in Now Playing, **Edit Tags** in the **⋯** menu and the **T** key. The sheet toggles tags for **Whole Tune** or **Subtune N**. **Done**, or swiping it away, saves.
 - Tunes can show a tempo first in Now Playing. **~124 BPM** is an estimate from the sound (see [BPM estimates](#bpm-estimates-experimental)); **124 BPM** was set by a curator.
 - Curators set it in the same sheet, as a whole BPM from 20 to 300, for the whole tune or one subtune. A subtune's own wins, then the whole tune's, then the estimate. Empty the field to fall back to the one underneath, shown greyed out. **0** means no BPM, which also hides a wrong estimate.
 - Curators join with a one-time invite link from an admin, valid for two weeks. Accepting turns on Sync if it's off, since the rights live in your synced data. They then get a **Curation** tab right of **Settings**, with their edits. Use the same sync key on your other devices to curate there too.
@@ -95,10 +95,11 @@ Keyboard: **Space** plays or pauses. **Shift+←/→** skips. **F** toggles Favo
 Playlists:
 
 - Adding a tune (same subtune) that a playlist already has asks first. **Always Allow in This Playlist**, or **Allow Duplicates** in the playlist's **⋮** menu, stops asking for that playlist. Favorites keep each tune once.
-- **Save playlist file…** writes `ShallowSID - <name>.m3u8` with absolute Firebase mirror URLs. The subtune goes in an `#EXTSID:subtune=N` line.
+- **Save as new** copies the playlist with a new name, for example to keep Favorites as a normal playlist.
+- **Save as file** writes `ShallowSID - <name>.m3u8` with absolute Firebase mirror URLs. The subtune goes in an `#EXTSID:subtune=N` line.
   - On phones it opens the share sheet, so **Save to Files** puts it in iCloud Drive, or in Google Drive/Dropbox if their apps are installed.
   - In desktop Chrome/Edge a **Save as** dialog opens, so you can pick a synced cloud folder. Other browsers just download it.
-- **Import** (on **Playlists**): **Import File…** opens the system file picker, where the same cloud drives show up. **Open Link…** takes a pasted live or snapshot link and shows the playlist to save. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
+- **Import** (on **Playlists**): **Import File** opens the system file picker, where the same cloud drives show up. **Open Link** takes a pasted live or snapshot link and shows the playlist to save. It accepts `.m3u`/`.m3u8` with URLs, `hvsc/…` paths or plain HVSC paths such as `/MUSICIANS/H/Hubbard_Rob/Commando.sid`.
 - **Re-importing:** an identical playlist with the same name opens the existing copy. If contents differ, review additions, removals and subtune changes together, or apply a choice to the remaining changes of that kind. Choose the existing or imported order before saving. You can also keep both playlists. Updating keeps the playlist’s sharing link and play history.
 - **ZIP playlists:** import a `.zip` containing SID files, including renamed files or nested folders. Files are matched against the loaded catalogue using full SHA-1 fingerprints stored as Base64. Title, author, and release text are excluded so metadata edits still match; playback settings and music data must match. Only matching HVSC paths are saved, using each tune’s default subtune; unmatched files are counted and skipped. ZIP contents stay in the browser, with no song downloads or database lookups for matching. Stored and Deflate ZIPs are supported (128 MB archive limit; 1 MB per SID).
 - **Share** offers two kinds of link:
@@ -190,7 +191,7 @@ The tag ids live only in `js/tags-vocab.json`. `firestore.rules.in` is a templat
    tools/curators.py invite --role admin
    ```
 
-2. Invite curators from **Admin → Invite a Curator…** in the app (or `tools/curators.py invite`).
+2. Invite curators from **Admin → Invite a Curator** in the app (or `tools/curators.py invite`).
 3. `tools/curators.py list` lists everyone. `tools/curators.py off <id>` and `on <id>` turn anyone off and back on, admins too; in the app, admins can only switch curators.
 
 ## Deploying the Firebase rules

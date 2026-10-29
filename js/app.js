@@ -909,8 +909,8 @@ function renderPlaylists() {
   $("new-pl").addEventListener("click", create);
   $("new-pl-empty")?.addEventListener("click", create);
   $("import-pl").addEventListener("click", () => actionSheet("Import", [
-    { text: "Import Playlist File…", icon: "document-attach-outline", handler: () => dom.importInput.click() },
-    { text: "Open Playlist Link…", icon: "link", handler: () => openPlaylistLink() },
+    { text: "Import Playlist File", icon: "document-attach-outline", handler: () => dom.importInput.click() },
+    { text: "Open Playlist Link", icon: "link", handler: () => openPlaylistLink() },
   ]));
 }
 
@@ -973,12 +973,16 @@ function renderPlaylist(id) {
   $("pl-share").addEventListener("click", () => sharePlaylist(pl));
   $("pl-visibility")?.addEventListener("click", () => visibilityMenu(pl));
   $("pl-more").addEventListener("click", () => actionSheet(pl.name, [
-    { text: "Save playlist file…", icon: "download-outline", handler: () => exportPlaylist(pl) },
-    { text: "Share…", icon: "share-outline", handler: () => sharePlaylist(pl) },
-    ...(pl.share ? [{ text: "Stop Sharing Link", icon: "link-outline", handler: () => stopSharing(pl) }] : []),
     ...(pl.id === store.favorites()?.id ? [] : [{
       text: "Allow duplicates", toggle: { checked: !!pl.allowDuplicates, onChange: (on) => store.setAllowDuplicates(id, on) },
     }]),
+    { text: "Save as new", icon: "copy-outline", handler: async () => {
+      const name = await prompt("Save as new playlist", { value: nextPlaylistName(pl.name, store.playlists), confirm: "Save", validate: playlistNameError });
+      if (name !== null) saveAsPlaylist(name, store.get(id)?.items ?? pl.items);
+    } },
+    { text: "Save as file", icon: "download-outline", handler: () => exportPlaylist(pl) },
+    { text: "Share", icon: "share-outline", handler: () => sharePlaylist(pl) },
+    ...(pl.share ? [{ text: "Stop sharing", icon: "link-outline", handler: () => stopSharing(pl) }] : []),
     { text: "Rename", icon: "create-outline", handler: async () => {
       const name = await prompt("Rename playlist", { value: pl.name, validate: name => playlistNameError(name, id) });
       if (name !== null) { store.rename(id, name); render(); }
@@ -1261,18 +1265,18 @@ async function renderCuration(arg) {
       <div class="tag-avatar"><ion-icon name="${role === "admin" ? "shield-checkmark" : role ? "pricetags" : "close"}"></ion-icon></div>
       <h1 class="composer-name">${role ? `You're ${role === "admin" ? "an admin" : "a curator"}` : "Your curator rights are off"}</h1>
       <p class="composer-meta">${role
-        ? `Tag tunes with <strong>Tag</strong> in Now Playing, <strong>Edit Tags…</strong> in a tune's <strong>⋯</strong> menu, or the <strong>T</strong> key.`
+        ? `Tag tunes with <strong>Tag</strong> in Now Playing, <strong>Edit Tags</strong> in a tune's <strong>⋯</strong> menu, or the <strong>T</strong> key.`
         : "An admin has turned your curator rights off. They can turn them back on."}</p>
       ${sync.enabled || !role ? "" : `<p class="composer-meta">Turn on Sync in <strong>Settings</strong> to tag from your other devices too.</p>`}
       <div class="playlist-head composer-actions">
         <ion-button id="my-edits" fill="outline" href="#/curation/${esc(tags.cid)}">Your Edits</ion-button>
-        <ion-button id="leave-curation" fill="clear" color="medium">Stop Curating Here…</ion-button>
+        <ion-button id="leave-curation" fill="clear" color="medium">Stop Curating Here</ion-button>
       </div>
     </section>`);
   }
   if (tags.isAdmin) {
     sections.push(`<div class="playlist-head"><ion-button id="manage-tags">Manage Tags</ion-button><ion-button id="manage-lists" fill="outline">Manage Lists</ion-button></div><section id="tag-management" hidden></section><section id="list-management" hidden></section><h2 class="section-title">Curators</h2>
-      <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator…</ion-button></div>
+      <div class="playlist-head"><ion-button id="new-invite"><ion-icon slot="start" name="person-add-outline"></ion-icon>Invite a Curator</ion-button></div>
       <ion-list id="curator-list"><div class="empty"><ion-spinner></ion-spinner></div></ion-list>`);
   }
   if (!sections.length) sections.push(`<div class="empty"><p>Curators tag tunes. You need an invite link from an admin to become one.</p></div>`);
@@ -1713,7 +1717,7 @@ function searchResultsMenu(items = []) {
   });
   if (items.length) buttons.push(
     { text: "Save as Playlist", icon: "list", handler: () => saveAsPlaylist(title, items) },
-    ...(store.playlists.length ? [{ text: "Add to playlist…", icon: "add-circle-outline", handler: () => setTimeout(() => addSearchToPlaylist(items), 300) }] : []),
+    ...(store.playlists.length ? [{ text: "Add to playlist", icon: "add-circle-outline", handler: () => setTimeout(() => addSearchToPlaylist(items), 300) }] : []),
   );
   const sheet = actionSheet("Search results", buttons);
 }
@@ -1837,7 +1841,7 @@ function playlistNameError(name, exceptId) {
 
 function addToPlaylist(item) {
   actionSheet("Add to playlist", [
-    { text: "New playlist…", icon: "add", handler: async () => {
+    { text: "New playlist", icon: "add", handler: async () => {
       const name = await prompt("New playlist", { placeholder: "Name", confirm: "Create", validate: playlistNameError });
       if (name === null) return;
       store.create(name, [{ path: item.path, song: item.song }]);
@@ -1889,10 +1893,10 @@ function rowMenu(item, position) {
       { text: favorite ? "Remove from Favorites" : "Add to Favorites", icon: favorite ? "star-outline" : "star", handler: () => toggleFavorite(item) },
       { text: "Play next", icon: "return-down-forward", handler: () => (player.current ? player.playNext(item) : player.setQueue([item])) },
       { text: "Add to queue", icon: "list", handler: () => (player.current ? player.enqueue(item) : player.setQueue([item])) },
-      { text: "Add to playlist…", icon: "add-circle-outline", handler: () => setTimeout(() => addToPlaylist(item), 300) },
+      { text: "Add to playlist", icon: "add-circle-outline", handler: () => setTimeout(() => addToPlaylist(item), 300) },
       { text: "Go to folder", icon: "folder-open-outline", handler: () => go(`#/browse/${encodeURIComponent(item.dir)}`) },
-      { text: "Share…", icon: "share-outline", handler: () => shareTune(item) },
-      ...(tags.canTag ? [{ text: "Edit Tags…", icon: "pricetags-outline", handler: () => tagSheet.open(item) }] : []),
+      { text: "Share", icon: "share-outline", handler: () => shareTune(item) },
+      ...(tags.canTag ? [{ text: "Edit Tags", icon: "pricetags-outline", handler: () => tagSheet.open(item) }] : []),
       ...(tags.isAdmin ? [hotTuneOn(item.path)
         ? { text: "Remove from Hot Tunes", icon: "flame-outline", handler: () => toggleHotTune(item) }
         : { text: "Add to Hot Tunes", icon: "flame", handler: () => toggleHotTune(item) }] : []),
@@ -1901,7 +1905,7 @@ function rowMenu(item, position) {
   if (listOptions.playlistId) {
     const playlistId = listOptions.playlistId;
     if (!item.missing && item.songs > 1) {
-      buttons.push({ text: "Set subtune…", icon: "musical-notes-outline",
+      buttons.push({ text: "Set subtune", icon: "musical-notes-outline",
         handler: () => setTimeout(() => setPlaylistSubtune(playlistId, item, position), 300) });
     }
     buttons.push({ text: "Remove from playlist", role: "destructive", icon: "trash-outline", handler: () => {
@@ -1962,7 +1966,7 @@ function visibilityMenu(pl) {
   const url = liveShare.link(pl.share);
   actionSheet("Anyone with the link", [
     { text: "Copy Link", icon: "copy-outline", handler: () => copyText(url) },
-    { text: "Share…", icon: "share-outline", handler: () => shareUrl(pl.name, url) },
+    { text: "Share", icon: "share-outline", handler: () => shareUrl(pl.name, url) },
     { text: "Stop Sharing", role: "destructive", icon: "close-circle-outline", handler: () => stopSharing(pl) },
   ], { subHeader: url });
 }
