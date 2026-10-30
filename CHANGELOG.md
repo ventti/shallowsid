@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 - 2026-10-30
+
+### feat
+
+- **playlists:** add Save as new to the playlist menu ([`da4f79c`](../../commit/da4f79cac4cc15581024056ab1d445ddd6b50d0c))
+
+### fix
+
+- **ui:** remove ellipsis from menu items and buttons ([`7332c78`](../../commit/7332c78bfa57d56d60883d4bb34545cf11f2e1a2))
+
+### chore
+
+- add poster ([`d7cf91f`](../../commit/d7cf91ffdded00d4ef8b02c8d9c43a7ccc9869b8))
+
 ## 0.5.0 - 2026-10-28
 
 ### feat
