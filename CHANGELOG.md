@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.0 - 2026-10-31
+
+### feat
+
+- **install:** show install suggestions on Home and in Settings ([`726f433`](../../commit/726f43395d44b000812862d82870cd8acc7a1ae2))
+
+### fix
+
+- **install:** describe the install row without offline play ([`e246930`](../../commit/e24693077c5ec26264c012a9347da3cef872ce84))
+
 ## 0.8.0 - 2026-10-31
 
 ### feat
