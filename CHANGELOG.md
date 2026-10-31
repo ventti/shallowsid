@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 - 2026-10-31
+
+### feat
+
+- **sync:** make new sync keys an explicit choice and match the welcome sync options ([`d51818c`](../../commit/d51818caaf82d6636a369de3da3b25d6e5bba69e))
+
+### fix
+
+- **sync:** suggest the browser when passkeys are blocked and clarify sync key entry ([`31bc647`](../../commit/31bc647b38d8b4d0101a1ccd54cbfa05a07db18d))
+
 ## 0.7.0 - 2026-10-31
 
 ### feat
