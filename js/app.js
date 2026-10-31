@@ -173,7 +173,7 @@ const installCard = () => !install.available || installCardHidden() ? "" : `
   <ion-list inset class="install-card">
     <ion-item button detail="false" lines="none" data-install>
       <img slot="start" class="thumb" src="icons/icon-192.png" alt="">
-      <ion-label class="ion-text-wrap"><h2>Install ShallowSID</h2><p>Plays offline and opens from your home screen</p></ion-label>
+      <ion-label class="ion-text-wrap"><h2>Install ShallowSID</h2><p>Opens as an app from your home screen</p></ion-label>
       <ion-button slot="end" fill="clear" color="medium" data-install-hide aria-label="Hide install suggestion"><ion-icon slot="icon-only" name="close"></ion-icon></ion-button>
     </ion-item>
   </ion-list>`;
