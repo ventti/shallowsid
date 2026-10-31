@@ -4,6 +4,8 @@ import { browserLink, isInAppBrowser } from "../js/in-app-browser.js";
 
 const UA = {
   iPhoneSafari: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+  iPhoneChrome: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.90 Mobile/15E148 Safari/604.1",
+  iPhoneFirefox: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/132.0 Mobile/15E148 Safari/605.1.15",
   iPhoneWebView: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
   iPhoneInstagram: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0",
   androidChrome: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
@@ -17,6 +19,10 @@ test("in-app browsers are found; real browsers and the installed app are not", (
   for (const ua of [UA.iPhoneSafari, UA.androidChrome, UA.macChrome]) assert.ok(!isInAppBrowser(ua), ua);
   assert.ok(!isInAppBrowser(UA.iPhoneWebView, { standalone: true }));
   assert.ok(isInAppBrowser(UA.iPhoneSafari, { webView: true }));   // a WebView with the full Safari user agent
+});
+
+test("other browsers on iOS are not in-app browsers, though they are WebViews", () => {
+  for (const ua of [UA.iPhoneChrome, UA.iPhoneFirefox]) assert.ok(!isInAppBrowser(ua, { webView: true }), ua);
 });
 
 test("links to the system browser on iOS and Android, none elsewhere", () => {

@@ -5,12 +5,16 @@
 
 const APPS = /FBAN|FBAV|FB_IAB|Instagram|\bLine\/|LinkedInApp|Snapchat|MicroMessenger|musical_ly|BytedanceWebview|Telegram|Pinterest|Twitter|Discord|GSA\//;
 
+// Other browsers on iOS are WKWebViews too, so they also have `webView`.
+// shortcut: Brave on iOS sends the plain Safari user agent and still gets the question, find a better signal if users report it.
+const IOS_BROWSERS = /CriOS|FxiOS|EdgiOS|OPiOS|OPT\/|DuckDuckGo|Ddg\/|YaBrowser/;
+
 // `webView`: the page can send messages to the app around it, which only an
 // app's WebView allows (window.webkit.messageHandlers on iOS). Some apps,
 // Telegram on iOS for one, give their WebView the full Safari user agent.
 export function isInAppBrowser(ua, { standalone = false, webView = false } = {}) {
   if (standalone) return false;   // the installed app on iOS also has no "Safari/"
-  return webView || APPS.test(ua)
+  return (webView && !IOS_BROWSERS.test(ua)) || APPS.test(ua)
     || /; wv\)/.test(ua)                                           // Android WebView
     || (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua));      // iOS WKWebView
 }
