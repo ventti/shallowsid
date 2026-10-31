@@ -39,7 +39,8 @@ import { Install, registerServiceWorker } from "./install.js";
 import { Notices } from "./notices.js";
 import { dataWidget, syncWidget } from "./notice-widgets.js";
 import { fileName as userDataFileName, mergeImport, parseBundle, toBundle } from "./user-data.js";
-import { actionSheet, confirmDialog, duplicateDialog, esc, prompt, saveFile, subtuneDialog, thumb, toast, tuneRow } from "./ui.js";
+import { browserLink, isInAppBrowser } from "./in-app-browser.js";
+import { actionSheet, confirmDialog, duplicateDialog, esc, infoDialog, prompt, saveFile, subtuneDialog, thumb, toast, tuneRow } from "./ui.js";
 
 preventDoubleTapZoom(document);
 
@@ -1823,6 +1824,26 @@ function joinSyncLink(key) {
   else toast("Sync isn't available here", { color: "warning" });
 }
 
+// A browser inside another app (Telegram, Instagram, ...) has its own storage,
+// so playlists and sync from the user's browser or installed app are not here.
+// Asked once per visit.
+async function suggestBrowser() {
+  const ua = navigator.userAgent;
+  if (!isInAppBrowser(ua, navigator.standalone === true)) return;
+  try {
+    if (sessionStorage.getItem("shallowsid.inAppAsked")) return;
+    sessionStorage.setItem("shallowsid.inAppAsked", "1");
+  } catch {
+    // storage blocked: ask on each start
+  }
+  const message = "This browser is inside another app. It keeps its own data, apart from your browser and the installed ShallowSID app.";
+  const link = browserLink(location.href, ua);
+  if (!link) return infoDialog("Open in Your Browser", `${message} To use your playlists and sync, open ShallowSID in the installed app or in your browser.`);
+  if (await confirmDialog("Open in Your Browser?", `${message} If ShallowSID is installed, open it from your home screen instead.`, "Open in Browser", { cancel: "Stay Here", destructive: false })) {
+    location.href = link;
+  }
+}
+
 // ---- actions ----------------------------------------------------------------
 
 function toggleFavorite(item) {
@@ -2204,7 +2225,10 @@ try {
   await noticesReady;
   // Not over the dialog a sync key or invite link opens: once the user moves on.
   if (openedByLink) window.addEventListener("hashchange", () => notices.start(), { once: true });
-  else notices.start();
+  else {
+    await suggestBrowser();
+    notices.start();
+  }
 } catch (err) {
   searchError = err.message;
   dom.view.innerHTML = `<div class="empty"><p>${esc(err.message)}</p><p>Run <code>python3 tools/build_index.py</code> first.</p></div>`;

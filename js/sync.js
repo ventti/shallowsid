@@ -30,6 +30,12 @@
 // device that hasn't used the new copy for its key yet reads the old one as
 // the remote and the next push creates the new copy (`state.v2` = that key).
 //
+// A passkey (see passkey.js) can keep the key: its secret opens a record in
+// vaults2/ like a sync key does, and the record holds the sync key. Each
+// device that saved or used the passkey keeps the secret (`state.passkey`)
+// until sync is turned off, and writes this device's key to the record when
+// the key changes.
+//
 // The curator identity for tune tags (tags.js) syncs with the rest, so all
 // the user's devices tag as one curator.
 //
@@ -39,7 +45,7 @@
 import { FIREBASE } from "./sync-config.js";
 import { firestoreFetch } from "./firestore-fetch.js";
 import { ownerHash, tokenFor } from "./live-share-core.js";
-import { decryptJSON, deriveVault, encryptJSON, formatKey, generateDeviceKeys, generateKey, parseKey, unwrapKey, wrapKeyFor } from "./sync-crypto.js";
+import { decryptJSON, deriveVault, encryptJSON, formatKey, fromHex, generateDeviceKeys, generateKey, parseKey, toHex, unwrapKey, wrapKeyFor } from "./sync-crypto.js";
 import { EMPTY_CURATION, canonical, mergeSnapshots } from "./sync-merge.js";
 import { describeDevice } from "./device-info.js";
 
@@ -170,7 +176,7 @@ export class SyncService extends EventTarget {
   // Start (or restart) with a fresh key. Devices on the old key stop syncing
   // with this one; the old synced copy stays until deleted with that key.
   async turnOn() {
-    this.state = { key: formatKey(generateKey()), base: null, rev: null };
+    this.state = { key: formatKey(generateKey()), base: null, rev: null, passkey: this.state.passkey };
     this.persist();
     await this.syncNow();
   }
@@ -182,12 +188,48 @@ export class SyncService extends EventTarget {
   }
 
   // Join the data another device already syncs. Throws on a malformed key.
-  async useKey(text) {
+  async useKey(text, { passkey = this.state.passkey, passkeyFor } = {}) {
     const key = formatKey(parseKey(text));
     const base = this.state.left?.key === key ? this.state.left.base : null;
-    this.state = { key, base, rev: null };
+    this.state = { key, base, rev: null, passkey, passkeyFor };
     this.persist();
     await this.syncNow();
+  }
+
+  // Keep the key in the passkey with `secret` (passkey.js), for other browsers and apps.
+  async savePasskey(secret) {
+    const old = this.state.passkey;
+    if (old && old !== toHex(secret)) {
+      // A new passkey replaces the old one: delete its record.
+      const vault = await deriveVault(fromHex(old));
+      const doc = await this.get(this.url(vault.id));
+      if (doc) await this.remove(vault, revOf(doc));
+    }
+    this.state = { ...this.state, passkey: toHex(secret), passkeyFor: null };
+    this.persist();
+    await this.running;
+    await this.updatePasskey();
+    this.dispatchEvent(new Event("status"));
+  }
+
+  // Join the key kept in the passkey with `secret`. False when it keeps none.
+  async usePasskey(secret) {
+    const vault = await deriveVault(secret);
+    const doc = await this.get(this.url(vault.id));
+    if (!doc || doc.fields?.del?.booleanValue) return false;
+    const { key } = await decryptJSON(vault.aesKey, { c: doc.fields.c?.stringValue, iv: doc.fields.iv?.stringValue });
+    await this.useKey(key, { passkey: toHex(secret), passkeyFor: formatKey(parseKey(key)) });
+    return true;
+  }
+
+  // Write the key to the passkey's record when it isn't there yet.
+  async updatePasskey() {
+    if (!this.state.passkey || this.state.passkeyFor === this.state.key) return;
+    const vault = await deriveVault(fromHex(this.state.passkey));
+    const doc = await this.get(this.url(vault.id));
+    await this.push(vault, { key: this.state.key }, doc ? revOf(doc) : null);
+    this.state = { ...this.state, passkeyFor: this.state.key };
+    this.persist();
   }
 
   pause() {
@@ -230,6 +272,11 @@ export class SyncService extends EventTarget {
         if (!(err instanceof ConflictError) || attempt >= 2) throw err;   // another device wrote first: read again
       }
     }
+    if (this.state.passkey) {
+      const vault = await deriveVault(fromHex(this.state.passkey));
+      const doc = await this.get(this.url(vault.id));
+      if (doc) await this.remove(vault, revOf(doc));
+    }
     this.turnOff();
   }
 
@@ -257,6 +304,7 @@ export class SyncService extends EventTarget {
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
           await step();
+          await this.updatePasskey();
           this.setStatus("synced");
           return;
         } catch (err) {
@@ -303,7 +351,8 @@ export class SyncService extends EventTarget {
       this.persist();
       throw new Error("Sync moved to a new key on another device, without this one. To sync again, use the key from a device that still syncs.");
     }
-    this.state = { ...this.state, key, rev: null };
+    // The device that moved the key deleted the passkey's record (see moveWithout).
+    this.state = { ...this.state, key, rev: null, passkey: null, passkeyFor: null };
     this.persist();
     return this.syncOnce(moves + 1);
   }
@@ -327,7 +376,19 @@ export class SyncService extends EventTarget {
       throw err;
     }
     this.state = { ...this.state, key, base: structuredClone(data), devices: structuredClone(devices), rev, v2: key };
+    // The removed device can know the passkey's secret: delete its record. Saving
+    // to a passkey again makes a new passkey, with a new secret.
+    if (this.state.passkey) {
+      const pkVault = await deriveVault(fromHex(this.state.passkey));
+      const doc = await this.get(this.url(pkVault.id));
+      this.state = { ...this.state, passkey: null, passkeyFor: null };
+      if (doc) await this.remove(pkVault, revOf(doc)).catch((err) => console.error("sync passkey:", err));
+    }
     this.persist();
+  }
+
+  get hasPasskey() {
+    return !!this.state.passkey;
   }
 
   // ---- data ----------------------------------------------------------------

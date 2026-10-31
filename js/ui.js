@@ -132,15 +132,15 @@ export function infoDialog(header, message, button = "Got it") {
   });
 }
 
-export function confirmDialog(header, message, confirm = "Delete") {
+export function confirmDialog(header, message, confirm = "Delete", { cancel = "Cancel", destructive = true } = {}) {
   return new Promise((resolve) => {
     let ok = false;
     const alert = present("ion-alert", {
       header,
       message,
       buttons: [
-        { text: "Cancel", role: "cancel" },
-        { text: confirm, role: "destructive", handler: () => (ok = true) },
+        { text: cancel, role: "cancel" },
+        { text: confirm, role: destructive ? "destructive" : undefined, handler: () => (ok = true) },
       ],
     });
     alert.addEventListener("didDismiss", () => resolve(ok));

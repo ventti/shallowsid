@@ -60,6 +60,8 @@ async function hkdfBase(keyBytes) {
 const hkdf = (info) => ({ name: "HKDF", hash: "SHA-256", salt: enc.encode("shallowsid-sync-v1"), info: enc.encode(info) });
 
 const hex = (bits) => [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, "0")).join("");
+export const toHex = hex;
+export const fromHex = (text) => Uint8Array.from(text.match(/../g), (h) => parseInt(h, 16));
 
 export async function deriveVault(keyBytes) {
   const base = await hkdfBase(keyBytes);

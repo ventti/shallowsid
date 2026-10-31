@@ -304,6 +304,36 @@ test("a play conflicting with another device's push is counted once", async () =
   for (const d of [a, b]) assert.equal(d.store.mostPlayed()[0].count, 2);
 });
 
+test("a passkey keeps the key: another browser joins with its secret and follows key changes", async () => {
+  const a = device("a"), b = device("b"), c = device("c");
+  const secret = crypto.getRandomValues(new Uint8Array(32));
+  a.store.create("Shared");
+  await a.sync.turnOn();
+  await a.sync.savePasskey(secret);
+  assert.equal(docs.size, 2);
+  assert.ok(!JSON.stringify([...docs.values()]).includes(a.sync.key));   // ciphertext only
+  assert.equal(await b.sync.usePasskey(crypto.getRandomValues(new Uint8Array(32))), false);
+  assert.equal(await b.sync.usePasskey(secret), true);
+  assert.equal(b.sync.key, a.sync.key);
+  assert.deepEqual(b.store.playlists.map((p) => p.name), ["Shared"]);
+  await b.sync.turnOn();               // a new key from b goes to the passkey
+  assert.equal(await c.sync.usePasskey(secret), true);
+  assert.equal(c.sync.key, b.sync.key);
+  await c.sync.deleteRemote();         // deleting the synced data deletes the passkey's record too
+  assert.equal(await a.sync.usePasskey(secret), false);
+});
+
+test("removing a device deletes the passkey's record, which that device could read", async () => {
+  const a = device("a"), b = device("b");
+  const secret = crypto.getRandomValues(new Uint8Array(32));
+  await a.sync.turnOn();
+  await a.sync.savePasskey(secret);
+  await b.sync.usePasskey(secret);
+  await a.sync.removeDevice(b.sync.deviceId);
+  assert.equal(a.sync.hasPasskey, false);
+  assert.equal(await device("c").sync.usePasskey(secret), false);
+});
+
 test("knowing the id alone can't change or delete the synced copy", async () => {
   const a = device("a");
   a.store.create("Mine");

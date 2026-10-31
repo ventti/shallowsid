@@ -3,6 +3,7 @@
 
 import { parseKey } from "./sync-crypto.js";
 import { canScan, keyFromText, qrSvg, scanQR, syncLink } from "./sync-qr.js";
+import { canUsePasskeys, passkeySecret } from "./passkey.js";
 import { confirmDialog, esc, prompt, toast } from "./ui.js";
 
 const PRIVACY_URL = new URL("../privacy.html", import.meta.url).href;
@@ -46,6 +47,11 @@ export class SyncSheet {
     this.onImportData = onImportData;
     this.onExportData = onExportData;
     this.root = document.getElementById("sync-sheet");
+    this.passkeys = false;
+    canUsePasskeys().then((ok) => {
+      this.passkeys = ok;
+      if (ok && !this.root.hidden) this.render();
+    });
     sync.addEventListener("status", () => this.render());
     this.root.addEventListener("click", (e) => this.onClick(e));
     this.root.addEventListener("ionChange", (e) => {
@@ -69,6 +75,9 @@ export class SyncSheet {
   joinItems(last = true) {
     const scan = canScan();
     return `
+      ${this.passkeys ? `<ion-item button detail="false" id="sync-passkey-use">
+        <ion-icon slot="start" name="finger-print-outline" color="primary"></ion-icon><ion-label color="primary">Use Key from Passkey</ion-label>
+      </ion-item>` : ""}
       <ion-item button detail="false" id="sync-join" ${last && !scan ? `lines="none"` : ""}>
         <ion-icon slot="start" name="key-outline" color="primary"></ion-icon><ion-label color="primary">Use a Key from Another Device</ion-label>
       </ion-item>
@@ -127,11 +136,16 @@ export class SyncSheet {
       <ion-list inset>
         <ion-item lines="none"><div class="sync-qr" id="sync-qr">${this.qr?.key === s.key ? this.qr.svg : ""}</div></ion-item>
         <ion-item lines="none"><ion-label class="sync-key">${esc(s.key)}</ion-label></ion-item>
-        <ion-item button detail="false" id="sync-copy" lines="none">
+        <ion-item button detail="false" id="sync-copy" ${this.passkeys ? "" : `lines="none"`}>
           <ion-icon slot="start" name="copy-outline" color="primary"></ion-icon><ion-label color="primary">Copy Key</ion-label>
         </ion-item>
+        ${this.passkeys ? `<ion-item button detail="false" id="sync-passkey-save" lines="none">
+          <ion-icon slot="start" name="finger-print-outline" color="primary"></ion-icon>
+          <ion-label color="primary">${s.hasPasskey ? "Save Key to New Passkey" : "Save Key to Passkey"}</ion-label>
+        </ion-item>` : ""}
       </ion-list>
       <p class="sound-note">On another device, scan the code or choose <strong>Use a Key from Another Device</strong>.
+        ${this.passkeys ? `With a passkey, your other browsers and apps that share your passwords can choose <strong>Use Key from Passkey</strong>.` : ""}
         Keep your key safe. We cannot recover synced data without it.</p>
 
       <h3 class="sound-section">Change key</h3>
@@ -244,6 +258,18 @@ export class SyncSheet {
           break;
         case "sync-join":
           return this.promptJoin();
+        case "sync-passkey-save": {
+          const secret = await passkeySecret({ create: true });
+          if (secret) await s.savePasskey(secret);
+          break;
+        }
+        case "sync-passkey-use": {
+          if (s.hasKey && !(await confirmDialog("Switch sync key?",
+            "This device stops syncing with its current key and joins the devices that use the key in the passkey.", "Switch"))) return;
+          const secret = await passkeySecret();
+          if (secret && !(await s.usePasskey(secret))) toast("This passkey has no sync key", { color: "warning" });
+          break;
+        }
         case "sync-scan": {
           const text = await scanQR((t) => { try { return !!parseKey(keyFromText(t)); } catch { return false; } })
             .catch((err) => { throw err.name === "NotAllowedError" ? new Error("Camera access was not allowed") : err; });
