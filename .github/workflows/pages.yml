@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      export_tags:
+        description: Export tune tags from Firestore (else use the live site's tags)
+        type: boolean
+        default: false
   schedule:
     # HVSC is released about twice a year (around June/July and December/January):
     # rebuild the catalogue every Monday in those months to pick up a new release.
@@ -95,12 +100,20 @@ jobs:
       - name: Build song catalogue
         run: python3 tools/build_index.py --out _site --keep-archive
 
+      # Each export reads every tag document. Only the nightly run and a manual
+      # run with export_tags export; other runs keep the live site's tags.
+      - name: Reuse live tune tags
+        id: live_tags
+        if: github.event.schedule != '41 4 * * *' && !inputs.export_tags
+        continue-on-error: true
+        run: curl -fsS --retry 3 --create-dirs -o _site/data/tags-index.json https://sid.extend.fi/data/tags-index.json
+
       # Tune tags from Firestore into data/tags-index.json, read with a service
       # account (Workload Identity Federation, no key stored). Skipped until the
       # repo variables are set; the app then just shows no tags from the index.
       - name: Authenticate to Google Cloud
         id: gcp
-        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != ''
+        if: vars.GCP_WORKLOAD_IDENTITY_PROVIDER != '' && steps.live_tags.outcome != 'success'
         uses: google-github-actions/auth@v3
         with:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
