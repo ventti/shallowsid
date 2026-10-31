@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 - 2026-10-31
+
+### feat
+
+- **sync:** keep the sync key in a passkey and suggest the browser for in-app browsers ([`234129a`](../../commit/234129ab719bf5c65039046aa4dea55115630b89))
+
 ## 0.6.0 - 2026-10-30
 
 ### feat
