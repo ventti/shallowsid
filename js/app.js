@@ -1840,12 +1840,10 @@ async function suggestBrowser({ force = false } = {}) {
       // storage blocked: ask on each start
     }
   }
-  const message = force
-    ? "This browser can't use passkeys. Browsers inside other apps often can't. They also keep their own data, apart from your browser and the installed ShallowSID app."
-    : "This browser is inside another app. It keeps its own data, apart from your browser and the installed ShallowSID app.";
+  const message = `For the best experience${force ? " and to use your passkey" : ""}, open ShallowSID in the ShallowSID app or in your browser.`;
   const link = browserLink(location.href, ua);
-  if (!link) return infoDialog("Open in Your Browser", `${message} To use your playlists and sync, open ShallowSID in the installed app or in your browser.`);
-  if (await confirmDialog("Open in Your Browser?", `${message} If ShallowSID is installed, open it from your home screen instead.`, "Open in Browser", { cancel: "Stay Here", destructive: false })) {
+  if (!link) return infoDialog("Open ShallowSID app", message, "OK");
+  if (await confirmDialog("Open ShallowSID app?", message, "Open in Browser", { cancel: "Stay Here", destructive: false })) {
     location.href = link;
   }
 }
