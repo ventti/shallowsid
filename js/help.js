@@ -50,7 +50,7 @@ export const HELP = [
       <p>Playlist cloud sync keeps playlists, favorites, sound presets, appearance and play history the same across your devices. Open <a href="#/settings/sync">Playlist cloud sync</a> in Settings.</p>
       <h2>Connect another device</h2>
       <ol>
-        <li>On your first device, choose <strong>Turn On Sync</strong>.</li>
+        <li>On your first device, choose <strong>Create New Sync Key</strong>.</li>
         <li>On the other device, scan the first device’s QR code with its camera, or choose <strong>Enter Sync Key</strong> and type the same key.</li>
       </ol>
       <p>Use the same key on every device you want to keep together. Existing data is merged when you join.</p>

@@ -103,12 +103,13 @@ export class SyncSheet {
     if (!s.hasKey) {
       this.root.innerHTML = `
         <h3 class="sound-section">Sync</h3>
+        <ion-list inset>${this.joinItems()}</ion-list>
         <ion-list inset>
-          <ion-item button detail="false" id="sync-on">
-            <ion-icon slot="start" name="cloud-upload-outline" color="primary"></ion-icon><ion-label color="primary">Turn On Sync</ion-label>
+          <ion-item button detail="false" id="sync-on" lines="none">
+            <ion-icon slot="start" name="add-circle-outline" color="primary"></ion-icon><ion-label color="primary">Create New Sync Key</ion-label>
           </ion-item>
-          ${this.joinItems()}
         </ion-list>
+        <p class="sound-note">Create a new key only on your first device. Your other devices use its key.</p>
         ${s.removed ? `<p class="sound-note">Sync moved to a new key on another device, without this one. To sync again, use the key from a device that still syncs.</p>` : ""}
         <ion-list inset>${dataItems}</ion-list>
         ${intro}`;

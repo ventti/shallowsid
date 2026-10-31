@@ -6,7 +6,8 @@
 //     which opens <site> with the key in the link (#/sync/<key>, never sent
 //     to a server); <site> asks before joining, as for a scanned QR code.
 //   * on <site>: Enter Sync Key
-// Without <site>: Turn On Sync or Enter Sync Key, then the status.
+// Without <site>: the Sync page's ways to use an existing key, or Create New
+// Sync Key, then the status.
 //
 // {widget:data <site>}: the data as a file (user-data.js). Export Data
 // elsewhere, Import Data on <site>.
@@ -53,7 +54,7 @@ export function syncWidget(sync, sheet) {
       let items;
       if (!elsewhere) {
         items = sync.hasKey ? statusRow(sync)
-          : !arg ? `${item("on", "cloud-upload-outline", "Turn On Sync")}${item("join", "key-outline", "Enter Sync Key", { last: true })}`
+          : !arg ? `${sheet.joinItems(false)}${item("on", "add-circle-outline", "Create New Sync Key", { last: true })}`
           : item("join", "key-outline", "Enter Sync Key", { last: true });
       } else if (!sync.hasKey) {
         items = item("on", "cloud-upload-outline", "Turn On Sync", { last: true });
@@ -69,6 +70,8 @@ export function syncWidget(sync, sheet) {
     };
 
     const onClick = async (e) => {
+      // The Sync page's ways to use an existing key (passkey, typed key, QR code).
+      if (e.target.closest("ion-item[id^='sync-']")) return sheet.onClick(e);
       const action = e.target.closest("[data-sync-action]")?.dataset.syncAction;
       try {
         switch (action) {
