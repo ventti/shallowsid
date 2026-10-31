@@ -1072,6 +1072,10 @@ ion-action-sheet.subtune-sheet .action-sheet-icon {
   border-radius: 50%;
 }
 
+.install-card ion-item {
+  --background: var(--app-surface);
+}
+
 .recent-searches ion-item {
   --min-height: 60px;
 }

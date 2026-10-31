@@ -158,8 +158,33 @@ sync.addEventListener("status", () => {
 });
 const syncIcon = () => (!sync.enabled ? "cloud-outline" : sync.status === "error" ? "cloud-offline-outline" : "cloud-done-outline");
 const install = new Install();
+const INSTALL_HIDDEN_KEY = "shallowsid.installHidden";
+const INSTALL_HIDE_MS = 30 * 86_400_000;
+// Home's install card, until closed; it comes back INSTALL_HIDE_MS later.
+const installCardHidden = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem(INSTALL_HIDDEN_KEY)) < INSTALL_HIDE_MS;
+  } catch {
+    return false;
+  }
+};
+// A row like a recent search: tap to install, the cross hides it.
+const installCard = () => !install.available || installCardHidden() ? "" : `
+  <ion-list inset class="install-card">
+    <ion-item button detail="false" lines="none" data-install>
+      <img slot="start" class="thumb" src="icons/icon-192.png" alt="">
+      <ion-label class="ion-text-wrap"><h2>Install ShallowSID</h2><p>Plays offline and opens from your home screen</p></ion-label>
+      <ion-button slot="end" fill="clear" color="medium" data-install-hide aria-label="Hide install suggestion"><ion-icon slot="icon-only" name="close"></ion-icon></ion-button>
+    </ion-item>
+  </ion-list>`;
 const showInstall = () => ($("install-app-wrap").hidden = !install.available);
-install.addEventListener("change", showInstall);
+install.addEventListener("change", () => {
+  showInstall();
+  if (!index) return;   // the first render shows the card and the row
+  const { name, arg } = currentRoute();
+  if (name === "settings" && !arg) renderSettings();
+  else if (isHome() && !searchQuery) renderSearch();
+});
 showInstall();
 $("install-app").addEventListener("click", (e) => {
   e.preventDefault();
@@ -578,6 +603,7 @@ function renderSearch() {
     const cards = shelfCards();
     dom.view.innerHTML = `
       <section class="home">
+        ${installCard()}
         <h2 class="section-title">Popular composers</h2>
         ${chips(popularComposers())}
         ${composers.length ? `<h2 class="section-title">Your favorite composers</h2>${chips(composers)}` : ""}
@@ -796,7 +822,12 @@ function renderSettingsPage(page) {
 function renderSettings() {
   setChrome({ title: "Settings", tab: "settings" });
   dom.infinite.disabled = true;
-  dom.view.innerHTML = `<div class="settings-container sound-content"><ion-list inset class="settings-menu">
+  dom.view.innerHTML = `<div class="settings-container sound-content">${install.available ? `<ion-list inset class="settings-menu">
+    <ion-item button detail="false" id="install-open" lines="none">
+      <ion-icon slot="start" name="download-outline" color="primary"></ion-icon>
+      <ion-label color="primary">Install App</ion-label>
+    </ion-item>
+  </ion-list>` : ""}<ion-list inset class="settings-menu">
     ${syncSheet ? `<ion-item button detail="true" id="sync-open" href="#/settings/sync" lines="full">
       <ion-icon slot="start" name="${syncIcon()}"></ion-icon>
       <ion-label>Playlist cloud sync</ion-label>
@@ -2105,6 +2136,16 @@ function listItemAt(el) {
 }
 
 dom.view.addEventListener("click", (e) => {
+  if (e.target.closest("[data-install-hide]")) {
+    e.stopPropagation();
+    try {
+      localStorage.setItem(INSTALL_HIDDEN_KEY, String(Date.now()));
+    } catch {
+      // storage blocked: hidden until the next render
+    }
+    return e.target.closest(".install-card").remove();
+  }
+  if (e.target.closest("[data-install], #install-open")) return install.install();
   const recentRemove = e.target.closest("[data-recent-remove]");
   if (recentRemove) {
     e.stopPropagation();
