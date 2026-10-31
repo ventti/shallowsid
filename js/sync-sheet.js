@@ -3,7 +3,7 @@
 
 import { parseKey } from "./sync-crypto.js";
 import { canScan, keyFromText, qrSvg, scanQR, syncLink } from "./sync-qr.js";
-import { canUsePasskeys, passkeySecret } from "./passkey.js";
+import { PasskeyBlocked, canUsePasskeys, passkeySecret } from "./passkey.js";
 import { confirmDialog, esc, prompt, toast } from "./ui.js";
 
 const PRIVACY_URL = new URL("../privacy.html", import.meta.url).href;
@@ -41,8 +41,9 @@ function deviceRow(d, self, last) {
 }
 
 export class SyncSheet {
-  constructor(sync, { onOpen, onImportData, onExportData }) {
+  constructor(sync, { onOpen, onImportData, onExportData, onPasskeyBlocked }) {
     this.sync = sync;
+    this.onPasskeyBlocked = onPasskeyBlocked;
     this.onOpen = onOpen;
     this.onImportData = onImportData;
     this.onExportData = onExportData;
@@ -79,7 +80,7 @@ export class SyncSheet {
         <ion-icon slot="start" name="finger-print-outline" color="primary"></ion-icon><ion-label color="primary">Use Key from Passkey</ion-label>
       </ion-item>` : ""}
       <ion-item button detail="false" id="sync-join" ${last && !scan ? `lines="none"` : ""}>
-        <ion-icon slot="start" name="key-outline" color="primary"></ion-icon><ion-label color="primary">Use a Key from Another Device</ion-label>
+        <ion-icon slot="start" name="key-outline" color="primary"></ion-icon><ion-label color="primary">Enter Sync Key</ion-label>
       </ion-item>
       ${scan ? `<ion-item button detail="false" id="sync-scan" ${last ? `lines="none"` : ""}>
         <ion-icon slot="start" name="qr-code-outline" color="primary"></ion-icon><ion-label color="primary">Scan QR Code from Another Device</ion-label>
@@ -130,8 +131,6 @@ export class SyncSheet {
       </ion-list>
       <p class="sound-note">Turning sync off pauses only this device. The key is kept, so turning it back on catches up.</p>
 
-      ${this.devicesSection()}
-
       <h3 class="sound-section">Sync key</h3>
       <ion-list inset>
         <ion-item lines="none"><div class="sync-qr" id="sync-qr">${this.qr?.key === s.key ? this.qr.svg : ""}</div></ion-item>
@@ -144,9 +143,11 @@ export class SyncSheet {
           <ion-label color="primary">${s.hasPasskey ? "Save Key to New Passkey" : "Save Key to Passkey"}</ion-label>
         </ion-item>` : ""}
       </ion-list>
-      <p class="sound-note">On another device, scan the code or choose <strong>Use a Key from Another Device</strong>.
+      <p class="sound-note">On another device, scan the code or choose <strong>Enter Sync Key</strong>.
         ${this.passkeys ? `With a passkey, your other browsers and apps that share your passwords can choose <strong>Use Key from Passkey</strong>.` : ""}
         Keep your key safe. We cannot recover synced data without it.</p>
+
+      ${this.devicesSection()}
 
       <h3 class="sound-section">Change key</h3>
       <ion-list inset>
@@ -219,7 +220,7 @@ export class SyncSheet {
     await this.join(key);
   }
 
-  // "Use a Key from Another Device": ask for the key, then join.
+  // "Enter Sync Key": ask for the key, then join.
   async promptJoin() {
     const key = await prompt("Use a sync key", { placeholder: "XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX", confirm: "Use" });
     if (key !== null) await this.join(key);
@@ -296,7 +297,8 @@ export class SyncSheet {
           break;
       }
     } catch (err) {
-      toast(err.message, { color: "danger" });
+      if (err instanceof PasskeyBlocked && this.onPasskeyBlocked) this.onPasskeyBlocked();
+      else toast(err.message, { color: "danger" });
     }
     this.render();
   }

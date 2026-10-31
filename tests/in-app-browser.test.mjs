@@ -15,7 +15,8 @@ const UA = {
 test("in-app browsers are found; real browsers and the installed app are not", () => {
   for (const ua of [UA.iPhoneWebView, UA.iPhoneInstagram, UA.androidWebView, UA.androidTelegram]) assert.ok(isInAppBrowser(ua), ua);
   for (const ua of [UA.iPhoneSafari, UA.androidChrome, UA.macChrome]) assert.ok(!isInAppBrowser(ua), ua);
-  assert.ok(!isInAppBrowser(UA.iPhoneWebView, true));
+  assert.ok(!isInAppBrowser(UA.iPhoneWebView, { standalone: true }));
+  assert.ok(isInAppBrowser(UA.iPhoneSafari, { webView: true }));   // a WebView with the full Safari user agent
 });
 
 test("links to the system browser on iOS and Android, none elsewhere", () => {

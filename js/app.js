@@ -141,6 +141,7 @@ const syncSheet = sync.configured ? new SyncSheet(sync, {
   onOpen: () => go("#/settings/sync"),
   onImportData: () => $("user-data-input").click(),
   onExportData: exportUserData,
+  onPasskeyBlocked: () => suggestBrowser({ force: true }),
 }) : null;
 const liveShare = new LiveShare({ store });
 liveShare.addEventListener("error", (e) => toast(e.detail, { color: "danger" }));
@@ -1827,16 +1828,21 @@ function joinSyncLink(key) {
 // A browser inside another app (Telegram, Instagram, ...) has its own storage,
 // so playlists and sync from the user's browser or installed app are not here.
 // Asked once per visit.
-async function suggestBrowser() {
+// `force` (passkeys refused) asks even when this browser wasn't recognised.
+async function suggestBrowser({ force = false } = {}) {
   const ua = navigator.userAgent;
-  if (!isInAppBrowser(ua, navigator.standalone === true)) return;
-  try {
-    if (sessionStorage.getItem("shallowsid.inAppAsked")) return;
-    sessionStorage.setItem("shallowsid.inAppAsked", "1");
-  } catch {
-    // storage blocked: ask on each start
+  if (!force) {
+    if (!isInAppBrowser(ua, { standalone: navigator.standalone === true, webView: !!globalThis.webkit?.messageHandlers })) return;
+    try {
+      if (sessionStorage.getItem("shallowsid.inAppAsked")) return;
+      sessionStorage.setItem("shallowsid.inAppAsked", "1");
+    } catch {
+      // storage blocked: ask on each start
+    }
   }
-  const message = "This browser is inside another app. It keeps its own data, apart from your browser and the installed ShallowSID app.";
+  const message = force
+    ? "This browser can't use passkeys. Browsers inside other apps often can't. They also keep their own data, apart from your browser and the installed ShallowSID app."
+    : "This browser is inside another app. It keeps its own data, apart from your browser and the installed ShallowSID app.";
   const link = browserLink(location.href, ua);
   if (!link) return infoDialog("Open in Your Browser", `${message} To use your playlists and sync, open ShallowSID in the installed app or in your browser.`);
   if (await confirmDialog("Open in Your Browser?", `${message} If ShallowSID is installed, open it from your home screen instead.`, "Open in Browser", { cancel: "Stay Here", destructive: false })) {

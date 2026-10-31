@@ -5,8 +5,8 @@
 //   * elsewhere: Turn On Sync, then the key, Copy Key, and Continue on <site>,
 //     which opens <site> with the key in the link (#/sync/<key>, never sent
 //     to a server); <site> asks before joining, as for a scanned QR code.
-//   * on <site>: Use a Key from Another Device
-// Without <site>: Turn On Sync or Use a Key from Another Device, then the status.
+//   * on <site>: Enter Sync Key
+// Without <site>: Turn On Sync or Enter Sync Key, then the status.
 //
 // {widget:data <site>}: the data as a file (user-data.js). Export Data
 // elsewhere, Import Data on <site>.
@@ -53,8 +53,8 @@ export function syncWidget(sync, sheet) {
       let items;
       if (!elsewhere) {
         items = sync.hasKey ? statusRow(sync)
-          : !arg ? `${item("on", "cloud-upload-outline", "Turn On Sync")}${item("join", "key-outline", "Use a Key from Another Device", { last: true })}`
-          : item("join", "key-outline", "Use a Key from Another Device", { last: true });
+          : !arg ? `${item("on", "cloud-upload-outline", "Turn On Sync")}${item("join", "key-outline", "Enter Sync Key", { last: true })}`
+          : item("join", "key-outline", "Enter Sync Key", { last: true });
       } else if (!sync.hasKey) {
         items = item("on", "cloud-upload-outline", "Turn On Sync", { last: true });
       } else if (!sync.enabled) {

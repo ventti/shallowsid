@@ -5,9 +5,12 @@
 
 const APPS = /FBAN|FBAV|FB_IAB|Instagram|\bLine\/|LinkedInApp|Snapchat|MicroMessenger|musical_ly|BytedanceWebview|Telegram|Pinterest|Twitter|Discord|GSA\//;
 
-export function isInAppBrowser(ua, standalone = false) {
+// `webView`: the page can send messages to the app around it, which only an
+// app's WebView allows (window.webkit.messageHandlers on iOS). Some apps,
+// Telegram on iOS for one, give their WebView the full Safari user agent.
+export function isInAppBrowser(ua, { standalone = false, webView = false } = {}) {
   if (standalone) return false;   // the installed app on iOS also has no "Safari/"
-  return APPS.test(ua)
+  return webView || APPS.test(ua)
     || /; wv\)/.test(ua)                                           // Android WebView
     || (/iPhone|iPad|iPod/.test(ua) && !/Safari\//.test(ua));      // iOS WKWebView
 }

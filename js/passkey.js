@@ -11,6 +11,11 @@ const random = () => crypto.getRandomValues(new Uint8Array(32));
 const prf = { prf: { eval: { first: SALT } } };
 
 const unsupported = () => new Error("This browser can't keep the sync key in a passkey. Use the key or the QR code instead.");
+// Faster than a person can cancel: the browser refused without showing a passkey window.
+const REFUSED_MS = 1000;
+
+// Thrown when the browser refuses passkeys, as browsers inside other apps do.
+export class PasskeyBlocked extends Error {}
 
 export async function canUsePasskeys() {
   if (!globalThis.PublicKeyCredential || !globalThis.isSecureContext) return false;
@@ -24,6 +29,7 @@ export async function canUsePasskeys() {
 // The passkey's secret (32 bytes), or null when the user cancelled. `create`
 // makes the passkey first.
 export async function passkeySecret({ create = false } = {}) {
+  const started = Date.now();
   try {
     let id = null;
     if (create) {
@@ -50,6 +56,8 @@ export async function passkeySecret({ create = false } = {}) {
     if (!first) throw unsupported();
     return new Uint8Array(first);
   } catch (err) {
+    // shortcut: a time limit tells a refusal from a cancel, use a better signal when browsers give one
+    if (err.name === "NotAllowedError" && Date.now() - started < REFUSED_MS) throw new PasskeyBlocked("This browser can't use passkeys");
     if (["NotAllowedError", "AbortError"].includes(err.name)) return null;
     throw err;
   }
