@@ -167,9 +167,20 @@ export function mergeCuration(base = EMPTY_CURATION, local = EMPTY_CURATION, rem
 // Notes are only ever added: keep both sides', this device's on a clash.
 const mergeNotes = (local = {}, remote = {}) => ({ ...remote, ...local });
 
+// The passkey that keeps the sync key ({secret, id} or null, see sync.js).
+// The side that changed it since base wins. A side without the field (an
+// older version) changes nothing. Joining takes the other devices' passkey,
+// or keeps this one's (joined with it) when they have none.
+export function mergePasskey(base = null, local = null, remote, joining = false) {
+  if (remote === undefined) return local;
+  if (joining) return remote ?? local;
+  return same(local, base) ? remote : local;
+}
+
 export function mergeSnapshots(base, local, remote, now = Date.now()) {
   base ??= EMPTY_SNAPSHOT;
   return {
+    passkey: mergePasskey(base.passkey, local.passkey, remote.passkey, base === EMPTY_SNAPSHOT && remote !== local),
     playlists: foldFavorites(mergeLists(base.playlists, local.playlists, remote.playlists)),
     soundPresets: mergeLists(base.soundPresets, local.soundPresets, remote.soundPresets),
     // First sync with existing data (joining another device): its preferences win.

@@ -16,7 +16,8 @@ const isObject = (value) => !!value && typeof value === "object" && !Array.isArr
 const list = (value) => (Array.isArray(value) ? value : []);
 
 // The file's content, from a sync snapshot and the search history.
-export function toBundle(snapshot, searches = [], now = new Date()) {
+// The passkey secret opens the sync key: it stays out of the unencrypted file.
+export function toBundle({ passkey, ...snapshot }, searches = [], now = new Date()) {
   return { format: FORMAT, version: VERSION, exported: now.toISOString(), data: snapshot, searches };
 }
 

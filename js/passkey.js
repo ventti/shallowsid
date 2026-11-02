@@ -26,8 +26,17 @@ export async function canUsePasskeys() {
   }
 }
 
-// The passkey's secret (32 bytes), or null when the user cancelled. `create`
-// makes the passkey first.
+// Ask the password manager to remove a passkey that keeps no sync key. Not
+// awaited: in Safari 27 on macOS 26 the call never ends. Browsers without the
+// Signal API (Firefox) keep the passkey.
+export function forgetPasskey(id) {
+  if (!id || !globalThis.PublicKeyCredential?.signalUnknownCredential) return;
+  PublicKeyCredential.signalUnknownCredential({ rpId: location.hostname, credentialId: id })
+    .catch((err) => console.error("passkey:", err));
+}
+
+// {secret (32 bytes), id (base64url credential id)}, or null when the user
+// cancelled. `create` makes the passkey first.
 export async function passkeySecret({ create = false } = {}) {
   const started = Date.now();
   try {
@@ -42,7 +51,7 @@ export async function passkeySecret({ create = false } = {}) {
         extensions: prf,
       } });
       const result = credential.getClientExtensionResults().prf;
-      if (result?.results?.first) return new Uint8Array(result.results.first);
+      if (result?.results?.first) return { secret: new Uint8Array(result.results.first), id: credential.id };
       if (!result?.enabled) throw unsupported();
       id = credential.rawId;   // some browsers give the secret only when the passkey is used
     }
@@ -54,7 +63,7 @@ export async function passkeySecret({ create = false } = {}) {
     } });
     const first = credential.getClientExtensionResults().prf?.results?.first;
     if (!first) throw unsupported();
-    return new Uint8Array(first);
+    return { secret: new Uint8Array(first), id: credential.id };
   } catch (err) {
     // shortcut: a time limit tells a refusal from a cancel, use a better signal when browsers give one
     if (err.name === "NotAllowedError" && Date.now() - started < REFUSED_MS) throw new PasskeyBlocked("This browser can't use passkeys");

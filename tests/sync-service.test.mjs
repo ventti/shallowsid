@@ -304,15 +304,23 @@ test("a play conflicting with another device's push is counted once", async () =
   for (const d of [a, b]) assert.equal(d.store.mostPlayed()[0].count, 2);
 });
 
+// Passkeys the fake password manager was asked to remove (Signal API).
+const forgotten = [];
+globalThis.location = { hostname: "example.test" };
+globalThis.PublicKeyCredential = { signalUnknownCredential: async ({ credentialId }) => { forgotten.push(credentialId); } };
+const newPasskey = (id) => ({ secret: crypto.getRandomValues(new Uint8Array(32)), id });
+
 test("a passkey keeps the key: another browser joins with its secret and follows key changes", async () => {
   const a = device("a"), b = device("b"), c = device("c");
-  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const secret = newPasskey("pk1");
   a.store.create("Shared");
   await a.sync.turnOn();
   await a.sync.savePasskey(secret);
   assert.equal(docs.size, 2);
   assert.ok(!JSON.stringify([...docs.values()]).includes(a.sync.key));   // ciphertext only
-  assert.equal(await b.sync.usePasskey(crypto.getRandomValues(new Uint8Array(32))), false);
+  forgotten.length = 0;
+  assert.equal(await b.sync.usePasskey(newPasskey("stale")), false);
+  assert.deepEqual(forgotten, ["stale"]);   // a passkey without a sync key is removed
   assert.equal(await b.sync.usePasskey(secret), true);
   assert.equal(b.sync.key, a.sync.key);
   assert.deepEqual(b.store.playlists.map((p) => p.name), ["Shared"]);
@@ -325,13 +333,50 @@ test("a passkey keeps the key: another browser joins with its secret and follows
 
 test("removing a device deletes the passkey's record, which that device could read", async () => {
   const a = device("a"), b = device("b");
-  const secret = crypto.getRandomValues(new Uint8Array(32));
+  const secret = newPasskey("pk1");
   await a.sync.turnOn();
   await a.sync.savePasskey(secret);
   await b.sync.usePasskey(secret);
   await a.sync.removeDevice(b.sync.deviceId);
   assert.equal(a.sync.hasPasskey, false);
   assert.equal(await device("c").sync.usePasskey(secret), false);
+});
+
+test("every device knows the passkey: any of them drops it, and the others remove it too", async () => {
+  const a = device("a"), b = device("b"), c = device("c");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await c.sync.useKey(a.sync.key);
+  await a.sync.savePasskey(newPasskey("pk1"));
+  await b.sync.syncNow();
+  assert.equal(b.sync.hasPasskey, true);   // b never used the passkey
+  await b.sync.savePasskey(newPasskey("pk2"));   // a new passkey replaces the old one
+  forgotten.length = 0;
+  await a.sync.syncNow();
+  assert.deepEqual(forgotten, ["pk1"]);
+  forgotten.length = 0;
+  await b.sync.removeDevice(c.sync.deviceId);   // b removes c: the passkey goes on every device kept
+  await a.sync.syncNow();
+  assert.deepEqual(forgotten, ["pk2", "pk2"]);
+  assert.equal(a.sync.hasPasskey, false);
+  assert.equal(b.sync.hasPasskey, false);
+  await b.sync.savePasskey(newPasskey("pk3"));
+  await a.sync.syncNow();
+  await b.sync.removeDevice("gone");   // another move, then a new passkey before a follows
+  await b.sync.savePasskey(newPasskey("pk4"));
+  await a.sync.syncNow();
+  await b.sync.syncNow();
+  assert.equal(a.sync.state.passkey?.id, "pk4");
+  assert.equal(b.sync.state.passkey?.id, "pk4");
+});
+
+test("the passkey's secret stays out of the exported file", async () => {
+  const { toBundle } = await import("../js/user-data.js");
+  const a = device("a");
+  await a.sync.turnOn();
+  await a.sync.savePasskey(newPasskey("pk1"));
+  assert.ok(a.sync.snapshot().passkey);
+  assert.ok(!JSON.stringify(toBundle(a.sync.snapshot())).includes(a.sync.snapshot().passkey.secret));
 });
 
 test("knowing the id alone can't change or delete the synced copy", async () => {

@@ -261,15 +261,15 @@ export class SyncSheet {
         case "sync-join":
           return this.promptJoin();
         case "sync-passkey-save": {
-          const secret = await passkeySecret({ create: true });
-          if (secret) await s.savePasskey(secret);
+          const passkey = await passkeySecret({ create: true });
+          if (passkey) await s.savePasskey(passkey);
           break;
         }
         case "sync-passkey-use": {
           if (s.hasKey && !(await confirmDialog("Switch sync key?",
             "This device stops syncing with its current key and joins the devices that use the key in the passkey.", "Switch"))) return;
-          const secret = await passkeySecret();
-          if (secret && !(await s.usePasskey(secret))) toast("This passkey has no sync key", { color: "warning" });
+          const passkey = await passkeySecret();
+          if (passkey && !(await s.usePasskey(passkey))) toast("This passkey has no sync key", { color: "warning" });
           break;
         }
         case "sync-scan": {
