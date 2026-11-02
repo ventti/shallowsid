@@ -292,8 +292,9 @@ export class Player extends EventTarget {
     }
   }
 
-  // Try each configured source in turn (mirror, official HVSC, local copy).
+  // Try each configured source in turn (mirror, official HVSC, local hvsc/ copy).
   async fetchSid(item) {
+    if (item.bytes) return item.bytes;   // a file added from this device (local-sids.js)
     let lastError = null;
     for (const url of this.sidUrls(item)) {
       try {

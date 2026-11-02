@@ -11,8 +11,8 @@ const FLAG_RSID = 1 << 0;
 const FLAG_MULTI_SID = 1 << 5;
 // The per-subtune "sid" column's bits, as tools/build_index.py writes them.
 const SID = { analysed: 1 << 0, filter: 1 << 1, ring: 1 << 2, sync: 1 << 3, digi: 1 << 4, basic: 1 << 5, cia: 1 << 6, custom: 1 << 7 };
-const CLOCKS = ["", "PAL", "NTSC", "PAL/NTSC"];
-const MODELS = ["", "6581", "8580", "6581/8580"];
+export const CLOCKS = ["", "PAL", "NTSC", "PAL/NTSC"];
+export const MODELS = ["", "6581", "8580", "6581/8580"];
 
 export const INDEX_URL = new URL("../data/index.json", import.meta.url).href;
 

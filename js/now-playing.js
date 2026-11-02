@@ -94,7 +94,7 @@ export class NowPlaying {
     // The composer is a link to their page ("<?>" means unknown).
     const openComposer = () => {
       const author = p.current?.author;
-      if (!author || author === "<?>") return;
+      if (!author || author === "<?>" || p.current.local) return;
       this.close();
       this.onOpenComposer(author);
     };
@@ -183,7 +183,12 @@ export class NowPlaying {
     el.art.querySelector("ion-icon").hidden = true;
     el.title.textContent = item.title;
     el.author.textContent = item.author;
-    el.author.classList.toggle("is-link", item.author !== "<?>");
+    // A file added from this device is not in HVSC, playlists or sync (local-sids.js).
+    const hvsc = !item.local;
+    el.author.classList.toggle("is-link", hvsc && item.author !== "<?>");
+    el.author.tabIndex = hvsc ? 0 : -1;
+    if (hvsc) el.author.setAttribute("role", "link");
+    else el.author.removeAttribute("role");
     el.released.textContent = item.released;
     const badges = [item.model, item.clock, item.rsid && "RSID", item.multiSid && "Multi-SID", ...featureBadges(item)].filter(Boolean);
     el.badges.innerHTML = badges.map((b) => `<ion-badge color="medium">${esc(b)}</ion-badge>`).join("");
@@ -193,7 +198,7 @@ export class NowPlaying {
       return `<ion-select-option value="${i + 1}">Subtune ${i + 1}${len ? ` · ${formatTime(len)}` : ""}</ion-select-option>`;
     }).join("");
     el.subtune.value = String(item.song);
-    el.fav.hidden = el.share.hidden = false;
+    el.fav.hidden = el.share.hidden = el.add.hidden = el.folder.hidden = el.tagList.hidden = !hvsc;
     this.refreshFavorite();
     this.refreshTags();
     document.title = `${item.title} – ${item.author} · ShallowSID`;

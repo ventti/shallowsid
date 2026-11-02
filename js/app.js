@@ -14,6 +14,7 @@ import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
 import { AppearanceSettings, DEFAULT_HUE, accentRgb } from "./appearance.js";
 import { RomStore } from "./roms.js";
+import { LocalSidStore, localItem } from "./local-sids.js";
 import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSER_ALIASES } from "./suggestions.js";
@@ -94,6 +95,9 @@ const player = new Player({
 const romStore = new RomStore();
 player.romsReady = romStore.load().then((entries) => { player.roms = entries; }).catch(() => {});
 const romSheet = new RomSheet(romStore, (entries) => player.setRoms(entries));
+const localSids = new LocalSidStore();
+let localItems = null;          // the SID files added on this device, once read
+let localError = null;
 connectMediaSession(player);
 const soundSheet = new SoundSheet(sound);
 // Hand the engine a new setup only when it really changes.
@@ -782,7 +786,11 @@ function renderBrowse(dir) {
   const { dirs, tunes } = index.list(dir);
   dom.view.innerHTML = `
     ${dir ? `<p class="breadcrumb">${esc(dir)}</p>` : ""}
-    <ion-list class="dir-list">${dirs.map((d) => `
+    <ion-list class="dir-list">${dir ? "" : `
+      <ion-item button detail="true" href="#/local" lines="full">
+        <ion-icon slot="start" name="phone-portrait-outline" color="primary"></ion-icon>
+        <ion-label>My SID Files</ion-label>
+      </ion-item>`}${dirs.map((d) => `
       <ion-item button detail="true" href="#/browse/${encodeURIComponent(d)}" lines="full">
         <ion-icon slot="start" name="folder-outline" color="primary"></ion-icon>
         <ion-label>${esc(d.split("/").pop().replace(/_/g, " "))}</ion-label>
@@ -793,6 +801,87 @@ function renderBrowse(dir) {
   const items = sortResults(tunes.map((t) => asItem(t)), listSort());
   showList($("dir-tunes"), items, { all: true });
   $("play-all")?.addEventListener("click", () => items.length && player.setQueue(items, 0));
+}
+
+// SID files added from this device: in this browser only (local-sids.js).
+async function loadLocalSids() {
+  try {
+    localItems = (await localSids.load()).flatMap((record) => {
+      try {
+        return [localItem(record)];
+      } catch {
+        return [];   // a damaged record: leave it out
+      }
+    });
+    localError = null;
+  } catch (err) {
+    localItems = [];
+    localError = err.message;
+  }
+}
+
+async function renderLocal() {
+  setChrome({
+    title: "My SID Files",
+    back: "#/browse",
+    tab: "browse",
+    actions: `<ion-button id="local-add" aria-label="Add SID files"><ion-icon slot="icon-only" name="add"></ion-icon></ion-button>`,
+  });
+  dom.infinite.disabled = true;
+  $("local-add").addEventListener("click", () => $("local-sid-input").click());
+  if (!localItems) {
+    dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
+    await loadLocalSids();
+    if (currentRoute().name !== "local") return;
+  }
+  if (localError) {
+    dom.view.innerHTML = `<div class="empty"><p>${esc(localError)}</p></div>`;
+    return;
+  }
+  if (!localItems.length) {
+    dom.view.innerHTML = `<div class="empty"><ion-icon name="phone-portrait-outline" class="empty-icon"></ion-icon>
+      <p>Play <code>.sid</code> files from your device. They stay in this browser.</p>
+      <ion-button id="local-add-empty">Add SID Files</ion-button></div>`;
+    $("local-add-empty").addEventListener("click", () => $("local-sid-input").click());
+    return;
+  }
+  dom.view.innerHTML = `
+    <div class="playlist-head">
+      <ion-button id="local-play"><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
+      <ion-button id="local-shuffle" fill="outline"><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+    </div>
+    ${localItems.length > 1 ? sortBar("list", tuneCount(localItems.length)) : ""}
+    <div id="local-tunes"></div>`;
+  const items = sortResults(localItems, listSort());
+  showList($("local-tunes"), items, { all: true });
+  $("local-play").addEventListener("click", () => player.setQueue(items, 0));
+  $("local-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
+}
+
+async function addLocalSids(files) {
+  let failed = 0;
+  for (const file of files) {
+    try {
+      await localSids.add(file.name, await file.arrayBuffer());
+    } catch {
+      failed++;
+    }
+  }
+  await loadLocalSids();
+  if (failed) toast(files.length === 1 ? "That isn't a valid SID file" : `${failed} of ${files.length} files aren't valid SID files`, { color: "warning" });
+  if (currentRoute().name === "local") render();
+  else go("#/local");
+}
+
+async function removeLocalSid(item) {
+  if (!(await confirmDialog("Remove SID file?", `“${item.title}” will be removed from this browser.`, "Remove"))) return;
+  try {
+    await localSids.remove(item.id);
+  } catch (err) {
+    return toast(err.message, { color: "danger" });
+  }
+  await loadLocalSids();
+  if (currentRoute().name === "local") render();
 }
 
 function renderSettingsPage(page) {
@@ -1819,6 +1908,7 @@ function render() {
   if (syncSheet) syncSheet.root.hidden = true;
   switch (name) {
     case "browse": return renderBrowse(arg);
+    case "local": return renderLocal();
     case "playlists": return renderPlaylists();
     case "settings": return renderSettingsPage(arg);
     case "help": return renderHelp(arg);
@@ -1943,6 +2033,14 @@ async function setPlaylistSubtune(playlistId, item, position) {
 
 function rowMenu(item, position) {
   const buttons = [];
+  // Not synced, so not in favorites, playlists, links or tags yet.
+  if (item.local) {
+    return actionSheet(item.title, [
+      { text: "Play next", icon: "return-down-forward", handler: () => (player.current ? player.playNext(item) : player.setQueue([item])) },
+      { text: "Add to queue", icon: "list", handler: () => (player.current ? player.enqueue(item) : player.setQueue([item])) },
+      { text: "Remove", role: "destructive", icon: "trash-outline", handler: () => removeLocalSid(item) },
+    ]);
+  }
   if (!item.missing) {
     const favorite = store.isFavorite(item);
     buttons.push(
@@ -2204,6 +2302,11 @@ $("user-data-input").addEventListener("change", (e) => {
   e.target.value = "";
   if (file) importUserData(file);
 });
+$("local-sid-input").addEventListener("change", (e) => {
+  const files = [...e.target.files];
+  e.target.value = "";
+  if (files.length) addLocalSids(files);
+});
 dom.importInput.addEventListener("change", (e) => {
   const file = e.target.files[0];
   e.target.value = "";
@@ -2230,10 +2333,12 @@ player.addEventListener("track", ({ detail: { item } }) => {
   });
   // Curators see others' edits at once; everyone else reads the deployed index,
   // so playing tunes still doesn't talk to Firestore.
+  refreshRowMarks();
+  // Local files stay out of the synced play history.
+  if (item.local) return void (uncounted = null);
   if (tags.canTag) tags.refresh(item).catch((err) => console.error("tags:", err));
   uncounted = item;
   store.addRecent(item);
-  refreshRowMarks();
 });
 player.addEventListener("error", ({ detail }) => {
   if (/memory access out of bounds/i.test(detail.message)) {
@@ -2252,8 +2357,8 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "Space") { e.preventDefault(); player.toggle(); }
   else if (e.key === "ArrowRight" && e.shiftKey) player.next();
   else if (e.key === "ArrowLeft" && e.shiftKey) player.previous();
-  else if (e.key === "f" && player.current) toggleFavorite(player.current);
-  else if (e.key === "t" && player.current && tags.canTag) tagSheet.open(player.current);
+  else if (e.key === "f" && player.current && !player.current.local) toggleFavorite(player.current);
+  else if (e.key === "t" && player.current && !player.current.local && tags.canTag) tagSheet.open(player.current);
 });
 
 try {
