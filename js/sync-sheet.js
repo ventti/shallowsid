@@ -286,7 +286,7 @@ export class SyncSheet {
           break;
         case "sync-new-key":
           if (await confirmDialog("Generate a new key?",
-            "This device starts a new synced copy under a new key. Devices on the old key stop syncing with it until they use the new key too. The old copy stays on the server: delete it first if you no longer need it.",
+            `This device starts a new synced copy under a new key. Devices on the old key stop syncing with it until they use the new key too. The old copy stays on the server: delete it first if you no longer need it.${s.hasPasskey ? " The passkey is removed. Save the new key to a passkey again if you need one." : ""}`,
             "Generate")) {
             await s.turnOn();
           }

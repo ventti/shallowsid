@@ -52,7 +52,7 @@ const { SyncService } = await import("../js/sync.js");
 const { PlaylistStore } = await import("../js/playlists.js");
 const { SoundSettings } = await import("../js/sound-settings.js");
 const { AppearanceSettings, DEFAULT_HUE } = await import("../js/appearance.js");
-const { deriveVault, parseKey } = await import("../js/sync-crypto.js");
+const { deriveVault, formatKey, generateKey, parseKey } = await import("../js/sync-crypto.js");
 
 const config = { apiKey: "test-key", projectId: "test" };
 function device(name) {
@@ -324,7 +324,7 @@ test("a passkey keeps the key: another browser joins with its secret and follows
   assert.equal(await b.sync.usePasskey(secret), true);
   assert.equal(b.sync.key, a.sync.key);
   assert.deepEqual(b.store.playlists.map((p) => p.name), ["Shared"]);
-  await b.sync.turnOn();               // a new key from b goes to the passkey
+  await b.sync.useKey(formatKey(generateKey()));   // a key change on b goes to the passkey
   assert.equal(await c.sync.usePasskey(secret), true);
   assert.equal(c.sync.key, b.sync.key);
   await c.sync.deleteRemote();         // deleting the synced data deletes the passkey's record too
@@ -368,6 +368,25 @@ test("every device knows the passkey: any of them drops it, and the others remov
   await b.sync.syncNow();
   assert.equal(a.sync.state.passkey?.id, "pk4");
   assert.equal(b.sync.state.passkey?.id, "pk4");
+});
+
+test("a new key drops the passkey: the old key's holders know its secret", async () => {
+  const a = device("a"), b = device("b");
+  const secret = newPasskey("pk1");
+  await a.sync.turnOn();
+  await b.sync.useKey(a.sync.key);
+  await a.sync.savePasskey(secret);
+  await b.sync.syncNow();
+  const oldKey = a.sync.key;
+  forgotten.length = 0;
+  await a.sync.turnOn();
+  assert.notEqual(a.sync.key, oldKey);
+  assert.equal(a.sync.hasPasskey, false);
+  assert.equal(await device("c").sync.usePasskey(secret), false);   // the record is gone
+  await b.sync.syncNow();                                          // b stays on the old key
+  assert.equal(b.sync.hasPasskey, false);
+  assert.equal(b.sync.state.base.passkey, null);                   // the old copy holds no secret
+  assert.deepEqual(forgotten, ["pk1", "pk1", "pk1"]);              // a, c's failed use, b
 });
 
 test("the passkey's secret stays out of the exported file", async () => {

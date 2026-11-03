@@ -181,8 +181,17 @@ export class SyncService extends EventTarget {
 
   // Start (or restart) with a fresh key. Devices on the old key stop syncing
   // with this one; the old synced copy stays until deleted with that key.
+  // The passkey is dropped: everyone with the old key knows its secret.
   async turnOn() {
-    this.state = { key: formatKey(generateKey()), base: null, rev: null, passkey: this.state.passkey };
+    const passkey = this.state.passkey;
+    if (passkey) {
+      this.state = { ...this.state, passkey: null, passkeyFor: null };
+      this.persist();
+      await this.running;
+      await this.syncNow();   // the old copy forgets the secret, and devices on the old key remove the passkey
+      await this.dropPasskey(passkey).catch((err) => console.error("sync passkey:", err));
+    }
+    this.state = { key: formatKey(generateKey()), base: null, rev: null };
     this.persist();
     await this.syncNow();
   }
