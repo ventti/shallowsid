@@ -181,15 +181,20 @@ export class SyncService extends EventTarget {
 
   // Start (or restart) with a fresh key. Devices on the old key stop syncing
   // with this one; the old synced copy stays until deleted with that key.
-  // The passkey is dropped: everyone with the old key knows its secret.
+  // The passkey is dropped first: everyone with the old key knows its secret.
+  // Without network nothing changes, and the old key stays in use.
   async turnOn() {
     const passkey = this.state.passkey;
     if (passkey) {
+      const offline = new Error("Can't reach the sync server. Try again when you're online.");
+      await this.running;
+      await this.dropPasskey(passkey).catch((err) => { throw err instanceof TypeError ? offline : err; });   // the passkey stays
       this.state = { ...this.state, passkey: null, passkeyFor: null };
       this.persist();
-      await this.running;
-      await this.syncNow();   // the old copy forgets the secret, and devices on the old key remove the passkey
-      await this.dropPasskey(passkey).catch((err) => console.error("sync passkey:", err));
+      // The old copy forgets the secret, and devices on the old key remove the passkey.
+      // Also when paused. If this fails, the next sync on the old key finishes it.
+      await (this.running = this.run(() => this.syncOnce()).finally(() => (this.running = null)));
+      if (this.status === "error") throw offline;
     }
     this.state = { key: formatKey(generateKey()), base: null, rev: null };
     this.persist();
@@ -241,10 +246,10 @@ export class SyncService extends EventTarget {
   // Delete the record of a passkey that stops working and ask the password
   // manager to remove the passkey.
   async dropPasskey(passkey) {
-    forgetPasskey(passkey.id);
     const vault = await deriveVault(fromHex(passkey.secret));
     const doc = await this.get(this.url(vault.id));
     if (doc) await this.remove(vault, revOf(doc));
+    forgetPasskey(passkey.id);
   }
 
   // Write the key to the passkey's record when it isn't there yet.
@@ -269,7 +274,8 @@ export class SyncService extends EventTarget {
   turnOff() {
     clearTimeout(this.timer);
     this.syncDue = 0;
-    this.state = this.state.key && this.state.base ? { left: { key: this.state.key, base: this.state.base } } : {};
+    // The kept base leaves out the passkey's secret, which opens later keys.
+    this.state = this.state.key && this.state.base ? { left: { key: this.state.key, base: { ...this.state.base, passkey: undefined } } } : {};
     this.persist();
     this.setStatus("off");
   }

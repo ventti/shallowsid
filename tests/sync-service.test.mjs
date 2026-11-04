@@ -389,6 +389,26 @@ test("a new key drops the passkey: the old key's holders know its secret", async
   assert.deepEqual(forgotten, ["pk1", "pk1", "pk1"]);              // a, c's failed use, b
 });
 
+test("a new key without network changes nothing: the passkey and the old key stay", async () => {
+  const a = device("a");
+  const secret = newPasskey("pk1");
+  await a.sync.turnOn();
+  await a.sync.savePasskey(secret);
+  const oldKey = a.sync.key;
+  const online = globalThis.fetch;
+  globalThis.fetch = async () => { throw new TypeError("offline"); };
+  forgotten.length = 0;
+  await assert.rejects(a.sync.turnOn(), /Can't reach the sync server/);
+  globalThis.fetch = online;
+  assert.equal(a.sync.key, oldKey);
+  assert.equal(a.sync.hasPasskey, true);
+  assert.deepEqual(forgotten, []);
+  await a.sync.turnOn();                // online again: works
+  assert.notEqual(a.sync.key, oldKey);
+  assert.equal(a.sync.hasPasskey, false);
+  assert.equal(await device("c").sync.usePasskey(secret), false);
+});
+
 test("the passkey's secret stays out of the exported file", async () => {
   const { toBundle } = await import("../js/user-data.js");
   const a = device("a");
