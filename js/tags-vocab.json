@@ -427,6 +427,14 @@
           "label": "Hypnotic"
         },
         {
+          "id": "laid-back",
+          "label": "Laid-back"
+        },
+        {
+          "id": "majestic",
+          "label": "Majestic"
+        },
+        {
           "id": "melancholic",
           "label": "Melancholic"
         },
@@ -444,6 +452,10 @@
           "label": "Mysterious"
         },
         {
+          "id": "nostalgic",
+          "label": "Nostalgic"
+        },
+        {
           "id": "playful",
           "label": "Playful"
         },
@@ -452,8 +464,20 @@
           "label": "Quirky"
         },
         {
+          "id": "sentimental",
+          "label": "Sentimental"
+        },
+        {
           "id": "spooky",
           "label": "Spooky"
+        },
+        {
+          "id": "triumphant",
+          "label": "Triumphant"
+        },
+        {
+          "id": "uplifting",
+          "label": "Uplifting"
         },
         {
           "id": "uptempo",
@@ -518,6 +542,11 @@
           "id": "loader",
           "label": "Loader",
           "description": "Plays while a game loads"
+        },
+        {
+          "id": "music-disk",
+          "label": "Music Disk",
+          "description": "Was first released in a music disk."
         },
         {
           "id": "note",
