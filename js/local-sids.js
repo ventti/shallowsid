@@ -54,6 +54,17 @@ export function localItem({ id, name, bytes }) {
 
 export const isLocal = (item) => !!item?.local;
 
+// Items with the same title get "(2)", "(3)", ... in the given (added) order.
+export function numberTitles(items) {
+  const used = new Set();
+  for (const item of items) {
+    let title = item.title;
+    for (let n = 2; used.has(title); n++) title = `${item.title} (${n})`;
+    used.add(item.title = title);
+  }
+  return items;
+}
+
 export class LocalSidStore {
   constructor() { this.db = null; }
 

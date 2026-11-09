@@ -14,7 +14,7 @@ import { toEngineConfig } from "./sound-profile.js";
 import { SoundSettings } from "./sound-settings.js";
 import { AppearanceSettings, DEFAULT_HUE, accentRgb } from "./appearance.js";
 import { RomStore } from "./roms.js";
-import { LocalSidStore, localItem } from "./local-sids.js";
+import { LocalSidStore, localItem, numberTitles } from "./local-sids.js";
 import { RomSheet } from "./rom-sheet.js";
 import { SoundSheet } from "./sound-sheet.js";
 import { COMPOSER_ALIASES } from "./suggestions.js";
@@ -786,15 +786,15 @@ function renderBrowse(dir) {
   const { dirs, tunes } = index.list(dir);
   dom.view.innerHTML = `
     ${dir ? `<p class="breadcrumb">${esc(dir)}</p>` : ""}
-    <ion-list class="dir-list">${dir ? "" : `
-      <ion-item button detail="true" href="#/local" lines="full">
-        <ion-icon slot="start" name="phone-portrait-outline" color="primary"></ion-icon>
-        <ion-label>My SID Files</ion-label>
-      </ion-item>`}${dirs.map((d) => `
+    <ion-list class="dir-list">${dirs.map((d) => `
       <ion-item button detail="true" href="#/browse/${encodeURIComponent(d)}" lines="full">
         <ion-icon slot="start" name="folder-outline" color="primary"></ion-icon>
         <ion-label>${esc(d.split("/").pop().replace(/_/g, " "))}</ion-label>
-      </ion-item>`).join("")}
+      </ion-item>`).join("")}${dir ? "" : `
+      <ion-item button detail="true" href="#/local" lines="full">
+        <ion-icon slot="start" name="folder-outline" color="primary"></ion-icon>
+        <ion-label>Local songs</ion-label>
+      </ion-item>`}
     </ion-list>
     ${tunes.length > 1 ? sortBar("list", tuneCount(tunes.length)) : ""}
     <div id="dir-tunes"></div>`;
@@ -806,13 +806,13 @@ function renderBrowse(dir) {
 // SID files added from this device: in this browser only (local-sids.js).
 async function loadLocalSids() {
   try {
-    localItems = (await localSids.load()).flatMap((record) => {
+    localItems = numberTitles((await localSids.load()).flatMap((record) => {
       try {
         return [localItem(record)];
       } catch {
         return [];   // a damaged record: leave it out
       }
-    });
+    }));
     localError = null;
   } catch (err) {
     localItems = [];
@@ -822,13 +822,11 @@ async function loadLocalSids() {
 
 async function renderLocal() {
   setChrome({
-    title: "My SID Files",
+    title: "Local songs",
     back: "#/browse",
     tab: "browse",
-    actions: `<ion-button id="local-add" aria-label="Add SID files"><ion-icon slot="icon-only" name="add"></ion-icon></ion-button>`,
   });
   dom.infinite.disabled = true;
-  $("local-add").addEventListener("click", () => $("local-sid-input").click());
   if (!localItems) {
     dom.view.innerHTML = `<div class="empty"><ion-spinner></ion-spinner></div>`;
     await loadLocalSids();
@@ -849,6 +847,7 @@ async function renderLocal() {
     <div class="playlist-head">
       <ion-button id="local-play"><ion-icon slot="start" name="play"></ion-icon>Play</ion-button>
       <ion-button id="local-shuffle" fill="outline"><ion-icon slot="start" name="shuffle"></ion-icon>Shuffle</ion-button>
+      <ion-button id="local-add" fill="outline"><ion-icon slot="start" name="add"></ion-icon>Add</ion-button>
     </div>
     ${localItems.length > 1 ? sortBar("list", tuneCount(localItems.length)) : ""}
     <div id="local-tunes"></div>`;
@@ -856,6 +855,7 @@ async function renderLocal() {
   showList($("local-tunes"), items, { all: true });
   $("local-play").addEventListener("click", () => player.setQueue(items, 0));
   $("local-shuffle").addEventListener("click", () => player.setQueue(shuffle(items), 0));
+  $("local-add").addEventListener("click", () => $("local-sid-input").click());
 }
 
 async function addLocalSids(files) {
@@ -2038,6 +2038,7 @@ function rowMenu(item, position) {
     return actionSheet(item.title, [
       { text: "Play next", icon: "return-down-forward", handler: () => (player.current ? player.playNext(item) : player.setQueue([item])) },
       { text: "Add to queue", icon: "list", handler: () => (player.current ? player.enqueue(item) : player.setQueue([item])) },
+      { text: "Save As", icon: "download-outline", handler: () => saveSid(item) },
       { text: "Remove", role: "destructive", icon: "trash-outline", handler: () => removeLocalSid(item) },
     ]);
   }
@@ -2050,6 +2051,7 @@ function rowMenu(item, position) {
       { text: "Add to playlist", icon: "add-circle-outline", handler: () => setTimeout(() => addToPlaylist(item), 300) },
       { text: "Go to folder", icon: "folder-open-outline", handler: () => go(`#/browse/${encodeURIComponent(item.dir)}`) },
       { text: "Share", icon: "share-outline", handler: () => shareTune(item) },
+      { text: "Save As", icon: "download-outline", handler: () => saveSid(item) },
       ...(tags.canTag ? [{ text: "Edit Tags", icon: "pricetags-outline", handler: () => tagSheet.open(item) }] : []),
       ...(tags.isAdmin ? [hotTuneOn(item.path)
         ? { text: "Remove from Hot Tunes", icon: "flame-outline", handler: () => toggleHotTune(item) }
@@ -2068,6 +2070,14 @@ function rowMenu(item, position) {
     } });
   }
   actionSheet(item.title || item.path, buttons);
+}
+
+async function saveSid(item) {
+  try {
+    await saveFile(item.name, await player.fetchSid(item), "audio/prs.sid", { title: item.title, description: "SID file", extension: ".sid" });
+  } catch (err) {
+    toast(err.message, { color: "danger" });
+  }
 }
 
 async function exportPlaylist(pl) {

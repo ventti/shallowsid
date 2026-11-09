@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { localItem, parseSid, sidId } from "../js/local-sids.js";
+import { localItem, numberTitles, parseSid, sidId } from "../js/local-sids.js";
 
 function sid({ magic = "PSID", version = 2, songs = 3, start = 2, title = "Tune", author = "Me", flags = 0x14 } = {}) {
   const bytes = new Uint8Array(0x7c + 4);
@@ -45,4 +45,9 @@ test("a local item has a stable id and path, and keeps its bytes", async () => {
   assert.equal(item.song, 2);
   assert.equal(item.local, true);
   assert.equal(item.bytes, bytes);
+});
+
+test("same titles get a number in added order", () => {
+  const items = numberTitles([{ title: "A" }, { title: "B" }, { title: "A" }, { title: "A (2)" }, { title: "A" }]);
+  assert.deepEqual(items.map((i) => i.title), ["A", "B", "A (2)", "A (2) (2)", "A (3)"]);
 });
