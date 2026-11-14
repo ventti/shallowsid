@@ -138,7 +138,16 @@ Run the tests:
 
 ```sh
 node --test "tests/*.test.mjs"
+python3 -m unittest discover -s tests -p "test_*.py"
 ```
+
+All tests must pass before a push. Install [pre-commit](https://pre-commit.com) and its pre-push hook one time after the clone:
+
+```sh
+pre-commit install
+```
+
+To run the hook by hand, use `pre-commit run --hook-stage pre-push --all-files`.
 
 In the devtools console, `shallowsid.player` and `shallowsid.store` are exposed for poking around.
 

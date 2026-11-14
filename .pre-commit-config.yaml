@@ -1,0 +1,19 @@
+# Run all tests before each push. Install the hook with `pre-commit install`.
+default_install_hook_types: [pre-push]
+default_stages: [pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: js-tests
+        name: JS tests
+        entry: node --test "tests/*.test.mjs"
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: python-tests
+        name: Python tests
+        entry: python3 -m unittest discover -s tests -p "test_*.py"
+        language: system
+        pass_filenames: false
+        always_run: true
