@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.10.0 - 2026-11-14
+
+### feat
+
+- **local:** show Local songs in Browse, number same titles, add Save As for tunes ([`6cc511e`](../../commit/6cc511e41a59ab30188f690426aba33b5a1ba23a))
+- **sync:** sync the passkey and remove stale passkeys from the password manager ([`59075ff`](../../commit/59075ff89d934547f6e53ba53794f879b0e1ac61))
+- **local:** play SID files added from the device in My SID Files ([`6617eaa`](../../commit/6617eaa89a30233675f4f1ea0f980484a5f93584))
+
+### fix
+
+- **sync:** keep the old key and passkey when a new key can't reach the server ([`48eb79b`](../../commit/48eb79bd78b58d53841e98ec8e78612c6a3ca6f1))
+- **sync:** drop the passkey when a new sync key is generated ([`48c3c11`](../../commit/48c3c11125cccb3f09a76fedcd83c51609992558))
+
+### chore
+
+- **tests:** run all tests in a pre-push hook ([`9d62c2e`](../../commit/9d62c2ef941adf177fc734650075dda87ebbd879))
+
 ## 0.9.0 - 2026-10-31
 
 ### feat
