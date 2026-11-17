@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.0 - 2026-11-17
+
+### feat
+
+- **sync:** sync recent searches with the other data ([`5a108f5`](../../commit/5a108f5ffb4d567463b7fee10918899c00e4839b))
+
 ## 0.10.0 - 2026-11-14
 
 ### feat
