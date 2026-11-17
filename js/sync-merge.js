@@ -2,7 +2,7 @@
 //
 // A snapshot is {playlists: [...], soundPresets: [...], prefs: {...},
 // devices: [...], plays: {...}, recent: [...], playedLists: [...],
-// curation: {identity, notes}}; list
+// searches: [...], curation: {identity, notes}}; list
 // items have an `id` and, when edited, an `updated` time. `base` is the last
 // snapshot both sides agreed on, which tells additions from deletions:
 //   - kept on one side, gone on the other, unchanged since base -> deleted
@@ -11,8 +11,10 @@
 //     only takes that change; `items` lists are merged tune by tune; a field
 //     changed on both takes the side with the later `updated` (local on a tie)
 
+import { cleanSearches, entryKey } from "./search-history.js";
+
 export const EMPTY_CURATION = Object.freeze({ identity: null, notes: {} });
-export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [], plays: {}, recent: [], playedLists: [], curation: EMPTY_CURATION });
+export const EMPTY_SNAPSHOT = Object.freeze({ playlists: [], soundPresets: [], prefs: {}, devices: [], plays: {}, recent: [], playedLists: [], searches: [], curation: EMPTY_CURATION });
 
 export const MAX_RECENT = 30;
 export const MAX_PLAYS = 2000;   // tunes with play counts; the least played are dropped
@@ -151,6 +153,28 @@ export function mergeRecent(local = [], remote = [], limit = MAX_RECENT) {
     .slice(0, limit);
 }
 
+// Recent searches ({q} or {path, song}, with the time `at` last used, see
+// search-history.js): both sides interleaved, latest first. An entry gone on
+// one side and not used again on the other since base was removed there
+// (by hand, "Clear recent searches" or dropped off the end). A side without
+// the field (an older version) changes nothing.
+export function mergeSearches(base = [], local = [], remote) {
+  if (remote === undefined) return local ?? [];
+  const at = (e) => e?.at ?? 0;
+  const byKey = (list) => new Map((list ?? []).map((e) => [entryKey(e), e]));
+  const before = byKey(base), mine = byKey(local), theirs = byKey(remote);
+  const out = [];
+  for (const [key, e] of mine) {
+    const other = theirs.get(key);
+    if (other) out.push(at(other) > at(e) ? other : e);
+    else if (!before.has(key) || at(before.get(key)) !== at(e)) out.push(e);
+  }
+  for (const [key, e] of theirs) {
+    if (!mine.has(key) && (!before.has(key) || at(before.get(key)) !== at(e))) out.push(e);
+  }
+  return cleanSearches(out.sort((a, b) => at(b) - at(a)));
+}
+
 // The curator identity (tags.js): a device that has one keeps it, one that
 // hasn't takes the other side's; an identity dropped on one side since base
 // ("Stop Curating") is dropped.
@@ -190,6 +214,7 @@ export function mergeSnapshots(base, local, remote, now = Date.now()) {
     plays: remote === local ? local.plays ?? {} : mergePlays(base.plays, local.plays, remote.plays),
     recent: mergeRecent(local.recent, remote.recent),
     playedLists: mergeRecent(local.playedLists, remote.playedLists),
+    searches: mergeSearches(base.searches, local.searches, remote.searches),
     curation: mergeCuration(base.curation, local.curation, remote.curation),
   };
 }

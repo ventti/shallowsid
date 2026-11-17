@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { decryptJSON, deriveVault, encryptJSON, formatKey, generateKey, parseKey } from "../js/sync-crypto.js";
-import { DEVICE_TTL_MS, foldFavorites, mergeDevices, mergeItems, mergeLists, mergePlays, mergePrefs, mergeRecent, mergeSnapshots } from "../js/sync-merge.js";
+import { DEVICE_TTL_MS, foldFavorites, mergeDevices, mergeItems, mergeLists, mergePlays, mergePrefs, mergeRecent, mergeSearches, mergeSnapshots } from "../js/sync-merge.js";
 
 test("sync keys format readably and parse back", () => {
   for (let i = 0; i < 50; i++) {
@@ -121,4 +121,24 @@ test("recent lists interleave by time, keep each entry once and stay short", () 
   assert.deepEqual(mergeRecent([t("A", 5), t("B", 1)], [t("C", 3), t("A", 2)]).map((x) => x.path), ["A", "C", "B"]);
   assert.deepEqual(mergeRecent([{ id: "p", at: 1 }], [{ id: "q", at: 2 }, { id: "p", at: 0 }]).map((x) => x.id), ["q", "p"]);
   assert.equal(mergeRecent(Array.from({ length: 40 }, (_, i) => t(`T${i}`, i)), []).length, 30);
+});
+
+test("searches: both sides interleave by time, the later use of a repeat wins", () => {
+  const local = [{ q: "hubbard", at: 30 }, { q: "galway", at: 10 }];
+  const remote = [{ path: "/A/b.sid", song: 1, at: 20 }, { q: "Hubbard", at: 40 }];
+  assert.deepEqual(mergeSearches([], local, remote), [{ q: "Hubbard", at: 40 }, { path: "/A/b.sid", song: 1, at: 20 }, { q: "galway", at: 10 }]);
+});
+
+test("searches: removals and clears stick unless used again on the other side", () => {
+  const base = [{ q: "a", at: 1 }, { q: "b", at: 2 }];
+  assert.deepEqual(mergeSearches(base, [{ q: "b", at: 2 }], base), [{ q: "b", at: 2 }]);
+  assert.deepEqual(mergeSearches(base, [], base), []);
+  assert.deepEqual(mergeSearches(base, [], [{ q: "a", at: 5 }, { q: "b", at: 2 }]), [{ q: "a", at: 5 }]);
+});
+
+test("searches: an older version without the field changes nothing, and the list stays short", () => {
+  assert.deepEqual(mergeSearches([{ q: "a", at: 1 }], [{ q: "a", at: 1 }], undefined), [{ q: "a", at: 1 }]);
+  const many = Array.from({ length: 15 }, (_, i) => ({ q: `q${i}`, at: i }));
+  assert.equal(mergeSearches([], many.slice(0, 8), many.slice(8)).length, 10);
+  assert.deepEqual(mergeSnapshots(null, { searches: [{ q: "x", at: 1 }] }, { searches: [{ q: "y", at: 2 }] }).searches, [{ q: "y", at: 2 }, { q: "x", at: 1 }]);
 });

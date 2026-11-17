@@ -49,6 +49,7 @@ globalThis.fetch = async (url, { method = "GET", body } = {}) => {
 };
 
 const { SyncService } = await import("../js/sync.js");
+const { SearchHistory } = await import("../js/search-history.js");
 const { PlaylistStore } = await import("../js/playlists.js");
 const { SoundSettings } = await import("../js/sound-settings.js");
 const { AppearanceSettings, DEFAULT_HUE } = await import("../js/appearance.js");
@@ -65,17 +66,18 @@ function device(name) {
   const store = new PlaylistStore();
   const sound = new SoundSettings();
   const appearance = new AppearanceSettings();
-  const sync = new SyncService({ store, sound, appearance, config });
+  const searches = new SearchHistory();
+  const sync = new SyncService({ store, sound, appearance, searches, config });
   globalThis.localStorage = saved;
   // route this device's storage calls through its namespace from now on
-  for (const obj of [store, sound, appearance, sync]) {
+  for (const obj of [store, sound, appearance, searches, sync]) {
     for (const m of ["save", "persist", "addRecent", "addPlay", "markPlayed", "applySyncedHistory"]) {
       if (typeof obj[m] !== "function") continue;
       const orig = obj[m].bind(obj);
       obj[m] = (...a) => { const s = globalThis.localStorage; globalThis.localStorage = scoped; try { return orig(...a); } finally { globalThis.localStorage = s; } };
     }
   }
-  return { store, sound, appearance, sync };
+  return { store, sound, appearance, searches, sync };
 }
 
 beforeEach(() => { storage.clear(); docs.clear(); legacy.clear(); requests.length = 0; });
@@ -165,6 +167,30 @@ test("accent choices and reset sync between devices without overwriting unrelate
   const reopened = device("a");
   await reopened.sync.running;
   assert.equal(reopened.appearance.hue, DEFAULT_HUE);
+});
+
+test("recent searches sync: additions, repeats and clears reach the other device", async (t) => {
+  const a = device("a"), b = device("b");
+  // Each search at a later time: real ones can share a millisecond here.
+  let clock = Date.now();
+  for (const s of [a.searches, b.searches]) {
+    const add = s.add.bind(s);
+    s.add = (entry) => { t.mock.method(Date, "now", () => (clock += 1000)); try { add(entry); } finally { Date.now.mock.restore(); } };
+  }
+  a.searches.add({ q: "hubbard" });
+  await a.sync.turnOn();
+  b.searches.add({ path: "X.sid", song: 1 });
+  await b.sync.useKey(a.sync.key);
+  await a.sync.syncNow();
+  assert.deepEqual(a.searches.items.map((e) => e.q ?? e.path), ["X.sid", "hubbard"]);
+  a.searches.add({ q: "Hubbard" });
+  await a.sync.syncNow();
+  await b.sync.syncNow();
+  assert.deepEqual(b.searches.items.map((e) => e.q ?? e.path), ["Hubbard", "X.sid"]);
+  b.searches.clear();
+  await b.sync.syncNow();
+  await a.sync.syncNow();
+  assert.deepEqual(a.searches.items, []);
 });
 
 test("a wrong key fails with a clear message and uploads nothing new", async () => {

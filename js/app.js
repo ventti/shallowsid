@@ -140,7 +140,7 @@ player.addEventListener("stall", ({ detail: { engine } }) => {
 applySound();
 const tags = new TagService();
 const tagSheet = new TagSheet(tags);
-const sync = new SyncService({ store, sound, appearance, curation: tags });
+const sync = new SyncService({ store, sound, appearance, curation: tags, searches: searchHistory });
 const syncSheet = sync.configured ? new SyncSheet(sync, {
   onOpen: () => go("#/settings/sync"),
   onImportData: () => $("user-data-input").click(),

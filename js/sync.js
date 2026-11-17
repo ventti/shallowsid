@@ -1,5 +1,5 @@
 // Optional end-to-end encrypted sync of playlists, sound presets,
-// preferences and play history through Firestore's REST API (no accounts; see firestore-fetch.js).
+// preferences, play history and recent searches through Firestore's REST API (no accounts; see firestore-fetch.js).
 //
 // Local state (localStorage "shallowsid.sync"): the sync key, whether sync is
 // paused on this device, the last merged snapshot (base for three-way merges)
@@ -66,7 +66,7 @@ const RETENTION_DAYS = 365;             // `expireAt` for an optional Firestore 
 const same = (a, b) => canonical(a) === canonical(b);
 const pick = (snapshot, keys) => Object.fromEntries(keys.map((k) => [k, snapshot[k]]));
 // What the local stores hold, applied in two steps (see syncOnce).
-const SETTINGS = ["playlists", "soundPresets", "prefs", "curation"];
+const SETTINGS = ["playlists", "soundPresets", "prefs", "searches", "curation"];
 const HISTORY = ["plays", "recent", "playedLists"];
 const sameIn = (keys, a, b) => same(pick(a, keys), pick(b, keys));
 
@@ -75,12 +75,13 @@ class ConflictError extends Error {}
 const revOf = (doc) => ({ updateTime: doc.updateTime, n: Number(doc.fields?.n?.integerValue ?? 0) });
 
 export class SyncService extends EventTarget {
-  constructor({ store, sound, appearance = null, curation = null, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
+  constructor({ store, sound, appearance = null, curation = null, searches = null, config = FIREBASE, storageKey = STORAGE_KEY, device = describeDevice }) {
     super();
     this.store = store;
     this.sound = sound;
     this.appearance = appearance;
     this.curation = curation;
+    this.searches = searches;
     this.config = config;
     this.storageKey = storageKey;
     this.configured = !!(config.apiKey && config.projectId);
@@ -102,6 +103,7 @@ export class SyncService extends EventTarget {
     sound.addEventListener("change", onLocalChange);
     appearance?.addEventListener("change", onLocalChange);
     curation?.addEventListener("identity", onLocalChange);
+    searches?.addEventListener("change", onLocalChange);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible" && this.enabled && Date.now() - (this.lastSynced ?? 0) > RESYNC_ON_FOCUS_MS) this.syncNow();
     });
@@ -439,6 +441,8 @@ export class SyncService extends EventTarget {
       plays: { ...this.store.plays },   // a copy: plays are counted in place
       recent: this.store.recent,
       playedLists: this.store.playedLists,
+      // Without a search history here, pass on what was synced.
+      searches: this.searches?.items ?? this.state.base?.searches ?? [],
       // Without a tag service here, pass on what was synced.
       curation: this.curation?.snapshot() ?? this.state.base?.curation ?? EMPTY_CURATION,
     };
@@ -469,6 +473,7 @@ export class SyncService extends EventTarget {
       this.store.replaceAll(structuredClone(merged.playlists));
       this.sound.applySynced({ presets: structuredClone(merged.soundPresets), prefs: merged.prefs });
       this.appearance?.applySynced(merged.prefs);
+      this.searches?.applySynced(merged.searches);
       this.curation?.applySynced(structuredClone(merged.curation));
     } finally {
       this.applying = false;

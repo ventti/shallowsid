@@ -23,7 +23,8 @@ test("a file holds all snapshot fields, including devices, and searches", () => 
   const bundle = toBundle(snapshot(), [{ q: "hubbard" }], new Date("2026-10-02T10:00:00Z"));
   assert.equal(bundle.format, FORMAT);
   assert.equal(bundle.exported, "2026-10-02T10:00:00.000Z");
-  assert.deepEqual(bundle.data, snapshot());
+  const { searches: _own, ...data } = snapshot();   // the searches have their own field
+  assert.deepEqual(bundle.data, data);
   assert.deepEqual(bundle.searches, [{ q: "hubbard" }]);
   assert.equal(fileName(new Date("2026-10-02T10:00:00Z")), "shallowsid-data-2026-10-02.json");
 });

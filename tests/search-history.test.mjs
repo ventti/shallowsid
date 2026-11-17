@@ -21,3 +21,8 @@ test("blank or malformed entries are ignored, plain strings read as queries", ()
 test("the list is capped", () => {
   assert.deepEqual(addSearch([{ q: "b" }, { q: "c" }, { q: "d" }], { q: "a" }, 3), [{ q: "a" }, { q: "b" }, { q: "c" }]);
 });
+
+test("entries keep the time they were used", () => {
+  assert.deepEqual(addSearch([], { q: "a", at: 5 }), [{ q: "a", at: 5 }]);
+  assert.deepEqual(addSearch([], { path: "/A/b.sid", song: 1, at: "x" }), [{ path: "/A/b.sid", song: 1 }]);
+});
